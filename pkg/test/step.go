@@ -69,25 +69,6 @@ type TestStepFactory interface {
 	New() TestStep
 }
 
-// TestStepFactories is a helper type to operate over multiple TestStepFactory-es
-type TestStepFactories []TestStepFactory
-
-// ToAbstract returns the factories as abstract.Factories
-//
-// Go has no contracts (yet) / traits / whatever, and Go does not allow
-// to convert slice of interfaces to slice of another interfaces
-// without a loop, so we have to implement this method for each
-// non-abstract-factories slice
-//
-// TODO: try remove it when this will be implemented:
-//       https://github.com/golang/proposal/blob/master/design/go2draft-contracts.md
-func (testStepFactories TestStepFactories) ToAbstract() (result abstract.Factories) {
-	for _, factory := range testStepFactories {
-		result = append(result, factory)
-	}
-	return
-}
-
 // TestStepDescriptor is the definition of a test step matching a test step
 // configuration.
 type TestStepDescriptor struct {

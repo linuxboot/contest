@@ -54,33 +54,38 @@ var (
 )
 
 func setupFlags() {
+	var targetLockerPluginNames []string
+	for _, factory := range targetLockerFactories {
+		targetLockerPluginNames = append(targetLockerPluginNames, factory.UniqueImplementationName())
+	}
+
 	flagDBURI = flag.String("dbURI", defaultDBURI, "MySQL DSN")
 	flagTargetLocker = flag.String("targetLocker", defaultTargetLocker,
 		fmt.Sprintf("The engine to lock targets. Possible engines (the part before the first colon): %s",
-			targetLockerFactories.ToAbstract(),
+			strings.Join(targetLockerPluginNames, ", "),
 		))
 	flag.Parse()
 }
 
 var log = logging.GetLogger("contest")
 
-var targetManagers = target.TargetManagerFactories{
+var targetManagerFactories = []target.TargetManagerFactory{
 	&csvtargetmanager.Factory{},
 	&targetlist.Factory{},
 }
 
-var targetLockerFactories = target.LockerFactories{
+var targetLockerFactories = []target.LockerFactory{
 	&mysql.Factory{},
 	&inmemory.Factory{},
 	&targetLockerNoop.Factory{},
 }
 
-var testFetchers = test.TestFetcherFactories{
+var testFetcherFactories = []test.TestFetcherFactory{
 	&uri.Factory{},
 	&literal.Factory{},
 }
 
-var testStepFactories = test.TestStepFactories{
+var testStepFactories = []test.TestStepFactory{
 	&echo.Factory{},
 	&slowecho.Factory{},
 	&example.Factory{},
@@ -90,7 +95,7 @@ var testStepFactories = test.TestStepFactories{
 	&terminalexpect.Factory{},
 }
 
-var reporterFactories = job.ReporterFactories{
+var reporterFactories = []job.ReporterFactory{
 	&targetsuccess.Factory{},
 	&reportersNoop.Factory{},
 }
@@ -120,6 +125,7 @@ func parseFactoryInfo(
 	factoryType pluginregistry.FactoryType,
 	flagValue string,
 ) (factory abstract.Factory, factoryImplName, factoryArgument string) {
+
 	factoryInfo := strings.SplitN(flagValue, `:`, 2)
 	factoryImplName = factoryInfo[0]
 
@@ -131,8 +137,12 @@ func parseFactoryInfo(
 	factory, err = pluginRegistry.Factory(factoryType, factoryImplName)
 	if factory == nil || err != nil {
 		factories, _ := pluginRegistry.Factories(factoryType)
+		var knownPluginNames []string
+		for _, factory := range factories {
+			knownPluginNames = append(knownPluginNames, factory.UniqueImplementationName())
+		}
 		log.Fatalf("Implementation '%s' is not found (possible values: %s)",
-			factoryImplName, factories)
+			factoryImplName, strings.Join(knownPluginNames, ", "))
 	}
 	return
 }
@@ -142,23 +152,37 @@ var pluginRegistry *pluginregistry.PluginRegistry
 // setupPluginRegistry initializes pluginRegistry
 func setupPluginRegistry() error {
 
-	// Register plugins
-
 	pluginRegistry = pluginregistry.NewPluginRegistry()
 
-	for factoryType, factories := range []abstract.Factories{
-		targetManagers.ToAbstract(),
-		targetLockerFactories.ToAbstract(),
-		testStepFactories.ToAbstract(),
-		testFetchers.ToAbstract(),
-		reporterFactories.ToAbstract(),
-	} {
-		if err := pluginRegistry.RegisterFactories(factories); err != nil {
-			return fmt.Errorf("unable to register factories %T: %w", factoryType, err)
+	for _, factory := range targetManagerFactories {
+		if err := pluginRegistry.RegisterFactory(factory); err != nil {
+			return fmt.Errorf("unable to register target manager factory %T: %w", factory, err)
 		}
 	}
 
-	// Finish
+	for _, factory := range targetLockerFactories {
+		if err := pluginRegistry.RegisterFactory(factory); err != nil {
+			return fmt.Errorf("unable to register target locker factory %T: %w", factory, err)
+		}
+	}
+
+	for _, factory := range testStepFactories {
+		if err := pluginRegistry.RegisterFactory(factory); err != nil {
+			return fmt.Errorf("unable to register test step factory %T: %w", factory, err)
+		}
+	}
+
+	for _, factory := range testFetcherFactories {
+		if err := pluginRegistry.RegisterFactory(factory); err != nil {
+			return fmt.Errorf("unable to register test fetcher factory %T: %w", factory, err)
+		}
+	}
+
+	for _, factory := range reporterFactories {
+		if err := pluginRegistry.RegisterFactory(factory); err != nil {
+			return fmt.Errorf("unable to register job reporter factory %T: %w", factory, err)
+		}
+	}
 
 	return nil
 }

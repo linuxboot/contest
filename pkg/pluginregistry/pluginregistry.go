@@ -141,19 +141,6 @@ func (r *PluginRegistry) RegisterFactory(factory abstract.Factory) error {
 	return nil
 }
 
-// RegisterFactories does the same as RegisterFactoriesAsType, but it detects
-// the type of each factory automatically. Factories `factories` are allowed to be
-// of different types.
-func (r *PluginRegistry) RegisterFactories(factories abstract.Factories) error {
-	for _, factory := range factories {
-		err := r.RegisterFactory(factory)
-		if err != nil {
-			return ErrUnableToRegisterFactory{Factory: factory, Err: err}
-		}
-	}
-	return nil
-}
-
 // validateFactory performs checks specific to a factory type
 //
 // For example if factory has method `Events()` then events should be validated.
@@ -172,7 +159,7 @@ func validateFactory(factory abstract.Factory) error {
 // `factoryType` were registered.
 func (r *PluginRegistry) Factories(
 	factoryType FactoryType,
-) (factories abstract.Factories, err error) {
+) (factories []abstract.Factory, err error) {
 	r.lock.RLock()
 	defer r.lock.RUnlock()
 

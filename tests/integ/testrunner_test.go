@@ -45,7 +45,7 @@ var (
 	successTimeout = 5 * time.Second
 )
 
-var testStepFactories = test.TestStepFactories{
+var testStepFactories = []test.TestStepFactory{
 	&echo.Factory{},
 	&slowecho.Factory{},
 	&example.Factory{},
@@ -61,9 +61,11 @@ var testStepFactories = test.TestStepFactories{
 
 func setupPluginRegistry() {
 	pluginRegistry = pluginregistry.NewPluginRegistry()
-	err := pluginRegistry.RegisterFactories(testStepFactories.ToAbstract())
-	if err != nil {
-		panic(err)
+	for _, factory := range testStepFactories {
+		err := pluginRegistry.RegisterFactory(factory)
+		if err != nil {
+			panic(err)
+		}
 	}
 }
 

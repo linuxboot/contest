@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/facebookincubator/contest/pkg/event"
-	"github.com/facebookincubator/contest/pkg/target"
 	"github.com/facebookincubator/contest/pkg/test"
 	targetLockerNoop "github.com/facebookincubator/contest/plugins/targetlocker/noop"
 	"golang.org/x/xerrors"
@@ -54,7 +53,7 @@ func (f *fakeFactory) UniqueImplementationName() string { return "unit-test" }
 func TestNewPluginRegistry_RegisterFactory(t *testing.T) {
 	pr := NewPluginRegistry()
 	t.Run("positive", func(t *testing.T) {
-		err := pr.RegisterFactories(target.LockerFactories{&targetLockerNoop.Factory{}}.ToAbstract())
+		err := pr.RegisterFactory(&targetLockerNoop.Factory{})
 		require.NoError(t, err)
 		targetLocker, err := pr.NewTargetLocker("noop", time.Second, "")
 		require.NoError(t, err)

@@ -6,8 +6,6 @@
 package abstract
 
 import (
-	"strings"
-
 	"github.com/facebookincubator/contest/pkg/event"
 )
 
@@ -17,23 +15,6 @@ type Factory interface {
 	// unique among all reachable implementation of specific type of factories
 	// (names are case insensitive).
 	UniqueImplementationName() string
-}
-
-// Factories is a helper-slice of Factory-ies which provides common routines.
-type Factories []Factory
-
-// UniqueImplementationNames calls UniqueImplementationName on each LockerFactory
-// and returns the slice of results.
-func (s Factories) UniqueImplementationNames() (result []string) {
-	result = make([]string, 0, len(s))
-	for _, factory := range s {
-		result = append(result, factory.UniqueImplementationName())
-	}
-	return
-}
-
-func (s Factories) String() string {
-	return strings.Join(s.UniqueImplementationNames(), `, `)
 }
 
 // FactoryWithEvents is an abstract factory which also may emit events

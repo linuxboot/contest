@@ -18,25 +18,6 @@ type TestFetcherFactory interface {
 	New() TestFetcher
 }
 
-// TestFetcherFactories is a helper type to operate over multiple TestFetcherFactory-es
-type TestFetcherFactories []TestFetcherFactory
-
-// ToAbstract returns the factories as abstract.Factories
-//
-// Go has no contracts (yet) / traits / whatever, and Go does not allow
-// to convert slice of interfaces to slice of another interfaces
-// without a loop, so we have to implement this method for each
-// non-abstract-factories slice
-//
-// TODO: try remove it when this will be implemented:
-//       https://github.com/golang/proposal/blob/master/design/go2draft-contracts.md
-func (testFetcherFactories TestFetcherFactories) ToAbstract() (result abstract.Factories) {
-	for _, factory := range testFetcherFactories {
-		result = append(result, factory)
-	}
-	return
-}
-
 // TestFetcher is an interface used to get the test to run on the selected
 // hosts.
 type TestFetcher interface {
