@@ -117,7 +117,7 @@ func expandArgument(arg string) string {
 }
 
 func parseFactoryInfo(
-	factoryType interface{},
+	factoryType pluginregistry.FactoryType,
 	flagValue string,
 ) (factory abstract.Factory, factoryImplName, factoryArgument string) {
 	factoryInfo := strings.SplitN(flagValue, `:`, 2)
@@ -180,7 +180,7 @@ func main() {
 
 	// set Locker engine
 	targetLockerFactory, targetLockerImplName, targetLockerArgument :=
-		parseFactoryInfo((*target.LockerFactory)(nil), *flagTargetLocker)
+		parseFactoryInfo(pluginregistry.FactoryTypeTargetLocker, *flagTargetLocker)
 
 	log.Infof("Using target locker '%s' with argument: '%s'", targetLockerImplName, targetLockerArgument)
 	targetLocker, err := targetLockerFactory.(target.LockerFactory).New(config.LockTimeout, targetLockerArgument)
