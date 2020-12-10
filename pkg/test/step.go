@@ -109,3 +109,15 @@ type TestStep interface {
 	// them to Run.
 	ValidateParameters(params TestStepParameters) error
 }
+
+// TestStep2 is the interface that all steps need to implement to be executed
+// by the TestRunner
+type TestStep2 interface {
+	// Name returns the name of the step
+	Name() string
+	// Initialize internals of the step - validate parameters,
+	// restore resumeState (which will be non-nil if pervious run was paused).
+	Init(params TestStepParameters, resumeState []byte) error
+	// Run runs the test step. The test step is expected to be synchronous.
+	Run(ctx types.StateContext, ch TestStepChannels, ev testevent.Emitter) ([]byte, error)
+}
