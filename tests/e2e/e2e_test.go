@@ -22,7 +22,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
-	"github.com/facebookincubator/contest/cmds/plugins"
 	"github.com/facebookincubator/contest/pkg/api"
 	"github.com/facebookincubator/contest/pkg/event"
 	"github.com/facebookincubator/contest/pkg/job"
@@ -67,7 +66,6 @@ func (ts *E2ETestSuite) SetupSuite() {
 	parts := strings.Split(ln.Addr().String(), ":")
 	ts.serverPort, _ = strconv.Atoi(parts[len(parts)-1])
 	ln.Close()
-	plugins.TargetManagers = append(plugins.TargetManagers, targetlist_with_state.Load)
 }
 
 func (ts *E2ETestSuite) TearDownSuite() {
@@ -85,7 +83,7 @@ func (ts *E2ETestSuite) SetupTest() {
 	require.NoError(ts.T(), st.(storage.ResettableStorage).Reset())
 	tl, err := dblocker.New(common.GetDatabaseURI())
 	require.NoError(ts.T(), err)
-	tl.ResetAllLocks(ctx)
+	_ = tl.ResetAllLocks(ctx)
 	tl.Close()
 	ts.st = st
 }
@@ -104,7 +102,10 @@ func (ts *E2ETestSuite) startServer(extraArgs ...string) {
 	serverSigs := make(chan os.Signal)
 	serverDone := make(chan struct{})
 	go func() {
-		server.ServerMain("contest", args, serverSigs)
+		pc := server.PluginConfig{
+			TargetManagerLoaders: []target.TargetManagerLoader{targetlist_with_state.Load},
+		}
+		_ = server.Main(&pc, "contest", args, serverSigs)
 		close(serverDone)
 	}()
 	ts.serverDone = serverDone
@@ -154,7 +155,7 @@ func (ts *E2ETestSuite) runClient(resp interface{}, extraArgs ...string) (string
 	if err == nil && resp != nil {
 		err = json.Unmarshal(stdout.Bytes(), resp)
 		if err != nil {
-			err = fmt.Errorf("%w, output:\n%s\n", err, stdout.String())
+			err = fmt.Errorf("%w, output:\n%s", err, stdout.String())
 		}
 	}
 	return stdout.String(), err
