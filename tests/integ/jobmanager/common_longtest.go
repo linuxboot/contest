@@ -12,7 +12,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/facebookincubator/contest/pkg/jobmanager"
+	"github.com/linuxboot/contest/pkg/jobmanager"
 )
 
 func (suite *TestJobManagerSuite) TestWaitAndExit() {

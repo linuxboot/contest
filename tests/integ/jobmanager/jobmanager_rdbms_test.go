@@ -12,9 +12,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/facebookincubator/contest/pkg/storage"
-	"github.com/facebookincubator/contest/plugins/storage/rdbms"
-	"github.com/facebookincubator/contest/tests/integ/common"
+	"github.com/linuxboot/contest/pkg/storage"
+	"github.com/linuxboot/contest/plugins/storage/rdbms"
+	"github.com/linuxboot/contest/tests/integ/common"
 
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"

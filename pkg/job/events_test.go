@@ -10,7 +10,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/facebookincubator/contest/pkg/event"
+	"github.com/linuxboot/contest/pkg/event"
 )
 
 func TestEventToJobStateMapping(t *testing.T) {

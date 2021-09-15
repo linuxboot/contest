@@ -8,7 +8,7 @@ package logrus
 import (
 	"github.com/sirupsen/logrus"
 
-	"github.com/facebookincubator/contest/pkg/xcontext/logger"
+	"github.com/linuxboot/contest/pkg/xcontext/logger"
 )
 
 func init() {

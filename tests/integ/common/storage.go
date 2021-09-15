@@ -8,8 +8,8 @@ package common
 import (
 	"os"
 
-	"github.com/facebookincubator/contest/pkg/storage"
-	"github.com/facebookincubator/contest/plugins/storage/rdbms"
+	"github.com/linuxboot/contest/pkg/storage"
+	"github.com/linuxboot/contest/plugins/storage/rdbms"
 )
 
 func GetDatabaseURI() string {

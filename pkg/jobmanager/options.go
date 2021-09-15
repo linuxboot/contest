@@ -10,8 +10,8 @@ import (
 
 	"github.com/benbjohnson/clock"
 
-	"github.com/facebookincubator/contest/pkg/api"
-	configPkg "github.com/facebookincubator/contest/pkg/config"
+	"github.com/linuxboot/contest/pkg/api"
+	configPkg "github.com/linuxboot/contest/pkg/config"
 )
 
 // Option is an additional argument to method New to change the behavior

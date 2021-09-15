@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
-	"github.com/facebookincubator/contest/plugins/targetlocker/inmemory"
+	"github.com/linuxboot/contest/plugins/targetlocker/inmemory"
 )
 
 type InMemoryTargetLockerTestSuite struct {

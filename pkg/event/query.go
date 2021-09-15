@@ -8,7 +8,7 @@ package event
 import (
 	"time"
 
-	"github.com/facebookincubator/contest/pkg/types"
+	"github.com/linuxboot/contest/pkg/types"
 )
 
 // Query wraps information that are used to build event queries for all type of event objects

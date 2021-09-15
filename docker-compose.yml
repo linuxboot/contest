@@ -4,7 +4,7 @@ services:
         build:
             context: .
             dockerfile: docker/contest/Dockerfile
-        command: bash -c "cd /go/src/github.com/facebookincubator/contest/cmds/contest/ && go run . -dbURI 'contest:contest@tcp(dbstorage:3306)/contest_integ?parseTime=true'"
+        command: bash -c "cd /go/src/github.com/linuxboot/contest/cmds/contest/ && go run . -dbURI 'contest:contest@tcp(dbstorage:3306)/contest_integ?parseTime=true'"
         ports:
             - 8080:8080
         depends_on:

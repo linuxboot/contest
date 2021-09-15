@@ -8,8 +8,8 @@ package storage
 import (
 	"fmt"
 
-	"github.com/facebookincubator/contest/pkg/config"
-	"github.com/facebookincubator/contest/pkg/xcontext"
+	"github.com/linuxboot/contest/pkg/config"
+	"github.com/linuxboot/contest/pkg/xcontext"
 )
 
 // storage defines the storage engine used by ConTest. It can be overridden

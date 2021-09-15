@@ -18,7 +18,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/facebookincubator/contest/cmds/contest/server"
+	"github.com/linuxboot/contest/cmds/contest/server"
 
 	// the targetmanager plugins
 {{- range $plugin := .TargetManagers }}

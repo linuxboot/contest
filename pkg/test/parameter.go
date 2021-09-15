@@ -12,7 +12,7 @@ import (
 	"fmt"
 	"text/template"
 
-	"github.com/facebookincubator/contest/pkg/target"
+	"github.com/linuxboot/contest/pkg/target"
 )
 
 // NewParam inititalizes a new Param object directly from a string.

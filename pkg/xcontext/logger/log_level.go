@@ -6,7 +6,7 @@
 package logger
 
 import (
-	"github.com/facebookincubator/contest/pkg/xcontext/logger/internal"
+	"github.com/linuxboot/contest/pkg/xcontext/logger/internal"
 )
 
 // Level is used to define severity of messages to be reported.

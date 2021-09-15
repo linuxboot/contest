@@ -8,7 +8,7 @@ package job
 import (
 	"time"
 
-	"github.com/facebookincubator/contest/pkg/types"
+	"github.com/linuxboot/contest/pkg/types"
 )
 
 // Request represents an incoming Job request which should be persisted in storage

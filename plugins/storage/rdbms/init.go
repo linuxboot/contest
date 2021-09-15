@@ -11,12 +11,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/facebookincubator/contest/pkg/event/frameworkevent"
-	"github.com/facebookincubator/contest/pkg/event/testevent"
-	"github.com/facebookincubator/contest/pkg/storage"
+	"github.com/linuxboot/contest/pkg/event/frameworkevent"
+	"github.com/linuxboot/contest/pkg/event/testevent"
+	"github.com/linuxboot/contest/pkg/storage"
 	log "github.com/sirupsen/logrus"
 
-	"github.com/facebookincubator/contest/tools/migration/rdbms/migrationlib"
+	"github.com/linuxboot/contest/tools/migration/rdbms/migrationlib"
 
 	// this blank import registers the mysql driver
 	_ "github.com/go-sql-driver/mysql"

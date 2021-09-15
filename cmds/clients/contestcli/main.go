@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/facebookincubator/contest/cmds/clients/contestcli/cli"
+	"github.com/linuxboot/contest/cmds/clients/contestcli/cli"
 )
 
 // Unauthenticated, unencrypted sample HTTP client for ConTest.

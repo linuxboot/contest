@@ -8,7 +8,7 @@ package simplemetrics
 import (
 	"sync"
 
-	"github.com/facebookincubator/contest/pkg/xcontext/metrics"
+	"github.com/linuxboot/contest/pkg/xcontext/metrics"
 	"go.uber.org/atomic"
 )
 

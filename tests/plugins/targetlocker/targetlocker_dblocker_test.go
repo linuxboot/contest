@@ -15,8 +15,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
-	"github.com/facebookincubator/contest/plugins/targetlocker/dblocker"
-	"github.com/facebookincubator/contest/tests/integ/common"
+	"github.com/linuxboot/contest/plugins/targetlocker/dblocker"
+	"github.com/linuxboot/contest/tests/integ/common"
 )
 
 type DBLockerTestSuite struct {

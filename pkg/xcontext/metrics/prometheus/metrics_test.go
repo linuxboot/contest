@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/facebookincubator/contest/pkg/xcontext/metrics"
-	metricstester "github.com/facebookincubator/contest/pkg/xcontext/metrics/test"
+	"github.com/linuxboot/contest/pkg/xcontext/metrics"
+	metricstester "github.com/linuxboot/contest/pkg/xcontext/metrics/test"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 )

@@ -6,8 +6,8 @@
 package api
 
 import (
-	"github.com/facebookincubator/contest/pkg/job"
-	"github.com/facebookincubator/contest/pkg/types"
+	"github.com/linuxboot/contest/pkg/job"
+	"github.com/linuxboot/contest/pkg/types"
 
 	"github.com/insomniacslk/xjson"
 )

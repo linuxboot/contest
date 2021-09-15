@@ -17,23 +17,23 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/facebookincubator/contest/cmds/contest/server"
+	"github.com/linuxboot/contest/cmds/contest/server"
 
 	// the targetmanager plugins
-	csvtargetmanager "github.com/facebookincubator/contest/plugins/targetmanagers/csvtargetmanager"
-	targetlist "github.com/facebookincubator/contest/plugins/targetmanagers/targetlist"
+	csvtargetmanager "github.com/linuxboot/contest/plugins/targetmanagers/csvtargetmanager"
+	targetlist "github.com/linuxboot/contest/plugins/targetmanagers/targetlist"
 
 	// the testfetcher plugins
-	literal "github.com/facebookincubator/contest/plugins/testfetchers/literal"
-	uri "github.com/facebookincubator/contest/plugins/testfetchers/uri"
+	literal "github.com/linuxboot/contest/plugins/testfetchers/literal"
+	uri "github.com/linuxboot/contest/plugins/testfetchers/uri"
 
 	// the teststep plugins
-	ts_cmd "github.com/facebookincubator/contest/plugins/teststeps/cmd"
-	sleep "github.com/facebookincubator/contest/plugins/teststeps/sleep"
-	sshcmd "github.com/facebookincubator/contest/plugins/teststeps/sshcmd"
+	ts_cmd "github.com/linuxboot/contest/plugins/teststeps/cmd"
+	sleep "github.com/linuxboot/contest/plugins/teststeps/sleep"
+	sshcmd "github.com/linuxboot/contest/plugins/teststeps/sshcmd"
 
 	// the reporter plugins
-	targetsuccess "github.com/facebookincubator/contest/plugins/reporters/targetsuccess"
+	targetsuccess "github.com/linuxboot/contest/plugins/reporters/targetsuccess"
 )
 
 func getPluginConfig() *server.PluginConfig {

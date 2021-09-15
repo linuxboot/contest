@@ -8,7 +8,7 @@ package types
 import (
 	"strconv"
 
-	"github.com/facebookincubator/contest/pkg/xcontext"
+	"github.com/linuxboot/contest/pkg/xcontext"
 )
 
 // JobID represents a unique job identifier

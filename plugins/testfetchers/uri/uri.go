@@ -12,8 +12,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/facebookincubator/contest/pkg/test"
-	"github.com/facebookincubator/contest/pkg/xcontext"
+	"github.com/linuxboot/contest/pkg/test"
+	"github.com/linuxboot/contest/pkg/xcontext"
 
 	"github.com/insomniacslk/xjson"
 )

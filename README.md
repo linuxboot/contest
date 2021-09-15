@@ -3,7 +3,7 @@
 [![codecov](https://codecov.io/gh/facebookincubator/contest/branch/master/graph/badge.svg)](https://codecov.io/gh/facebookincubator/contest)
 [![Go Report Card](https://goreportcard.com/badge/github.com/facebookincubator/contest)](https://goreportcard.com/report/github.com/facebookincubator/contest)
 
-<img src="https://github.com/facebookincubator/contest/blob/master/assets/SVG/ConTest_logo_color_transparent.svg" width="150px">
+<img src="https://github.com/linuxboot/contest/blob/master/assets/SVG/ConTest_logo_color_transparent.svg" width="150px">
 
 ConTest is a framework for system testing that aims at covering multiple use cases:
 * system firmware testing

@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"regexp"
 
-	"github.com/facebookincubator/contest/pkg/storage/limits"
+	"github.com/linuxboot/contest/pkg/storage/limits"
 )
 
 // AllowedEventFormat defines the allowed format for an event

@@ -6,7 +6,7 @@
 package logger
 
 import (
-	"github.com/facebookincubator/contest/pkg/xcontext/logger/internal"
+	"github.com/linuxboot/contest/pkg/xcontext/logger/internal"
 )
 
 // Logger is the interface of a logger provided by an extended context.
@@ -22,8 +22,8 @@ type MinimalLogger = internal.MinimalLogger
 //
 // To enable logadapter-s for this converter add imports, for example:
 //
-//     import _ "github.com/facebookincubator/contest/pkg/xcontext/logger/logadapter/logrus"
-//     import _ "github.com/facebookincubator/contest/pkg/xcontext/logger/logadapter/zap"
+//     import _ "github.com/linuxboot/contest/pkg/xcontext/logger/logadapter/logrus"
+//     import _ "github.com/linuxboot/contest/pkg/xcontext/logger/logadapter/zap"
 func ConvertLogger(logger interface{}) Logger {
 	if l, ok := logger.(Logger); ok {
 		return l

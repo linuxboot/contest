@@ -10,10 +10,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/facebookincubator/contest/pkg/event"
+	"github.com/linuxboot/contest/pkg/event"
 	"github.com/stretchr/testify/assert"
 
-	. "github.com/facebookincubator/contest/pkg/event/testevent"
+	. "github.com/linuxboot/contest/pkg/event/testevent"
 )
 
 func TestBuildQuery_Positive(t *testing.T) {

@@ -6,7 +6,7 @@
 package metrics
 
 import (
-	"github.com/facebookincubator/contest/pkg/xcontext/fields"
+	"github.com/linuxboot/contest/pkg/xcontext/fields"
 )
 
 type Fields = fields.Fields

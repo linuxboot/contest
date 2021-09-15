@@ -15,25 +15,25 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/facebookincubator/contest/pkg/cerrors"
-	"github.com/facebookincubator/contest/pkg/event"
-	"github.com/facebookincubator/contest/pkg/pluginregistry"
-	"github.com/facebookincubator/contest/pkg/storage"
-	"github.com/facebookincubator/contest/pkg/target"
-	"github.com/facebookincubator/contest/pkg/test"
-	"github.com/facebookincubator/contest/pkg/types"
-	"github.com/facebookincubator/contest/pkg/xcontext"
-	"github.com/facebookincubator/contest/pkg/xcontext/bundles/logrusctx"
-	"github.com/facebookincubator/contest/pkg/xcontext/logger"
-	"github.com/facebookincubator/contest/plugins/storage/memory"
-	"github.com/facebookincubator/contest/tests/common"
-	"github.com/facebookincubator/contest/tests/common/goroutine_leak_check"
-	"github.com/facebookincubator/contest/tests/plugins/teststeps/badtargets"
-	"github.com/facebookincubator/contest/tests/plugins/teststeps/channels"
-	"github.com/facebookincubator/contest/tests/plugins/teststeps/hanging"
-	"github.com/facebookincubator/contest/tests/plugins/teststeps/noreturn"
-	"github.com/facebookincubator/contest/tests/plugins/teststeps/panicstep"
-	"github.com/facebookincubator/contest/tests/plugins/teststeps/teststep"
+	"github.com/linuxboot/contest/pkg/cerrors"
+	"github.com/linuxboot/contest/pkg/event"
+	"github.com/linuxboot/contest/pkg/pluginregistry"
+	"github.com/linuxboot/contest/pkg/storage"
+	"github.com/linuxboot/contest/pkg/target"
+	"github.com/linuxboot/contest/pkg/test"
+	"github.com/linuxboot/contest/pkg/types"
+	"github.com/linuxboot/contest/pkg/xcontext"
+	"github.com/linuxboot/contest/pkg/xcontext/bundles/logrusctx"
+	"github.com/linuxboot/contest/pkg/xcontext/logger"
+	"github.com/linuxboot/contest/plugins/storage/memory"
+	"github.com/linuxboot/contest/tests/common"
+	"github.com/linuxboot/contest/tests/common/goroutine_leak_check"
+	"github.com/linuxboot/contest/tests/plugins/teststeps/badtargets"
+	"github.com/linuxboot/contest/tests/plugins/teststeps/channels"
+	"github.com/linuxboot/contest/tests/plugins/teststeps/hanging"
+	"github.com/linuxboot/contest/tests/plugins/teststeps/noreturn"
+	"github.com/linuxboot/contest/tests/plugins/teststeps/panicstep"
+	"github.com/linuxboot/contest/tests/plugins/teststeps/teststep"
 )
 
 const (
@@ -80,11 +80,11 @@ func TestMain(m *testing.M) {
 	flag.Parse()
 	goroutine_leak_check.LeakCheckingTestMain(m,
 		// We expect these to leak.
-		"github.com/facebookincubator/contest/tests/plugins/teststeps/hanging.(*hanging).Run",
-		"github.com/facebookincubator/contest/tests/plugins/teststeps/noreturn.(*noreturnStep).Run",
+		"github.com/linuxboot/contest/tests/plugins/teststeps/hanging.(*hanging).Run",
+		"github.com/linuxboot/contest/tests/plugins/teststeps/noreturn.(*noreturnStep).Run",
 
 		// No leak in contexts checked with itsown unit-tests
-		"github.com/facebookincubator/contest/pkg/xcontext.(*ctxValue).cloneWithStdContext.func2",
+		"github.com/linuxboot/contest/pkg/xcontext.(*ctxValue).cloneWithStdContext.func2",
 	)
 }
 

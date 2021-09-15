@@ -8,8 +8,8 @@ package logrus
 import (
 	"context"
 
-	"github.com/facebookincubator/contest/pkg/xcontext/logger"
-	"github.com/facebookincubator/contest/pkg/xcontext/logger/internal"
+	"github.com/linuxboot/contest/pkg/xcontext/logger"
+	"github.com/linuxboot/contest/pkg/xcontext/logger/internal"
 	"github.com/sirupsen/logrus"
 )
 
