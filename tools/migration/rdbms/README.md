@@ -1,7 +1,7 @@
 # Schema migration
-[tools/migration/rdbms](https://github.com/facebookincubator/contest/tree/master/tools/migration/rdbms) is a schema migration tool which supports defining incremental schema and data migrations directly via `.sql` files or via pure golang code. 
+[tools/migration/rdbms](https://github.com/linuxboot/contest/tree/master/tools/migration/rdbms) is a schema migration tool which supports defining incremental schema and data migrations directly via `.sql` files or via pure golang code. 
 
-The two approaches serve different purposes: `.sql` migrations normally implement schema changes, while golang migrations are helpful to backfill data that needs to be manipulated in a way that might be specific to ConTest business logic. As en example of golang migration, please see [0002_migrate_descriptor_to_extended_descriptor.go](https://github.com/facebookincubator/contest/blob/master/db/rdbms/migration/0002_migrate_descriptor_to_extended_descriptor.go).
+The two approaches serve different purposes: `.sql` migrations normally implement schema changes, while golang migrations are helpful to backfill data that needs to be manipulated in a way that might be specific to ConTest business logic. As en example of golang migration, please see [0002_migrate_descriptor_to_extended_descriptor.go](https://github.com/linuxboot/contest/blob/master/db/rdbms/migration/0002_migrate_descriptor_to_extended_descriptor.go).
 
 
 The tool tracks the schema version number and when migrations where applied. The current implementation relies on [pressly/goose](https://github.com/pressly/goose), library, but this might be bound to change in the future, still maintaining the same approach to migrations.
@@ -11,7 +11,7 @@ There are two type of migrations:
 * Those defined in pure SQL, implemented in `.sql` files
 * Those defined in pure golang, implemented in `go` files. The existence of `go` migrations supports the implementation of complex data manipulation which is not suitable for for `sql`
 
-All migrations are numbered and applied sequentially. Examples of the above can be found in the [migration directory](https://github.com/facebookincubator/contest/tree/master/db/rdbms/migration).
+All migrations are numbered and applied sequentially. Examples of the above can be found in the [migration directory](https://github.com/linuxboot/contest/tree/master/db/rdbms/migration).
 
 # Usage
 The tool supports the following commands:
@@ -45,7 +45,7 @@ Usage: migrate [OPTIONS] COMMAND
   -dir string
         Directory containing migration scripts
 ```
-`-dir` is especially relevant as it points to the directory containing `.sql` migrations. These are part of ConTest codebase and can be found in [db/rdbms/migration](https://github.com/facebookincubator/contest/tree/master/db/rdbms/migration). Please see that directory for an explanation of what those migrations actually do
+`-dir` is especially relevant as it points to the directory containing `.sql` migrations. These are part of ConTest codebase and can be found in [db/rdbms/migration](https://github.com/linuxboot/contest/tree/master/db/rdbms/migration). Please see that directory for an explanation of what those migrations actually do
 
 # Status command
 `status` can be used to inspect the progress in applying all migrations known to ConTest. For example, assuming we have the following two migrations in the codebase:

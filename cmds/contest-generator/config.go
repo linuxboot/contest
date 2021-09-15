@@ -47,7 +47,7 @@ func (ce ConfigEntry) Validate() error {
 }
 
 // ToAlias returns the import alias for the plugin. For example, if the import
-// path is github.com/facebookincubator/plugins/teststeps/cmd , it will return
+// path is github.com/linuxboot/plugins/teststeps/cmd , it will return
 // the string "cmd". If an explicit alias is specified in the `Alias` attribute,
 // that string will be returned instead.
 func (ce ConfigEntry) ToAlias() string {

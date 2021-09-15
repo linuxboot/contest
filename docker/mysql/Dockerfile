@@ -17,7 +17,7 @@ WORKDIR /home/mysql
 
 # Pre-build the migration script, make sure it builds.
 RUN cd /home/mysql/contest && \
-    go build github.com/facebookincubator/contest/tools/migration/rdbms
+    go build github.com/linuxboot/contest/tools/migration/rdbms
 
 # All scripts in docker-entrypoint-initdb.d/ are automatically
 # executed during container startup

@@ -37,4 +37,4 @@ docker-compose -f $COMPOSE_FILE build $DATABASE contest
 docker-compose -f $COMPOSE_FILE run \
     ${codecov_env} -e "CI=${CI}" \
     contest \
-    /go/src/github.com/facebookincubator/contest/docker/contest/tests.sh \
+    /go/src/github.com/linuxboot/contest/docker/contest/tests.sh \

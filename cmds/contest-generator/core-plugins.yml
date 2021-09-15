@@ -1,16 +1,16 @@
 targetmanagers:
-  - path: github.com/facebookincubator/contest/plugins/targetmanagers/targetlist
-  - path: github.com/facebookincubator/contest/plugins/targetmanagers/csvtargetmanager
+  - path: github.com/linuxboot/contest/plugins/targetmanagers/targetlist
+  - path: github.com/linuxboot/contest/plugins/targetmanagers/csvtargetmanager
 
 testfetchers:
-  - path: github.com/facebookincubator/contest/plugins/testfetchers/literal
-  - path: github.com/facebookincubator/contest/plugins/testfetchers/uri
+  - path: github.com/linuxboot/contest/plugins/testfetchers/literal
+  - path: github.com/linuxboot/contest/plugins/testfetchers/uri
 
 teststeps:
-  - path: github.com/facebookincubator/contest/plugins/teststeps/cmd
+  - path: github.com/linuxboot/contest/plugins/teststeps/cmd
     alias: ts_cmd
-  - path: github.com/facebookincubator/contest/plugins/teststeps/sshcmd
-  - path: github.com/facebookincubator/contest/plugins/teststeps/sleep
+  - path: github.com/linuxboot/contest/plugins/teststeps/sshcmd
+  - path: github.com/linuxboot/contest/plugins/teststeps/sleep
 
 reporters:
-  - path: github.com/facebookincubator/contest/plugins/reporters/targetsuccess
+  - path: github.com/linuxboot/contest/plugins/reporters/targetsuccess

@@ -42,7 +42,7 @@ In this example we see three steps, one of which uses `cmd` step plugin and two 
 
 ## Step Plugin Interface
 
-Step plugin is a Go struct which implements `TestStep`  interface. The interface is defined in [pkg/test/step.go](https://github.com/facebookincubator/contest/blob/master/pkg/test/step.go) and it looks like this:
+Step plugin is a Go struct which implements `TestStep`  interface. The interface is defined in [pkg/test/step.go](https://github.com/linuxboot/contest/blob/master/pkg/test/step.go) and it looks like this:
 
 ```
 // TestStep is the interface that all steps need to implement to be executed
@@ -111,9 +111,9 @@ Further details on the semantics of Pause.
 * Pause request may be escalated to cancel after some time (e.g. as exit time of the process approaches).
 
 
-There is a helper function for you that takes care of 90% of all the pause handling for you: [ForEachTargetWithResume](https://github.com/facebookincubator/contest/blob/6867745bd02d2e8f0686173f838c33e2513447bb/plugins/teststeps/teststeps.go#L124). It just takes a simple per-target function you write and handles most of the channel juggling and remembering the targets for you. All you need to do is save state per target (if there is anything to save). 
+There is a helper function for you that takes care of 90% of all the pause handling for you: [ForEachTargetWithResume](https://github.com/linuxboot/contest/blob/6867745bd02d2e8f0686173f838c33e2513447bb/plugins/teststeps/teststeps.go#L124). It just takes a simple per-target function you write and handles most of the channel juggling and remembering the targets for you. All you need to do is save state per target (if there is anything to save). 
 
 ## Examples
 
-* [example](https://github.com/facebookincubator/contest/blob/master/plugins/teststeps/example/example.go) is a simple plugin without pause/resume support.
-* [sleep](https://github.com/facebookincubator/contest/blob/master/plugins/teststeps/sleep/sleep.go) is a good example of a plugin that supports pause/resume.
+* [example](https://github.com/linuxboot/contest/blob/master/plugins/teststeps/example/example.go) is a simple plugin without pause/resume support.
+* [sleep](https://github.com/linuxboot/contest/blob/master/plugins/teststeps/sleep/sleep.go) is a good example of a plugin that supports pause/resume.
