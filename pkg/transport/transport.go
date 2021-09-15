@@ -8,9 +8,9 @@ package transport
 import (
 	"context"
 
-	"github.com/facebookincubator/contest/pkg/api"
-	"github.com/facebookincubator/contest/pkg/job"
-	"github.com/facebookincubator/contest/pkg/types"
+	"github.com/linuxboot/contest/pkg/api"
+	"github.com/linuxboot/contest/pkg/job"
+	"github.com/linuxboot/contest/pkg/types"
 )
 
 // Transport abstracts different ways of talking to contest server.

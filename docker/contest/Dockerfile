@@ -2,7 +2,7 @@ FROM golang:1.16.2-buster
 
 RUN apt-get update && apt-get install -y mariadb-client
 
-WORKDIR ${GOPATH}/src/github.com/facebookincubator/contest
+WORKDIR ${GOPATH}/src/github.com/linuxboot/contest
 COPY  . .
 RUN go get -t -v ./...
 RUN chmod a+x docker/contest/tests.sh

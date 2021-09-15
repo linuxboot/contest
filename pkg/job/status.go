@@ -8,9 +8,9 @@ package job
 import (
 	"time"
 
-	"github.com/facebookincubator/contest/pkg/event/testevent"
-	"github.com/facebookincubator/contest/pkg/target"
-	"github.com/facebookincubator/contest/pkg/types"
+	"github.com/linuxboot/contest/pkg/event/testevent"
+	"github.com/linuxboot/contest/pkg/target"
+	"github.com/linuxboot/contest/pkg/types"
 )
 
 // The hierarchy of status objects is the following

@@ -11,12 +11,12 @@ import (
 	"fmt"
 	"time"
 
-	pkg_config "github.com/facebookincubator/contest/pkg/config"
-	"github.com/facebookincubator/contest/pkg/job"
-	"github.com/facebookincubator/contest/pkg/pluginregistry"
-	"github.com/facebookincubator/contest/pkg/storage/limits"
-	"github.com/facebookincubator/contest/pkg/test"
-	"github.com/facebookincubator/contest/pkg/xcontext"
+	pkg_config "github.com/linuxboot/contest/pkg/config"
+	"github.com/linuxboot/contest/pkg/job"
+	"github.com/linuxboot/contest/pkg/pluginregistry"
+	"github.com/linuxboot/contest/pkg/storage/limits"
+	"github.com/linuxboot/contest/pkg/test"
+	"github.com/linuxboot/contest/pkg/xcontext"
 )
 
 func newJob(ctx xcontext.Context, registry *pluginregistry.PluginRegistry, jobDescriptor *job.Descriptor, resolver stepsResolver) (*job.Job, error) {

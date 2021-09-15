@@ -13,12 +13,12 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
-	"github.com/facebookincubator/contest/pkg/logging"
-	"github.com/facebookincubator/contest/pkg/target"
-	"github.com/facebookincubator/contest/pkg/types"
-	"github.com/facebookincubator/contest/pkg/xcontext/bundles/logrusctx"
-	"github.com/facebookincubator/contest/pkg/xcontext/logger"
-	"github.com/facebookincubator/contest/tests/common/goroutine_leak_check"
+	"github.com/linuxboot/contest/pkg/logging"
+	"github.com/linuxboot/contest/pkg/target"
+	"github.com/linuxboot/contest/pkg/types"
+	"github.com/linuxboot/contest/pkg/xcontext/bundles/logrusctx"
+	"github.com/linuxboot/contest/pkg/xcontext/logger"
+	"github.com/linuxboot/contest/tests/common/goroutine_leak_check"
 )
 
 var (

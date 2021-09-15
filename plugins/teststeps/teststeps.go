@@ -11,9 +11,9 @@ import (
 	"reflect"
 	"sync"
 
-	"github.com/facebookincubator/contest/pkg/target"
-	"github.com/facebookincubator/contest/pkg/test"
-	"github.com/facebookincubator/contest/pkg/xcontext"
+	"github.com/linuxboot/contest/pkg/target"
+	"github.com/linuxboot/contest/pkg/test"
+	"github.com/linuxboot/contest/pkg/xcontext"
 )
 
 // PerTargetFunc is a function type that is called on each target by the

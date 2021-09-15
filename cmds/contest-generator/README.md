@@ -23,7 +23,7 @@ list of import paths. For example:
 
 ```
 targetmanagers:
-  - github.com/facebookincubator/contest/plugins/targetmanagers/targetlist
+  - github.com/linuxboot/contest/plugins/targetmanagers/targetlist
 ```
 
 In this example, `targetmanagers` is the plugin type, and it will be registered
@@ -45,10 +45,10 @@ The following syntax will generate an error:
 
 ```
 targetmanagers:
-  - path: github.com/facebookincubator/contest/plugins/targetmanagers/blah
+  - path: github.com/linuxboot/contest/plugins/targetmanagers/blah
 
 teststeps:
-  - path: github.com/facebookincubator/contest/plugins/testfetchers/blah
+  - path: github.com/linuxboot/contest/plugins/testfetchers/blah
 ```
 
 because there is no way to distinguish which package `blah` refers to. So you
@@ -56,11 +56,11 @@ can use:
 
 ```
 targetmanagers:
-  - path: github.com/facebookincubator/contest/plugins/targetmanagers/blah
+  - path: github.com/linuxboot/contest/plugins/targetmanagers/blah
     alias: tm_blah
 
 teststeps:
-  - path: github.com/facebookincubator/contest/plugins/teststeps/blah
+  - path: github.com/linuxboot/contest/plugins/teststeps/blah
     alias: ts_blah
 ```
 
@@ -69,17 +69,17 @@ teststeps:
 $ go run .
 2021/08/17 11:14:18 Generating output file '/tmp/contest846469752/contest.go' with the following plugins):
 TargetManagers
-    github.com/facebookincubator/contest/plugins/targetmanagers/targetlist
-    github.com/facebookincubator/contest/plugins/targetmanagers/csvtargetmanager
+    github.com/linuxboot/contest/plugins/targetmanagers/targetlist
+    github.com/linuxboot/contest/plugins/targetmanagers/csvtargetmanager
 TestFetchers
-    github.com/facebookincubator/contest/plugins/testfetchers/literal
-    github.com/facebookincubator/contest/plugins/testfetchers/uri
+    github.com/linuxboot/contest/plugins/testfetchers/literal
+    github.com/linuxboot/contest/plugins/testfetchers/uri
 TestSteps
-    github.com/facebookincubator/contest/plugins/teststeps/cmd => ts_cmd
-    github.com/facebookincubator/contest/plugins/teststeps/sshcmd
-    github.com/facebookincubator/contest/plugins/teststeps/sleep
+    github.com/linuxboot/contest/plugins/teststeps/cmd => ts_cmd
+    github.com/linuxboot/contest/plugins/teststeps/sshcmd
+    github.com/linuxboot/contest/plugins/teststeps/sleep
 Reporters
-    github.com/facebookincubator/contest/plugins/reporters/targetsuccess
+    github.com/linuxboot/contest/plugins/reporters/targetsuccess
 2021/08/17 11:14:18 Generated file '/tmp/contest846469752/contest.go'. You can build it by running 'go build' in the output directory.
 /tmp/contest846469752
 ```

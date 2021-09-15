@@ -1,9 +1,9 @@
 # ConTest
-[![Tests](https://github.com/facebookincubator/contest/workflows/Tests/badge.svg?branch=master)](https://github.com/facebookincubator/contest/actions?query=workflow%3ATests+branch%3Amaster)
-[![codecov](https://codecov.io/gh/facebookincubator/contest/branch/master/graph/badge.svg)](https://codecov.io/gh/facebookincubator/contest)
-[![Go Report Card](https://goreportcard.com/badge/github.com/facebookincubator/contest)](https://goreportcard.com/report/github.com/facebookincubator/contest)
+[![Tests](https://github.com/linuxboot/contest/workflows/Tests/badge.svg?branch=master)](https://github.com/facebookincubator/contest/actions?query=workflow%3ATests+branch%3Amaster)
+[![codecov](https://codecov.io/gh/linuxboot/contest/branch/master/graph/badge.svg)](https://codecov.io/gh/facebookincubator/contest)
+[![Go Report Card](https://goreportcard.com/badge/github.com/linuxboot/contest)](https://goreportcard.com/report/github.com/facebookincubator/contest)
 
-<img src="https://github.com/facebookincubator/contest/blob/master/assets/SVG/ConTest_logo_color_transparent.svg" width="150px">
+<img src="https://github.com/linuxboot/contest/blob/master/assets/SVG/ConTest_logo_color_transparent.svg" width="150px">
 
 ConTest is a framework for system testing that aims at covering multiple use cases:
 * system firmware testing
@@ -57,13 +57,13 @@ For a full test run please see `run_tests.sh`.
 The recommended procedure is to download the ConTest framework via `go get`:
 
 ```
-go get -u github.com/facebookincubator/contest
+go get -u github.com/linuxboot/contest
 ```
 After successfully running this command, the ConTest framework will be available in your `GOPATH`, and you can start building your custom system testing infrastructure on top of it.
 
 You can also have a look at the sample `contest` program:
 ```
-go get -u github.com/facebookincubator/contest/cmds/contest
+go get -u github.com/linuxboot/contest/cmds/contest
 ```
 
 This will download and build the `contest` sample program, and will add it to your Go binary path.
@@ -685,7 +685,7 @@ Limitations:
 
 ## Join the ConTest community
 
-* Website: https://github.com/facebookincubator/contest . Please use issues and
+* Website: https://github.com/linuxboot/contest . Please use issues and
   pull requests!
 * IM: we are on the #ConTest channel on the OSF (Open Source Firmware) Slack team. Get your invite on http://u-root.org if you're not there already!
 * See the CONTRIBUTING file for how to help out.

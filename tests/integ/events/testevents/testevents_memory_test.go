@@ -11,8 +11,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/facebookincubator/contest/pkg/storage"
-	"github.com/facebookincubator/contest/plugins/storage/memory"
+	"github.com/linuxboot/contest/pkg/storage"
+	"github.com/linuxboot/contest/plugins/storage/memory"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 )

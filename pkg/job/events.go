@@ -10,9 +10,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/facebookincubator/contest/pkg/event"
-	"github.com/facebookincubator/contest/pkg/target"
-	"github.com/facebookincubator/contest/pkg/types"
+	"github.com/linuxboot/contest/pkg/event"
+	"github.com/linuxboot/contest/pkg/target"
+	"github.com/linuxboot/contest/pkg/types"
 )
 
 // EventJobStarted indicates that a Job is beginning execution

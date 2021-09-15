@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/facebookincubator/contest/pkg/event/testevent"
-	"github.com/facebookincubator/contest/pkg/xcontext/bundles/logrusctx"
-	"github.com/facebookincubator/contest/pkg/xcontext/logger"
+	"github.com/linuxboot/contest/pkg/event/testevent"
+	"github.com/linuxboot/contest/pkg/xcontext/bundles/logrusctx"
+	"github.com/linuxboot/contest/pkg/xcontext/logger"
 	"github.com/stretchr/testify/require"
 )
 

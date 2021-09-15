@@ -9,7 +9,7 @@ import (
 	"database/sql"
 	"runtime"
 
-	"github.com/facebookincubator/contest/pkg/xcontext"
+	"github.com/linuxboot/contest/pkg/xcontext"
 )
 
 // Migrate is the interface that every migration task must implement to support

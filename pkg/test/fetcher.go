@@ -6,7 +6,7 @@
 package test
 
 import (
-	"github.com/facebookincubator/contest/pkg/xcontext"
+	"github.com/linuxboot/contest/pkg/xcontext"
 )
 
 // TestFetcherFactory is a type representing a function which builds

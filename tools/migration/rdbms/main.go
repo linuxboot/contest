@@ -13,11 +13,11 @@ import (
 	"path/filepath"
 
 	// Import migration packages so that golang migrations can register themselves
-	_ "github.com/facebookincubator/contest/db/rdbms/migration"
-	"github.com/facebookincubator/contest/pkg/xcontext/bundles/logrusctx"
-	"github.com/facebookincubator/contest/pkg/xcontext/logger"
+	_ "github.com/linuxboot/contest/db/rdbms/migration"
+	"github.com/linuxboot/contest/pkg/xcontext/bundles/logrusctx"
+	"github.com/linuxboot/contest/pkg/xcontext/logger"
 
-	"github.com/facebookincubator/contest/tools/migration/rdbms/migrate"
+	"github.com/linuxboot/contest/tools/migration/rdbms/migrate"
 
 	_ "github.com/go-sql-driver/mysql"
 

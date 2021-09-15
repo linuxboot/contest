@@ -8,8 +8,8 @@ package jobmanager
 import (
 	"fmt"
 
-	"github.com/facebookincubator/contest/pkg/api"
-	"github.com/facebookincubator/contest/pkg/job"
+	"github.com/linuxboot/contest/pkg/api"
+	"github.com/linuxboot/contest/pkg/job"
 )
 
 func (jm *JobManager) list(ev *api.Event) *api.EventResponse {

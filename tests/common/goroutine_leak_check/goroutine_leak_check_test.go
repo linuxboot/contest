@@ -47,7 +47,7 @@ func TestLeaksWhitelisted(t *testing.T) {
 	c.Wait()
 	c.L.Unlock()
 	require.NoError(t, CheckLeakedGoRoutines(
-		"github.com/facebookincubator/contest/tests/common/goroutine_leak_check.Func1"))
+		"github.com/linuxboot/contest/tests/common/goroutine_leak_check.Func1"))
 	c.Signal()
 	time.Sleep(10 * time.Millisecond)
 }

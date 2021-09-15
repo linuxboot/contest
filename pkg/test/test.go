@@ -9,7 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 
-	"github.com/facebookincubator/contest/pkg/target"
+	"github.com/linuxboot/contest/pkg/target"
 )
 
 // Test describes a test definition.

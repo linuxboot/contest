@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/facebookincubator/contest/pkg/test"
-	"github.com/facebookincubator/contest/pkg/types"
+	"github.com/linuxboot/contest/pkg/test"
+	"github.com/linuxboot/contest/pkg/types"
 
 	"github.com/insomniacslk/xjson"
 )

@@ -8,7 +8,7 @@ package prometheus
 import (
 	"sync"
 
-	"github.com/facebookincubator/contest/pkg/xcontext/metrics"
+	"github.com/linuxboot/contest/pkg/xcontext/metrics"
 	"github.com/prometheus/client_golang/prometheus"
 	io_prometheus_client "github.com/prometheus/client_model/go"
 )

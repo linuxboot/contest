@@ -11,8 +11,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/facebookincubator/contest/pkg/test"
-	"github.com/facebookincubator/contest/pkg/xcontext"
+	"github.com/linuxboot/contest/pkg/test"
+	"github.com/linuxboot/contest/pkg/xcontext"
 )
 
 // Name defined the name of the plugin

@@ -11,13 +11,13 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/facebookincubator/contest/pkg/event"
-	"github.com/facebookincubator/contest/pkg/event/frameworkevent"
-	"github.com/facebookincubator/contest/pkg/event/testevent"
-	"github.com/facebookincubator/contest/pkg/job"
-	"github.com/facebookincubator/contest/pkg/target"
-	"github.com/facebookincubator/contest/pkg/types"
-	"github.com/facebookincubator/contest/pkg/xcontext"
+	"github.com/linuxboot/contest/pkg/event"
+	"github.com/linuxboot/contest/pkg/event/frameworkevent"
+	"github.com/linuxboot/contest/pkg/event/testevent"
+	"github.com/linuxboot/contest/pkg/job"
+	"github.com/linuxboot/contest/pkg/target"
+	"github.com/linuxboot/contest/pkg/types"
+	"github.com/linuxboot/contest/pkg/xcontext"
 )
 
 func assembleQuery(baseQuery bytes.Buffer, selectClauses []string) (string, error) {

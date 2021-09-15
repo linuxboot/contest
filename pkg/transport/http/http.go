@@ -17,10 +17,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/facebookincubator/contest/pkg/api"
-	"github.com/facebookincubator/contest/pkg/job"
-	"github.com/facebookincubator/contest/pkg/types"
-	"github.com/facebookincubator/contest/plugins/listeners/httplistener"
+	"github.com/linuxboot/contest/pkg/api"
+	"github.com/linuxboot/contest/pkg/job"
+	"github.com/linuxboot/contest/pkg/types"
+	"github.com/linuxboot/contest/plugins/listeners/httplistener"
 
 	"github.com/insomniacslk/xjson"
 )

@@ -6,7 +6,7 @@
 package xcontext
 
 import (
-	"github.com/facebookincubator/contest/pkg/xcontext/logger"
+	"github.com/linuxboot/contest/pkg/xcontext/logger"
 )
 
 var _ logger.MinimalLogger = &ctxValue{}

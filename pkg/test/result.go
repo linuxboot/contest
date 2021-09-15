@@ -8,8 +8,8 @@ package test
 import (
 	"fmt"
 
-	"github.com/facebookincubator/contest/pkg/lib/comparison"
-	"github.com/facebookincubator/contest/pkg/target"
+	"github.com/linuxboot/contest/pkg/lib/comparison"
+	"github.com/linuxboot/contest/pkg/target"
 )
 
 // GetResult evaluates the success of list of Targets based on a comparison expression

@@ -6,10 +6,10 @@
 package jobmanager
 
 import (
-	"github.com/facebookincubator/contest/pkg/job"
-	"github.com/facebookincubator/contest/pkg/pluginregistry"
-	"github.com/facebookincubator/contest/pkg/test"
-	"github.com/facebookincubator/contest/pkg/xcontext"
+	"github.com/linuxboot/contest/pkg/job"
+	"github.com/linuxboot/contest/pkg/pluginregistry"
+	"github.com/linuxboot/contest/pkg/test"
+	"github.com/linuxboot/contest/pkg/xcontext"
 )
 
 // stepsResolver is an interface which determines how to fetch TestStepsDescriptors, which could

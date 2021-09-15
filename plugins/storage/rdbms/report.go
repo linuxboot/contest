@@ -10,9 +10,9 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/facebookincubator/contest/pkg/job"
-	"github.com/facebookincubator/contest/pkg/types"
-	"github.com/facebookincubator/contest/pkg/xcontext"
+	"github.com/linuxboot/contest/pkg/job"
+	"github.com/linuxboot/contest/pkg/types"
+	"github.com/linuxboot/contest/pkg/xcontext"
 )
 
 // StoreReport persists a run or final report in the internal storage.

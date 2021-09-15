@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/facebookincubator/contest/pkg/job"
+	"github.com/linuxboot/contest/pkg/job"
 )
 
 type JobQueryField interface {

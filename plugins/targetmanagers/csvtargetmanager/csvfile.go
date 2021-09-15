@@ -28,9 +28,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/facebookincubator/contest/pkg/target"
-	"github.com/facebookincubator/contest/pkg/types"
-	"github.com/facebookincubator/contest/pkg/xcontext"
+	"github.com/linuxboot/contest/pkg/target"
+	"github.com/linuxboot/contest/pkg/types"
+	"github.com/linuxboot/contest/pkg/xcontext"
 
 	"github.com/insomniacslk/xjson"
 )

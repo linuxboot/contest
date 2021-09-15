@@ -15,9 +15,9 @@ import (
 	// this blank import registers the mysql driver
 	_ "github.com/go-sql-driver/mysql"
 
-	"github.com/facebookincubator/contest/pkg/target"
-	"github.com/facebookincubator/contest/pkg/types"
-	"github.com/facebookincubator/contest/pkg/xcontext"
+	"github.com/linuxboot/contest/pkg/target"
+	"github.com/linuxboot/contest/pkg/types"
+	"github.com/linuxboot/contest/pkg/xcontext"
 )
 
 // Name is the plugin name.

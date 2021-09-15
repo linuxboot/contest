@@ -6,7 +6,7 @@
 package bundles
 
 import (
-	"github.com/facebookincubator/contest/pkg/xcontext"
+	"github.com/linuxboot/contest/pkg/xcontext"
 )
 
 // Option is a modifier of what context to construct.

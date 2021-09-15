@@ -10,9 +10,9 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/facebookincubator/contest/pkg/event/testevent"
-	"github.com/facebookincubator/contest/pkg/types"
-	"github.com/facebookincubator/contest/pkg/xcontext"
+	"github.com/linuxboot/contest/pkg/event/testevent"
+	"github.com/linuxboot/contest/pkg/types"
+	"github.com/linuxboot/contest/pkg/xcontext"
 )
 
 // Reporting is the configuration section that determines how to report the

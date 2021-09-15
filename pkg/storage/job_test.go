@@ -8,10 +8,10 @@ package storage
 import (
 	"testing"
 
-	"github.com/facebookincubator/contest/pkg/types"
-	"github.com/facebookincubator/contest/pkg/xcontext"
-	"github.com/facebookincubator/contest/pkg/xcontext/bundles/logrusctx"
-	"github.com/facebookincubator/contest/pkg/xcontext/logger"
+	"github.com/linuxboot/contest/pkg/types"
+	"github.com/linuxboot/contest/pkg/xcontext"
+	"github.com/linuxboot/contest/pkg/xcontext/bundles/logrusctx"
+	"github.com/linuxboot/contest/pkg/xcontext/logger"
 	"github.com/stretchr/testify/require"
 )
 

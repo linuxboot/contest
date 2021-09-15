@@ -17,11 +17,11 @@ import (
 
 	_ "github.com/go-sql-driver/mysql"
 
-	"github.com/facebookincubator/contest/db/rdbms/migration"
-	"github.com/facebookincubator/contest/pkg/job"
-	"github.com/facebookincubator/contest/pkg/xcontext/bundles/logrusctx"
-	"github.com/facebookincubator/contest/pkg/xcontext/logger"
-	"github.com/facebookincubator/contest/tests/integ/common"
+	"github.com/linuxboot/contest/db/rdbms/migration"
+	"github.com/linuxboot/contest/pkg/job"
+	"github.com/linuxboot/contest/pkg/xcontext/bundles/logrusctx"
+	"github.com/linuxboot/contest/pkg/xcontext/logger"
+	"github.com/linuxboot/contest/tests/integ/common"
 
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"

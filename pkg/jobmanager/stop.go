@@ -9,8 +9,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/facebookincubator/contest/pkg/api"
-	"github.com/facebookincubator/contest/pkg/job"
+	"github.com/linuxboot/contest/pkg/api"
+	"github.com/linuxboot/contest/pkg/job"
 )
 
 func (jm *JobManager) stop(ev *api.Event) *api.EventResponse {

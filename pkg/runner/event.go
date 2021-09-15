@@ -6,8 +6,8 @@
 package runner
 
 import (
-	"github.com/facebookincubator/contest/pkg/event"
-	"github.com/facebookincubator/contest/pkg/types"
+	"github.com/linuxboot/contest/pkg/event"
+	"github.com/linuxboot/contest/pkg/types"
 )
 
 // RunStartedPayload represents the payload carried by a failure event (e.g. JobStateFailed, JobStateCancelled, etc.)

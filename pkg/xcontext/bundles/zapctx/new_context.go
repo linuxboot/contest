@@ -13,11 +13,11 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
-	"github.com/facebookincubator/contest/pkg/xcontext"
-	"github.com/facebookincubator/contest/pkg/xcontext/bundles"
-	"github.com/facebookincubator/contest/pkg/xcontext/logger"
-	zapadapter "github.com/facebookincubator/contest/pkg/xcontext/logger/logadapter/zap"
-	prometheusadapter "github.com/facebookincubator/contest/pkg/xcontext/metrics/prometheus"
+	"github.com/linuxboot/contest/pkg/xcontext"
+	"github.com/linuxboot/contest/pkg/xcontext/bundles"
+	"github.com/linuxboot/contest/pkg/xcontext/logger"
+	zapadapter "github.com/linuxboot/contest/pkg/xcontext/logger/logadapter/zap"
+	prometheusadapter "github.com/linuxboot/contest/pkg/xcontext/metrics/prometheus"
 )
 
 // NewContext is a simple-to-use function to create a context.Context

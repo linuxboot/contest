@@ -8,7 +8,7 @@ package pluginregistry
 import (
 	"fmt"
 
-	"github.com/facebookincubator/contest/pkg/test"
+	"github.com/linuxboot/contest/pkg/test"
 )
 
 type ErrStepLabelIsMandatory struct {

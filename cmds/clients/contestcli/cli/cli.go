@@ -10,7 +10,7 @@ import (
 	"io"
 	"time"
 
-	"github.com/facebookincubator/contest/pkg/transport/http"
+	"github.com/linuxboot/contest/pkg/transport/http"
 
 	flag "github.com/spf13/pflag"
 )

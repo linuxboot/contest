@@ -6,10 +6,10 @@
 package readmeta_test
 
 import (
-	"github.com/facebookincubator/contest/pkg/event/testevent"
-	"github.com/facebookincubator/contest/pkg/job"
-	"github.com/facebookincubator/contest/pkg/types"
-	"github.com/facebookincubator/contest/pkg/xcontext"
+	"github.com/linuxboot/contest/pkg/event/testevent"
+	"github.com/linuxboot/contest/pkg/job"
+	"github.com/linuxboot/contest/pkg/types"
+	"github.com/linuxboot/contest/pkg/xcontext"
 )
 
 // Name defines the name of the reporter used within the plugin registry

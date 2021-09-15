@@ -7,7 +7,7 @@ package jobmanager
 
 import (
 	"fmt"
-	"github.com/facebookincubator/contest/pkg/api"
+	"github.com/linuxboot/contest/pkg/api"
 )
 
 func (jm *JobManager) retry(ev *api.Event) *api.EventResponse {

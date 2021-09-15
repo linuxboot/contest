@@ -16,10 +16,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/facebookincubator/contest/pkg/xcontext/buildinfo"
-	"github.com/facebookincubator/contest/pkg/xcontext/fields"
-	"github.com/facebookincubator/contest/pkg/xcontext/logger"
-	"github.com/facebookincubator/contest/pkg/xcontext/metrics"
+	"github.com/linuxboot/contest/pkg/xcontext/buildinfo"
+	"github.com/linuxboot/contest/pkg/xcontext/fields"
+	"github.com/linuxboot/contest/pkg/xcontext/logger"
+	"github.com/linuxboot/contest/pkg/xcontext/metrics"
 	"github.com/google/uuid"
 )
 

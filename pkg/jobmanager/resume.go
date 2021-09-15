@@ -10,10 +10,10 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/facebookincubator/contest/pkg/event/frameworkevent"
-	"github.com/facebookincubator/contest/pkg/job"
-	"github.com/facebookincubator/contest/pkg/types"
-	"github.com/facebookincubator/contest/pkg/xcontext"
+	"github.com/linuxboot/contest/pkg/event/frameworkevent"
+	"github.com/linuxboot/contest/pkg/job"
+	"github.com/linuxboot/contest/pkg/types"
+	"github.com/linuxboot/contest/pkg/xcontext"
 )
 
 func (jm *JobManager) resumeJobs(ctx xcontext.Context, serverID string) error {

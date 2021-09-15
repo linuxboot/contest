@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/facebookincubator/contest/pkg/target"
+	"github.com/linuxboot/contest/pkg/target"
 	"github.com/stretchr/testify/require"
 )
 

@@ -12,8 +12,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/facebookincubator/contest/pkg/xcontext/fields"
-	"github.com/facebookincubator/contest/pkg/xcontext/metrics"
+	"github.com/linuxboot/contest/pkg/xcontext/fields"
+	"github.com/linuxboot/contest/pkg/xcontext/metrics"
 	"github.com/prometheus/client_golang/prometheus"
 )
 

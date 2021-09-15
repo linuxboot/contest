@@ -8,8 +8,8 @@ package querytools
 import (
 	"reflect"
 
-	"github.com/facebookincubator/contest/pkg/event"
-	"github.com/facebookincubator/contest/pkg/event/internal/reflecttools"
+	"github.com/linuxboot/contest/pkg/event"
+	"github.com/linuxboot/contest/pkg/event/internal/reflecttools"
 )
 
 func ApplyQueryField(fieldPtr interface{}, queryField event.QueryField) error {

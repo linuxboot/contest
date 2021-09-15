@@ -11,7 +11,7 @@ import (
 	"net"
 	"strings"
 
-	"github.com/facebookincubator/contest/pkg/event"
+	"github.com/linuxboot/contest/pkg/event"
 )
 
 // EventTargetIn indicates that a target has entered a TestStep

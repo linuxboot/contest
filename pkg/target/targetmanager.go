@@ -8,8 +8,8 @@ package target
 import (
 	"time"
 
-	"github.com/facebookincubator/contest/pkg/types"
-	"github.com/facebookincubator/contest/pkg/xcontext"
+	"github.com/linuxboot/contest/pkg/types"
+	"github.com/linuxboot/contest/pkg/xcontext"
 )
 
 // TargetManagerFactory is a type representing a function which builds

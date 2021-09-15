@@ -6,7 +6,7 @@
 package logging
 
 import (
-	"github.com/facebookincubator/contest/pkg/xcontext/bundles"
+	"github.com/linuxboot/contest/pkg/xcontext/bundles"
 )
 
 // DefaultOptions is a set options recommended to use by default.

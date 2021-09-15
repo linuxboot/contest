@@ -11,10 +11,10 @@ import (
 	"os"
 	"time"
 
-	"github.com/facebookincubator/contest/pkg/storage"
-	"github.com/facebookincubator/contest/pkg/storage/limits"
-	"github.com/facebookincubator/contest/pkg/types"
-	"github.com/facebookincubator/contest/pkg/xcontext"
+	"github.com/linuxboot/contest/pkg/storage"
+	"github.com/linuxboot/contest/pkg/storage/limits"
+	"github.com/linuxboot/contest/pkg/types"
+	"github.com/linuxboot/contest/pkg/xcontext"
 )
 
 // CurrentAPIVersion is the current version of the API that the clients must be

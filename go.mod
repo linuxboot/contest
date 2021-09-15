@@ -1,4 +1,4 @@
-module github.com/facebookincubator/contest
+module github.com/linuxboot/contest
 
 go 1.15
 

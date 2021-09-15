@@ -6,8 +6,8 @@
 package tsmetrics
 
 import (
-	"github.com/facebookincubator/contest/pkg/xcontext/fields"
-	"github.com/facebookincubator/contest/pkg/xcontext/metrics"
+	"github.com/linuxboot/contest/pkg/xcontext/fields"
+	"github.com/linuxboot/contest/pkg/xcontext/metrics"
 	tsmetrics "github.com/xaionaro-go/metrics"
 )
 
