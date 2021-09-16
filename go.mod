@@ -23,6 +23,7 @@ require (
 	github.com/sirupsen/logrus v1.8.1
 	github.com/spf13/pflag v1.0.6-0.20200504143853-81378bbcd8a1
 	github.com/stretchr/testify v1.7.0
+	github.com/u-root/cpu v0.0.0-20210922222005-0a371c3a086d
 	github.com/u-root/u-root v7.0.0+incompatible
 	github.com/x-cray/logrus-prefixed-formatter v0.5.2 // indirect
 	github.com/xaionaro-go/metrics v0.0.0-20210425194006-68050b337673

@@ -9,6 +9,7 @@ testfetchers:
 teststeps:
   - path: github.com/linuxboot/contest/plugins/teststeps/cmd
     alias: ts_cmd
+  - path: github.com/linuxboot/contest/plugins/teststeps/cpucmd
   - path: github.com/linuxboot/contest/plugins/teststeps/sshcmd
   - path: github.com/linuxboot/contest/plugins/teststeps/sleep
 
