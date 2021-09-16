@@ -36,6 +36,7 @@ type TestStepCoordinates struct {
 	TestCoordinates
 	TestStepName  string
 	TestStepLabel string
+	Retry         int
 }
 
 // TargetStatus represents the status of a Target within a TestStep

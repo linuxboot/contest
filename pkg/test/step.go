@@ -11,6 +11,8 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/insomniacslk/xjson"
+
 	"github.com/linuxboot/contest/pkg/event"
 	"github.com/linuxboot/contest/pkg/event/testevent"
 	"github.com/linuxboot/contest/pkg/target"
@@ -75,21 +77,28 @@ type TestStepsDescriptors struct {
 	TestSteps []*TestStepDescriptor
 }
 
+type TestStepRetryParameters struct {
+	NumRetries    int
+	RetryInterval *xjson.Duration
+}
+
 // TestStepDescriptor is the definition of a test step matching a test step
 // configuration.
 type TestStepDescriptor struct {
-	Name       string
-	Label      string
-	Parameters TestStepParameters
+	Name            string
+	Label           string
+	Parameters      TestStepParameters
+	RetryParameters TestStepRetryParameters
 }
 
 // TestStepBundle bundles the selected TestStep together with its parameters as
 // specified in the Test descriptor fetched by the TestFetcher
 type TestStepBundle struct {
-	TestStep      TestStep
-	TestStepLabel string
-	Parameters    TestStepParameters
-	AllowedEvents map[event.Name]bool
+	TestStep        TestStep
+	TestStepLabel   string
+	Parameters      TestStepParameters
+	RetryParameters TestStepRetryParameters
+	AllowedEvents   map[event.Name]bool
 }
 
 // TestStepResult is used by TestSteps to report result for a particular target.
