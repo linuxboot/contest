@@ -24,6 +24,9 @@ type Test struct {
 // job creation request. The test descriptors are part of the main JobDescriptor
 // JSON document.
 type TestDescriptor struct {
+	// Disabled allows to disable the test
+	Disabled bool
+
 	// TargetManager-related parameters
 	TargetManagerName              string
 	TargetManagerAcquireParameters json.RawMessage
