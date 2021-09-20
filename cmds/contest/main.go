@@ -29,6 +29,7 @@ import (
 
 	// the teststep plugins
 	ts_cmd "github.com/facebookincubator/contest/plugins/teststeps/cmd"
+	s3fileupload "github.com/facebookincubator/contest/plugins/teststeps/s3fileupload"
 	sleep "github.com/facebookincubator/contest/plugins/teststeps/sleep"
 	sshcmd "github.com/facebookincubator/contest/plugins/teststeps/sshcmd"
 
@@ -45,6 +46,7 @@ func getPluginConfig() *server.PluginConfig {
 	pc.TestStepLoaders = append(pc.TestStepLoaders, ts_cmd.Load)
 	pc.TestStepLoaders = append(pc.TestStepLoaders, sleep.Load)
 	pc.TestStepLoaders = append(pc.TestStepLoaders, sshcmd.Load)
+	pc.TestStepLoaders = append(pc.TestStepLoaders, s3fileupload.Load)
 	pc.ReporterLoaders = append(pc.ReporterLoaders, targetsuccess.Load)
 
 	return &pc
