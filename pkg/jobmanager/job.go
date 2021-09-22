@@ -73,6 +73,9 @@ func newJob(ctx xcontext.Context, registry *pluginregistry.PluginRegistry, jobDe
 		if err := limits.NewValidator().ValidateTestName(testName); err != nil {
 			return nil, err
 		}
+		if td.Disabled {
+			continue
+		}
 		test := test.Test{
 			Name:                testName,
 			TargetManagerBundle: bundleTargetManager,
