@@ -34,6 +34,7 @@ import (
 	sshcmd "github.com/facebookincubator/contest/plugins/teststeps/sshcmd"
 
 	// the reporter plugins
+	postdone "github.com/facebookincubator/contest/plugins/reporters/postdone"
 	targetsuccess "github.com/facebookincubator/contest/plugins/reporters/targetsuccess"
 )
 
@@ -48,6 +49,7 @@ func getPluginConfig() *server.PluginConfig {
 	pc.TestStepLoaders = append(pc.TestStepLoaders, sshcmd.Load)
 	pc.TestStepLoaders = append(pc.TestStepLoaders, s3fileupload.Load)
 	pc.ReporterLoaders = append(pc.ReporterLoaders, targetsuccess.Load)
+	pc.ReporterLoaders = append(pc.ReporterLoaders, postdone.Load)
 
 	return &pc
 }
