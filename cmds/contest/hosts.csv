@@ -1,3 +1,3 @@
-slot3 	yv3-evt-slot3.business.dut.sr1.9esec.dev 		
-slot2 	yv3-evt-slot2.business.dut.sr1.9esec.dev 		
-tp-slot1 	tp-slot1.business.dut.sr1.9esec.dev
+slot3,yv3-evt-slot3.business.dut.sr1.9esec.dev,,
+slot2,yv3-evt-slot2.business.dut.sr1.9esec.dev,,
+tp-slot1,tp-slot1.business.dut.sr1.9esec.dev,,
