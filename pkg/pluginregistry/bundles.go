@@ -32,7 +32,7 @@ func (r *PluginRegistry) NewTestStepBundle(ctx xcontext.Context, testStepDescrip
 		return nil, ErrStepLabelIsMandatory{TestStepDescriptor: testStepDescriptor}
 	}
 	testStepBundle := test.TestStepBundle{
-		TestStep:        testStep,
+		TestStep1:       testStep,
 		TestStepLabel:   label,
 		Parameters:      testStepDescriptor.Parameters,
 		RetryParameters: testStepDescriptor.RetryParameters,

@@ -94,7 +94,7 @@ type TestStepDescriptor struct {
 // TestStepBundle bundles the selected TestStep together with its parameters as
 // specified in the Test descriptor fetched by the TestFetcher
 type TestStepBundle struct {
-	TestStep        TestStep
+	TestStep1       TestStep
 	TestStepLabel   string
 	Parameters      TestStepParameters
 	RetryParameters TestStepRetryParameters

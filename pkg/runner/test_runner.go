@@ -8,7 +8,6 @@ package runner
 import (
 	"encoding/json"
 	"fmt"
-	"runtime/debug"
 	"sync"
 	"time"
 
@@ -16,7 +15,6 @@ import (
 
 	"github.com/linuxboot/contest/pkg/cerrors"
 	"github.com/linuxboot/contest/pkg/config"
-	"github.com/linuxboot/contest/pkg/event"
 	"github.com/linuxboot/contest/pkg/event/testevent"
 	"github.com/linuxboot/contest/pkg/storage"
 	"github.com/linuxboot/contest/pkg/target"
@@ -43,7 +41,7 @@ import (
 type TestRunner struct {
 	shutdownTimeout time.Duration // Time to wait for steps runners to finish a the end of the run
 
-	steps     []*stepState            // The pipeline, in order of execution
+	steps     []StepState             // The pipeline, in order of execution
 	targets   map[string]*targetState // Target state lookup map
 	targetsWg sync.WaitGroup          // Tracks all the target handlers
 
@@ -51,28 +49,6 @@ type TestRunner struct {
 	// Could probably be split into several if necessary.
 	mu   sync.Mutex
 	cond *sync.Cond // Used to notify the monitor about changes
-}
-
-// stepState contains state associated with one state of the pipeline:
-type stepState struct {
-	ctx    xcontext.Context
-	cancel xcontext.CancelFunc
-
-	stepIndex int                 // Index of this step in the pipeline.
-	sb        test.TestStepBundle // The test bundle.
-
-	// Channels used to communicate with the plugin.
-	inCh  chan *target.Target
-	outCh chan test.TestStepResult
-	ev    testevent.Emitter
-
-	tgtDone map[*target.Target]bool // Targets for which results have been received.
-
-	resumeState   json.RawMessage // Resume state passed to and returned by the Run method.
-	stepStarted   bool            // testStep.Run() has been invoked
-	stepRunning   bool            // testStep.Run() is currently running.
-	readerRunning bool            // Result reader is running.
-	runErr        error           // Runner error, returned from Run() or an error condition detected by the reader.
 }
 
 // targetStepPhase denotes progression of a target through a step
@@ -176,12 +152,15 @@ func (tr *TestRunner) run(
 			srs = rs.StepResumeState[i]
 		}
 		tr.steps = append(tr.steps, &stepState{
-			ctx:       stepCtx,
-			cancel:    stepCancel,
-			stepIndex: i,
-			sb:        sb,
-			inCh:      make(chan *target.Target),
-			outCh:     make(chan test.TestStepResult),
+			tr:              tr,
+			mu:              &tr.mu,
+			ctx:             stepCtx,
+			cancel:          stepCancel,
+			stepIndex:       i,
+			sb:              sb,
+			shutdownTimeout: tr.shutdownTimeout,
+			inCh:            make(chan *target.Target),
+			outCh:           make(chan test.TestStepResult),
 			ev: storage.NewTestEventEmitter(testevent.Header{
 				JobID:         jobID,
 				RunID:         runID,
@@ -257,7 +236,7 @@ func (tr *TestRunner) run(
 	numInFlightTargets := 0
 	for i, tgt := range targets {
 		tgs := tr.targets[tgt.ID]
-		stepErr := tr.steps[tgs.CurStep].runErr
+		stepErr := tr.steps[tgs.CurStep].RunErr()
 		if tgs.CurPhase == targetStepPhaseRun {
 			numInFlightTargets++
 			if stepErr != xcontext.ErrPaused {
@@ -272,7 +251,7 @@ func (tr *TestRunner) run(
 	ctx.Debugf("- %d in flight, ok to resume? %t", numInFlightTargets, resumeOk)
 	ctx.Debugf("step states:")
 	for i, ss := range tr.steps {
-		ctx.Debugf("  %d %s %t %t %v %s", i, ss, ss.stepRunning, ss.readerRunning, ss.runErr, ss.resumeState)
+		ctx.Debugf("  %d: %s", i, ss)
 	}
 
 	// Is there a useful error to report?
@@ -293,7 +272,7 @@ func (tr *TestRunner) run(
 			Targets: tr.targets,
 		}
 		for _, ss := range tr.steps {
-			rs.StepResumeState = append(rs.StepResumeState, ss.resumeState)
+			rs.StepResumeState = append(rs.StepResumeState, ss.ResumeState())
 		}
 		resumeState, runErr = json.Marshal(rs)
 		if runErr != nil {
@@ -316,25 +295,9 @@ func (tr *TestRunner) waitStepRunners(ctx xcontext.Context) error {
 		for {
 			ok := true
 			for _, ss := range tr.steps {
-				// numRunning == 1 is also acceptable: we allow the Run() goroutine
-				// to continue in case of error, if the result processor decided
-				// to abandon its runner, there's nothing we can do.
-				switch {
-				case !ss.stepRunning && !ss.readerRunning:
-				// Done
-				case ss.stepRunning && ss.readerRunning:
-					// Still active
+				if ss.IsActive(ctx) {
 					ok = false
-				case !ss.stepRunning && ss.readerRunning:
-					// Transient state, let it finish
-					ok = false
-				case ss.stepRunning && !ss.readerRunning:
-					// This is possible if plugin got stuck and result processor gave up on it.
-					// If so, it should have left an error.
-					if ss.runErr == nil {
-						ctx.Errorf("%s: result processor left runner with no error", ss)
-						// There's nothing we can do at this point, fall through.
-					}
+					break
 				}
 			}
 			if ok {
@@ -363,18 +326,18 @@ func (tr *TestRunner) waitStepRunners(ctx xcontext.Context) error {
 			err = nrerr
 		}
 		for _, ss := range tr.steps {
-			if ss.stepRunning {
-				ss.setErrLocked(&cerrors.ErrTestStepsNeverReturned{StepNames: []string{ss.sb.TestStepLabel}})
-				nrerr.StepNames = append(nrerr.StepNames, ss.sb.TestStepLabel)
+			if ss.StepRunning() {
+				ss.SetErrLocked(&cerrors.ErrTestStepsNeverReturned{StepNames: []string{ss.Label()}})
+				nrerr.StepNames = append(nrerr.StepNames, ss.Label())
 				// Cancel this step's context, this will help release the reader.
-				ss.cancel()
+				ss.Cancel()
 			}
 		}
 	}
 	// Emit step error events.
 	for _, ss := range tr.steps {
-		if ss.runErr != nil && ss.runErr != xcontext.ErrPaused && ss.runErr != xcontext.ErrCanceled {
-			if err := ss.emitEvent(ctx, EventTestError, nil, ss.runErr.Error()); err != nil {
+		if ss.RunErr() != nil && ss.RunErr() != xcontext.ErrPaused && ss.RunErr() != xcontext.ErrCanceled {
+			if err := ss.EmitEvent(ctx, EventTestError, nil, ss.RunErr().Error()); err != nil {
 				ctx.Errorf("failed to emit event: %s", err)
 			}
 		}
@@ -382,13 +345,11 @@ func (tr *TestRunner) waitStepRunners(ctx xcontext.Context) error {
 	return err
 }
 
-func (tr *TestRunner) injectTarget(ctx xcontext.Context, tgs *targetState, ss *stepState) error {
-	var err error
+func (tr *TestRunner) injectTarget(ctx xcontext.Context, tgs *targetState, ss StepState) error {
 	ctx.Debugf("%s: injecting into %s", tgs, ss)
-	select {
-	case ss.inCh <- tgs.tgt:
-		// Injected successfully.
-		err = ss.ev.Emit(ctx, testevent.Data{EventName: target.EventTargetIn, Target: tgs.tgt})
+	err := ss.Inject(ctx, tgs.tgt)
+	if err == nil {
+		err = ss.EmitEvent(ctx, target.EventTargetIn, tgs.tgt, nil)
 		tr.mu.Lock()
 		defer tr.mu.Unlock()
 		// By the time we get here the target could have been processed and result posted already, hence the check.
@@ -398,16 +359,12 @@ func (tr *TestRunner) injectTarget(ctx xcontext.Context, tgs *targetState, ss *s
 		if err != nil {
 			err = fmt.Errorf("failed to report target injection: %w", err)
 		}
-	case <-ctx.Until(xcontext.ErrPaused):
-		err = xcontext.ErrPaused
-	case <-ctx.Done():
-		err = xcontext.ErrCanceled
 	}
 	tr.cond.Signal()
 	return err
 }
 
-func (tr *TestRunner) awaitTargetResult(ctx xcontext.Context, tgs *targetState, ss *stepState) (error, error) {
+func (tr *TestRunner) awaitTargetResult(ctx xcontext.Context, tgs *targetState, ss StepState) (error, error) {
 	select {
 	case res, ok := <-tgs.resCh:
 		if !ok {
@@ -418,9 +375,9 @@ func (tr *TestRunner) awaitTargetResult(ctx xcontext.Context, tgs *targetState, 
 		ctx.Debugf("%s: result recd for %s", tgs, ss)
 		var err error
 		if res == nil {
-			err = ss.emitEvent(ctx, target.EventTargetOut, tgs.tgt, nil)
+			err = ss.EmitEvent(ctx, target.EventTargetOut, tgs.tgt, nil)
 		} else {
-			err = ss.emitEvent(ctx, target.EventTargetErr, tgs.tgt, target.ErrPayload{Error: res.Error()})
+			err = ss.EmitEvent(ctx, target.EventTargetErr, tgs.tgt, target.ErrPayload{Error: res.Error()})
 		}
 		if err != nil {
 			ctx.Errorf("failed to emit event: %s", err)
@@ -491,12 +448,12 @@ loop:
 			break loop
 		default:
 			// Must be a job created by an incompatible version of the server, fail it.
-			ss.setErrLocked(fmt.Errorf("%s: invalid phase %s", tgs, tgs.CurPhase))
+			ss.SetErrLocked(fmt.Errorf("%s: invalid phase %s", tgs, tgs.CurPhase))
 			break loop
 		}
 		tr.mu.Unlock()
 		// Make sure we have a step runner active. If not, start one.
-		tr.runStepIfNeeded(ss)
+		ss.RunIfNeeded()
 		// Inject the target.
 		var err error
 		if inject {
@@ -510,27 +467,27 @@ loop:
 		}
 		tr.mu.Lock()
 		if err != nil {
-			ss.ctx.Errorf("%s", err)
+			ctx.Errorf("%s", err)
 			switch err {
 			case xcontext.ErrPaused:
-				ss.ctx.Debugf("%s: paused 1", tgs)
+				ctx.Debugf("%s: paused 1", tgs)
 			case xcontext.ErrCanceled:
-				ss.ctx.Debugf("%s: canceled 1", tgs)
+				ctx.Debugf("%s: canceled 1", tgs)
 			default:
-				ss.setErrLocked(err)
+				ss.SetErrLocked(err)
 			}
 			tr.mu.Unlock()
 			break
 		}
 		if res != nil {
 			tgs.Res = xjson.NewError(res)
-			if tgs.CurRetry >= ss.sb.RetryParameters.NumRetries {
+			if tgs.CurRetry >= ss.RetryParameters().NumRetries {
 				tgs.CurPhase = targetStepPhaseEnd
 				tr.mu.Unlock()
 				break
 			} else {
 				nextAttempt := time.Now()
-				if ri := ss.sb.RetryParameters.RetryInterval; ri != nil {
+				if ri := ss.RetryParameters().RetryInterval; ri != nil {
 					nextAttempt = nextAttempt.Add(time.Duration(*ri))
 				}
 				tgs.NextAttempt = &nextAttempt
@@ -557,195 +514,10 @@ loop:
 	tr.mu.Unlock()
 }
 
-// runStepIfNeeded starts the step runner goroutine if not already running.
-func (tr *TestRunner) runStepIfNeeded(ss *stepState) {
-	tr.mu.Lock()
-	defer tr.mu.Unlock()
-	if ss.stepStarted {
-		return
-	}
-	ss.stepStarted = true
-	ss.stepRunning = true
-	ss.readerRunning = true
-	go tr.stepRunner(ss)
-	go tr.stepReader(ss)
-}
-
-func (ss *stepState) setErr(mu sync.Locker, err error) {
-	mu.Lock()
-	defer mu.Unlock()
-	ss.setErrLocked(err)
-}
-
-// setErrLocked sets step runner error unless already set.
-func (ss *stepState) setErrLocked(err error) {
-	if err == nil || ss.runErr != nil {
-		return
-	}
-	ss.ctx.Errorf("err: %v", err)
-	ss.runErr = err
-}
-
-// emitEvent emits the specified event with the specified JSON payload (if any).
-func (ss *stepState) emitEvent(ctx xcontext.Context, name event.Name, tgt *target.Target, payload interface{}) error {
-	var payloadJSON *json.RawMessage
-	if payload != nil {
-		payloadBytes, jmErr := json.Marshal(payload)
-		if jmErr != nil {
-			return fmt.Errorf("failed to marshal event: %w", jmErr)
-		}
-		pj := json.RawMessage(payloadBytes)
-		payloadJSON = &pj
-	}
-	errEv := testevent.Data{
-		EventName: name,
-		Target:    tgt,
-		Payload:   payloadJSON,
-	}
-	return ss.ev.Emit(ctx, errEv)
-}
-
-// stepRunner runs a test pipeline's step (the Run() method).
-func (tr *TestRunner) stepRunner(ss *stepState) {
-	ss.ctx.Debugf("%s: step runner active", ss)
-	defer func() {
-		if r := recover(); r != nil {
-			tr.mu.Lock()
-			ss.stepRunning = false
-			ss.setErrLocked(&cerrors.ErrTestStepPaniced{
-				StepName:   ss.sb.TestStepLabel,
-				StackTrace: fmt.Sprintf("%s / %s", r, debug.Stack()),
-			})
-			tr.mu.Unlock()
-			tr.safeCloseOutCh(ss)
-		}
-	}()
-	tr.mu.Lock()
-	var runErr error
-	resumeState := ss.resumeState
-	ss.resumeState = nil
-	tr.mu.Unlock()
-	chans := test.TestStepChannels{In: ss.inCh, Out: ss.outCh}
-	resumeState, runErr = ss.sb.TestStep.Run(ss.ctx, chans, ss.sb.Parameters, ss.ev, resumeState)
-	ss.ctx.Debugf("%s: step runner finished %v, rs %s", ss, runErr, string(resumeState))
-	tr.mu.Lock()
-	ss.stepRunning = false
-	ss.setErrLocked(runErr)
-	if runErr == xcontext.ErrPaused {
-		ss.resumeState = resumeState
-	}
-	tr.mu.Unlock()
-	// Signal to the result processor that no more will be coming.
-	tr.safeCloseOutCh(ss)
-}
-
-// reportTargetResult reports result of executing a step to the appropriate target handler.
-func (tr *TestRunner) reportTargetResult(ss *stepState, tgt *target.Target, res error) error {
-	resCh, err := func() (chan error, error) {
-		tr.mu.Lock()
-		defer tr.mu.Unlock()
-		tgs := tr.targets[tgt.ID]
-		if tgs == nil {
-			return nil, &cerrors.ErrTestStepReturnedUnexpectedResult{
-				StepName: ss.sb.TestStepLabel,
-				Target:   tgt.ID,
-			}
-		}
-		if ss.tgtDone[tgt] {
-			return nil, &cerrors.ErrTestStepReturnedDuplicateResult{
-				StepName: ss.sb.TestStepLabel,
-				Target:   tgt.ID,
-			}
-		}
-		ss.tgtDone[tgt] = true
-		// Begin is also allowed here because it may happen that we get a result before target handler updates phase.
-		if tgs.CurStep != ss.stepIndex ||
-			(tgs.CurPhase != targetStepPhaseBegin && tgs.CurPhase != targetStepPhaseRun) {
-			return nil, &cerrors.ErrTestStepReturnedUnexpectedResult{
-				StepName: ss.sb.TestStepLabel,
-				Target:   tgt.ID,
-			}
-		}
-		if tgs.resCh == nil {
-			// If canceled or paused, target handler may have left early. We don't care though.
-			select {
-			case <-ss.ctx.Done():
-				return nil, xcontext.ErrCanceled
-			default:
-				// This should not happen, must be an internal error.
-				return nil, fmt.Errorf("%s: target handler %s is not there, dropping result on the floor", ss, tgs)
-			}
-		}
-		tgs.CurPhase = targetStepPhaseResultPending
-		ss.ctx.Debugf("%s: result for %s: %v", ss, tgs, res)
-		return tgs.resCh, nil
-	}()
-	if err != nil {
-		return err
-	}
-	select {
-	case resCh <- res:
-		break
-	case <-ss.ctx.Done():
-		break
-	}
-	return nil
-}
-
-func (tr *TestRunner) safeCloseOutCh(ss *stepState) {
-	defer func() {
-		if r := recover(); r != nil {
-			ss.setErr(&tr.mu, &cerrors.ErrTestStepClosedChannels{StepName: ss.sb.TestStepLabel})
-		}
-	}()
-	close(ss.outCh)
-}
-
-// stepReader receives results from the step's output channel and forwards them to the appropriate target handlers.
-func (tr *TestRunner) stepReader(ss *stepState) {
-	ss.ctx.Debugf("%s: step reader active", ss)
-	var err error
-	cancelCh := ss.ctx.Done()
-	var shutdownTimeoutCh <-chan time.Time
-loop:
-	for {
-		select {
-		case res, ok := <-ss.outCh:
-			if !ok {
-				ss.ctx.Debugf("%s: out chan closed", ss)
-				tr.mu.Lock()
-				if ss.stepRunning {
-					// This means that plugin closed its channels before leaving.
-					err = &cerrors.ErrTestStepClosedChannels{StepName: ss.sb.TestStepLabel}
-				}
-				tr.mu.Unlock()
-				break loop
-			}
-			if err = tr.reportTargetResult(ss, res.Target, res.Err); err != nil {
-				break loop
-			}
-		case <-cancelCh:
-			ss.ctx.Debugf("%s: canceled 3, draining", ss)
-			// Allow some time to drain
-			cancelCh = nil
-			shutdownTimeoutCh = time.After(tr.shutdownTimeout)
-		case <-shutdownTimeoutCh:
-			err = &cerrors.ErrTestStepsNeverReturned{StepNames: []string{ss.sb.TestStepLabel}}
-			break loop
-		}
-	}
-	tr.mu.Lock()
-	defer tr.mu.Unlock()
-	ss.setErrLocked(err)
-	ss.readerRunning = false
-	ss.ctx.Debugf("%s: step reader finished, %t %t %v", ss, ss.stepRunning, ss.readerRunning, ss.runErr)
-	tr.cond.Signal()
-}
-
 // checkStepRunnersLocked checks if any step runner has encountered an error.
 func (tr *TestRunner) checkStepRunnersLocked() error {
 	for i, ss := range tr.steps {
-		switch ss.runErr {
+		switch ss.RunErr() {
 		case nil:
 			// Nothing
 		case xcontext.ErrPaused:
@@ -757,7 +529,7 @@ func (tr *TestRunner) checkStepRunnersLocked() error {
 				}
 			}
 		default:
-			return ss.runErr
+			return ss.RunErr()
 		}
 	}
 	return nil
@@ -814,7 +586,7 @@ stepLoop:
 		}
 		// All targets ok, close the step's input channel.
 		ctx.Debugf("monitor pass %d: %s: no more targets, closing input channel", pass, ss)
-		close(ss.inCh)
+		ss.InputDone()
 		step++
 	}
 	// Wait for all the targets to finish.
@@ -831,14 +603,14 @@ tgtLoop:
 				if tgs.CurPhase == targetStepPhaseRun {
 					// We have a target inside a step.
 					ss := tr.steps[tgs.CurStep]
-					if ss.runErr == xcontext.ErrPaused {
+					if ss.RunErr() == xcontext.ErrPaused {
 						// It's been paused, this is fine.
 						continue
 					}
-					if ss.stepStarted && !ss.readerRunning {
+					if ss.Started() && !ss.IsActive(ctx) {
 						// Target has been injected but step runner has exited without a valid reason, this target has been lost.
 						runErr = &cerrors.ErrTestStepLostTargets{
-							StepName: ss.sb.TestStepLabel,
+							StepName: ss.Label(),
 							Targets:  []string{tgs.tgt.ID},
 						}
 						break tgtLoop
@@ -888,10 +660,6 @@ func (tph targetStepPhase) String() string {
 		return "end"
 	}
 	return fmt.Sprintf("???(%d)", tph)
-}
-
-func (ss *stepState) String() string {
-	return fmt.Sprintf("[#%d %s]", ss.stepIndex, ss.sb.TestStepLabel)
 }
 
 func (tgs *targetState) String() string {

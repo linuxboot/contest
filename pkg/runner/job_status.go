@@ -142,12 +142,12 @@ func (jr *JobRunner) buildTestStatus(ctx xcontext.Context, coordinates job.TestC
 	for index, bundle := range currentTest.TestStepsBundles {
 		testStepCoordinates := job.TestStepCoordinates{
 			TestCoordinates: coordinates,
-			TestStepName:    bundle.TestStep.Name(),
+			TestStepName:    bundle.TestStep1.Name(),
 			TestStepLabel:   bundle.TestStepLabel,
 		}
 		testStepStatus, err := jr.buildTestStepStatus(ctx, testStepCoordinates)
 		if err != nil {
-			return nil, fmt.Errorf("could not build TestStatus for test %s: %v", bundle.TestStep.Name(), err)
+			return nil, fmt.Errorf("could not build TestStatus for test %s: %v", bundle.TestStep1.Name(), err)
 		}
 		testStatus.TestStepStatuses[index] = *testStepStatus
 	}
