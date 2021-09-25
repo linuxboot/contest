@@ -12,6 +12,7 @@ teststeps:
   - path: github.com/linuxboot/contest/plugins/teststeps/cpucmd
   - path: github.com/linuxboot/contest/plugins/teststeps/sshcmd
   - path: github.com/linuxboot/contest/plugins/teststeps/sleep
+  - path: github.com/linuxboot/contest/plugins/teststeps/exec
 
 reporters:
   - path: github.com/linuxboot/contest/plugins/reporters/targetsuccess
