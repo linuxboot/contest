@@ -8,6 +8,7 @@ require (
 	github.com/chappjc/logrus-prefix v0.0.0-20180227015900-3a1d64819adb
 	github.com/fsnotify/fsnotify v1.4.9 // indirect
 	github.com/go-sql-driver/mysql v1.5.0
+	github.com/google/go-safeweb v0.0.0-20210708115440-f60d860323ac
 	github.com/google/uuid v1.2.0
 	github.com/insomniacslk/termhook v0.0.0-20201130143922-071abc1cd194
 	github.com/insomniacslk/xjson v0.0.0-20210106140854-1589ccfd1a1a
@@ -32,7 +33,6 @@ require (
 	go.uber.org/multierr v1.6.0 // indirect
 	go.uber.org/zap v1.16.0
 	golang.org/x/crypto v0.0.0-20210322153248-0c34fe9e7dc2
-	golang.org/x/sys v0.0.0-20210320140829-1e4c9ba3b0c4 // indirect
 	golang.org/x/term v0.0.0-20210317153231-de623e64d2a6 // indirect
 	gopkg.in/yaml.v2 v2.3.0
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b

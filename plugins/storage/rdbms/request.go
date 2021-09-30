@@ -8,6 +8,7 @@ package rdbms
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/google/go-safeweb/safesql"
 
 	"github.com/linuxboot/contest/pkg/job"
 	"github.com/linuxboot/contest/pkg/types"
@@ -43,7 +44,7 @@ func (r *RDBMS) StoreJobRequest(_ xcontext.Context, request *job.Request) (types
 	}
 
 	// store job descriptor
-	result, err := r.db.Exec(insertJobStmt, request.JobName, request.JobDescriptor, extendedDescriptor, request.Requestor, request.ServerID, request.RequestTime)
+	result, err := r.db.Exec(safesql.New(insertJobStmt), request.JobName, request.JobDescriptor, extendedDescriptor, request.Requestor, request.ServerID, request.RequestTime)
 	if err != nil {
 		return jobID, fmt.Errorf("could not store job request in database: %w", err)
 	}
@@ -54,7 +55,7 @@ func (r *RDBMS) StoreJobRequest(_ xcontext.Context, request *job.Request) (types
 	jobID = types.JobID(lastID)
 
 	for _, tag := range desc.Tags {
-		if _, err := r.db.Exec(insertJobTagStmt, jobID, tag); err != nil {
+		if _, err := r.db.Exec(safesql.New(insertJobTagStmt), jobID, tag); err != nil {
 			return 0, fmt.Errorf("could not store job tag in the database: %w", err)
 		}
 	}
@@ -68,7 +69,7 @@ func (r *RDBMS) GetJobRequest(ctx xcontext.Context, jobID types.JobID) (*job.Req
 	r.lockTx()
 	defer r.unlockTx()
 
-	selectStatement := "select job_id, name, requestor, server_id, request_time, descriptor,  extended_descriptor from jobs where job_id = ?"
+	selectStatement := safesql.New("select job_id, name, requestor, server_id, request_time, descriptor,  extended_descriptor from jobs where job_id = ?")
 	ctx.Debugf("Executing query: %s", selectStatement)
 	rows, err := r.db.Query(selectStatement, jobID)
 	if err != nil {

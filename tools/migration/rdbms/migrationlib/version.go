@@ -7,17 +7,11 @@ package migrationlib
 
 import (
 	"fmt"
+	"github.com/google/go-safeweb/safesql"
 
-	"database/sql"
 	"github.com/go-sql-driver/mysql"
 	"github.com/pressly/goose"
 )
-
-// queryExecutor represents the MCD interface between sql.Db and sql.Tx
-// objects that is sufficient to retrieve the db version number.
-type queryExecutor interface {
-	Query(query string, args ...interface{}) (*sql.Rows, error)
-}
 
 // DBVersion returns the current version of the database schema.
 // The library exposes a GetDBVersion function which however requires
@@ -25,9 +19,15 @@ type queryExecutor interface {
 // transactional context, so we need to be able to extract the version
 // in a way that is agnostic to the `sql` object used (either `sql.Tx` or
 // `sql.Db`).
-func DBVersion(db queryExecutor) (uint64, error) {
+func DBVersion(db safesql.DB) (uint64, error) {
+	// We set this here in order to ensure SafeSQL since we need an untyped string const
+	// By having a const and ensuring goose uses that keeps upstream changes
+	// from completely breaking things
+	const gooseTableName = "goose_db_version"
+	goose.SetTableName(gooseTableName)
 
-	rows, err := db.Query(fmt.Sprintf("select version_id, is_applied from %s order by id desc", goose.TableName()))
+	query := safesql.TrustedSQLStringConcat(safesql.New("select version_id, is_applied from "), safesql.New(gooseTableName), safesql.New(" order by id desc"))
+	rows, err := db.Query(query)
 	if err != nil {
 		if mysqlErr, ok := err.(*mysql.MySQLError); ok {
 			if mysqlErr.Number == 1146 {

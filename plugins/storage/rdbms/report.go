@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/google/go-safeweb/safesql"
 
 	"github.com/linuxboot/contest/pkg/job"
 	"github.com/linuxboot/contest/pkg/types"
@@ -28,13 +29,13 @@ func (r *RDBMS) StoreReport(_ xcontext.Context, report *job.Report) error {
 
 	if report.RunID > 0 {
 		if _, err := r.db.Exec(
-			"insert into run_reports (job_id, run_id, reporter_name, success, report_time, data) values (?, ?, ?, ?, ?, ?)",
+			safesql.New("insert into run_reports (job_id, run_id, reporter_name, success, report_time, data) values (?, ?, ?, ?, ?, ?)"),
 			report.JobID, report.RunID, report.ReporterName, report.Success, report.ReportTime, reportJSON); err != nil {
 			return fmt.Errorf("could not store run report for job %v: %v", report.JobID, err)
 		}
 	} else {
 		if _, err := r.db.Exec(
-			"insert into final_reports (job_id, reporter_name, success, report_time, data) values (?, ?, ?, ?, ?)",
+			safesql.New("insert into final_reports (job_id, reporter_name, success, report_time, data) values (?, ?, ?, ?, ?)"),
 			report.JobID, report.ReporterName, report.Success, report.ReportTime, reportJSON); err != nil {
 			return fmt.Errorf("could not store final report for job %v: %v", report.JobID, err)
 		}
@@ -56,7 +57,7 @@ func (r *RDBMS) GetJobReport(ctx xcontext.Context, jobID types.JobID) (*job.JobR
 
 	// get run reports. Don't change the order by asc, because
 	// the code below assumes sorted results by ascending run number.
-	selectStatement := "select success, report_time, reporter_name, run_id, data from run_reports where job_id = ? order by run_id asc, reporter_name asc"
+	selectStatement := safesql.New("select success, report_time, reporter_name, run_id, data from run_reports where job_id = ? order by run_id asc, reporter_name asc")
 	ctx.Debugf("Executing query: %s", selectStatement)
 	rows, err := r.db.Query(selectStatement, jobID)
 	if err != nil {
@@ -120,7 +121,7 @@ func (r *RDBMS) GetJobReport(ctx xcontext.Context, jobID types.JobID) (*job.JobR
 	}
 
 	// get final reports
-	selectStatement = "select success, report_time, reporter_name, data from final_reports where job_id = ? order by reporter_name asc"
+	selectStatement = safesql.New("select success, report_time, reporter_name, data from final_reports where job_id = ? order by reporter_name asc")
 	ctx.Debugf("Executing query: %s", selectStatement)
 	rows2, err := r.db.Query(selectStatement, jobID)
 	if err != nil {
