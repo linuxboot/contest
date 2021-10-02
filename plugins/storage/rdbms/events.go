@@ -6,7 +6,6 @@
 package rdbms
 
 import (
-	"bytes"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -18,46 +17,48 @@ import (
 	"github.com/linuxboot/contest/pkg/target"
 	"github.com/linuxboot/contest/pkg/types"
 	"github.com/linuxboot/contest/pkg/xcontext"
+
+	"github.com/google/go-safeweb/safesql"
 )
 
-func assembleQuery(baseQuery bytes.Buffer, selectClauses []string) (string, error) {
+func assembleQuery(baseQuery safesql.TrustedSQLString, selectClauses []safesql.TrustedSQLString) (safesql.TrustedSQLString, error) {
 	if len(selectClauses) == 0 {
-		return "", fmt.Errorf("no select clauses available, the query should specify at least one clause")
+		return safesql.New(""), fmt.Errorf("no select clauses available, the query should specify at least one clause")
 	}
 	initialClause := true
 	for _, clause := range selectClauses {
 		if initialClause {
-			baseQuery.WriteString(fmt.Sprintf(" where %s", clause))
+			baseQuery = safesql.TrustedSQLStringConcat(baseQuery, safesql.New(" where "), clause)
 			initialClause = false
 		} else {
-			baseQuery.WriteString(fmt.Sprintf(" and %s", clause))
+			baseQuery = safesql.TrustedSQLStringConcat(baseQuery, safesql.New(" and "), clause)
 		}
 	}
-	baseQuery.WriteString(" order by event_id")
-	return baseQuery.String(), nil
+	return baseQuery, nil
 }
 
-func buildEventQuery(baseQuery bytes.Buffer, eventQuery *event.Query) ([]string, []interface{}) {
-	selectClauses := []string{}
+func buildEventQuery(baseQuery safesql.TrustedSQLString, eventQuery *event.Query) ([]safesql.TrustedSQLString, []interface{}) {
+	selectClauses := []safesql.TrustedSQLString{}
 	fields := []interface{}{}
 
 	if eventQuery != nil && eventQuery.JobID != 0 {
-		selectClauses = append(selectClauses, "job_id=?")
+		selectClauses = append(selectClauses, safesql.New("job_id=?"))
 		fields = append(fields, eventQuery.JobID)
 	}
 
 	if eventQuery != nil && len(eventQuery.EventNames) != 0 {
 		if len(eventQuery.EventNames) == 1 {
-			selectClauses = append(selectClauses, "event_name=?")
+			selectClauses = append(selectClauses, safesql.New("event_name=?"))
 		} else {
-			queryStr := "event_name in"
+			var queryStr safesql.TrustedSQLString
+			queryStr = safesql.New("event_name in")
 			for i := 0; i < len(eventQuery.EventNames); i++ {
 				if i == 0 {
-					queryStr = fmt.Sprintf("%s (?", queryStr)
+					queryStr = safesql.TrustedSQLStringConcat(queryStr, safesql.New(" (?"))
 				} else if i < len(eventQuery.EventNames)-1 {
-					queryStr = fmt.Sprintf("%s, ?", queryStr)
+					queryStr = safesql.TrustedSQLStringConcat(queryStr, safesql.New(", ?"))
 				} else {
-					queryStr = fmt.Sprintf("%s, ?)", queryStr)
+					queryStr = safesql.TrustedSQLStringConcat(queryStr, safesql.New(", ?)"))
 				}
 			}
 			selectClauses = append(selectClauses, queryStr)
@@ -67,49 +68,49 @@ func buildEventQuery(baseQuery bytes.Buffer, eventQuery *event.Query) ([]string,
 		}
 	}
 	if eventQuery != nil && !eventQuery.EmittedStartTime.IsZero() {
-		selectClauses = append(selectClauses, "emit_time>=?")
+		selectClauses = append(selectClauses, safesql.New("emit_time>=?"))
 		fields = append(fields, eventQuery.EmittedStartTime)
 	}
 	if eventQuery != nil && !eventQuery.EmittedEndTime.IsZero() {
-		selectClauses = append(selectClauses, "emit_time<=?")
+		selectClauses = append(selectClauses, safesql.New("emit_time<=?"))
 		fields = append(fields, eventQuery.EmittedStartTime)
 	}
 	return selectClauses, fields
 }
 
-func buildFrameworkEventQuery(baseQuery bytes.Buffer, frameworkEventQuery *frameworkevent.Query) (string, []interface{}, error) {
+func buildFrameworkEventQuery(baseQuery safesql.TrustedSQLString, frameworkEventQuery *frameworkevent.Query) (safesql.TrustedSQLString, []interface{}, error) {
 	selectClauses, fields := buildEventQuery(baseQuery, &frameworkEventQuery.Query)
 	query, err := assembleQuery(baseQuery, selectClauses)
 	if err != nil {
-		return "", nil, fmt.Errorf("could not assemble query for framework events: %v", err)
+		return safesql.New(""), nil, fmt.Errorf("could not assemble query for framework events: %v", err)
 
 	}
 	return query, fields, nil
 }
 
-func buildTestEventQuery(baseQuery bytes.Buffer, testEventQuery *testevent.Query) (string, []interface{}, error) {
+func buildTestEventQuery(baseQuery safesql.TrustedSQLString, testEventQuery *testevent.Query) (safesql.TrustedSQLString, []interface{}, error) {
 
 	if testEventQuery == nil {
-		return "", nil, fmt.Errorf("cannot build empty testevent query")
+		return safesql.New(""), nil, fmt.Errorf("cannot build empty testevent query")
 	}
 	selectClauses, fields := buildEventQuery(baseQuery, &testEventQuery.Query)
 
 	if testEventQuery.RunID != types.RunID(0) {
-		selectClauses = append(selectClauses, "run_id=?")
+		selectClauses = append(selectClauses, safesql.New("run_id=?"))
 		fields = append(fields, testEventQuery.RunID)
 	}
 
 	if testEventQuery.TestName != "" {
-		selectClauses = append(selectClauses, "test_name=?")
+		selectClauses = append(selectClauses, safesql.New("test_name=?"))
 		fields = append(fields, testEventQuery.TestName)
 	}
 	if testEventQuery.TestStepLabel != "" {
-		selectClauses = append(selectClauses, "test_step_label=?")
+		selectClauses = append(selectClauses, safesql.New("test_step_label=?"))
 		fields = append(fields, testEventQuery.TestStepLabel)
 	}
 	query, err := assembleQuery(baseQuery, selectClauses)
 	if err != nil {
-		return "", nil, fmt.Errorf("could not assemble query for framework events: %v", err)
+		return safesql.New(""), nil, fmt.Errorf("could not assemble query for framework events: %v", err)
 
 	}
 	return query, fields, nil
@@ -200,7 +201,7 @@ func (r *RDBMS) flushTestEventsLocked() error {
 	r.lockTx()
 	defer r.unlockTx()
 
-	insertStatement := "insert into test_events (job_id, run_id, test_name, test_step_label, event_name, target_id, payload, emit_time) values (?, ?, ?, ?, ?, ?, ?, ?)"
+	insertStatement := safesql.New("insert into test_events (job_id, run_id, test_name, test_step_label, event_name, target_id, payload, emit_time) values (?, ?, ?, ?, ?, ?, ?, ?)")
 	for _, event := range r.buffTestEvents {
 		_, err := r.db.Exec(
 			insertStatement,
@@ -241,9 +242,8 @@ func (r *RDBMS) GetTestEvents(ctx xcontext.Context, eventQuery *testevent.Query)
 	r.lockTx()
 	defer r.unlockTx()
 
-	baseQuery := bytes.Buffer{}
-	baseQuery.WriteString("select event_id, job_id, run_id, test_name, test_step_label, event_name, target_id, payload, emit_time from test_events")
-	query, fields, err := buildTestEventQuery(baseQuery, eventQuery)
+	const baseQuery = "select event_id, job_id, run_id, test_name, test_step_label, event_name, target_id, payload, emit_time from test_events"
+	query, fields, err := buildTestEventQuery(safesql.New(baseQuery), eventQuery)
 	if err != nil {
 		return nil, fmt.Errorf("could not execute select query for test events: %v", err)
 	}
@@ -356,7 +356,7 @@ func (r *RDBMS) flushFrameworkEventsLocked() error {
 	jobStateUpdates := map[types.JobID]job.State{}
 	for _, event := range r.buffFrameworkEvents {
 		_, err := r.db.Exec(
-			insertFEStmt,
+			safesql.New(insertFEStmt),
 			FrameworkEventJobID(event),
 			FrameworkEventName(event),
 			FrameworkEventPayload(event),
@@ -369,7 +369,7 @@ func (r *RDBMS) flushFrameworkEventsLocked() error {
 		}
 	}
 	for jobID, state := range jobStateUpdates {
-		if _, err := r.db.Exec(updateJobStateStmt, state, jobID); err != nil {
+		if _, err := r.db.Exec(safesql.New(updateJobStateStmt), state, jobID); err != nil {
 			return fmt.Errorf("could not update state of job %d: %w", jobID, err)
 		}
 	}
@@ -396,8 +396,7 @@ func (r *RDBMS) GetFrameworkEvent(ctx xcontext.Context, eventQuery *frameworkeve
 	r.lockTx()
 	defer r.unlockTx()
 
-	baseQuery := bytes.Buffer{}
-	baseQuery.WriteString(`select event_id, job_id, event_name, payload, emit_time from framework_events`)
+	baseQuery := safesql.New("select event_id, job_id, event_name, payload, emit_time from framework_events")
 	query, fields, err := buildFrameworkEventQuery(baseQuery, eventQuery)
 	if err != nil {
 		return nil, fmt.Errorf("could not execute select query for test events: %v", err)
