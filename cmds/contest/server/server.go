@@ -157,6 +157,7 @@ func Main(pluginConfig *PluginConfig, cmd string, args []string, sigs <-chan os.
 	log := ctx.Logger()
 	defer cancel()
 
+	// set the log output to file
 	if *flagLogFile != "" {
 		f, err := os.OpenFile(*flagLogFile, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0600)
 		if err != nil {
