@@ -8,12 +8,14 @@ package server
 import (
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"sync"
 	"syscall"
 	"time"
 
 	"github.com/benbjohnson/clock"
+	"github.com/sirupsen/logrus"
 
 	"github.com/linuxboot/contest/pkg/api"
 	"github.com/linuxboot/contest/pkg/config"
@@ -47,6 +49,7 @@ var (
 	flagTargetLocker       *string
 	flagInstanceTag        *string
 	flagLogLevel           *string
+	flagLogFile            *string
 	flagPauseTimeout       *time.Duration
 	flagResumeJobs         *bool
 	flagTargetLockDuration *time.Duration
@@ -61,6 +64,7 @@ func initFlags(cmd string) {
 	flagTargetLocker = flagSet.String("targetLocker", "auto", "Target locker implementation to use, \"auto\" follows DBURI setting")
 	flagInstanceTag = flagSet.String("instanceTag", "", "A tag for this instance. Server will only operate on jobs with this tag and will add this tag to the jobs it creates.")
 	flagLogLevel = flagSet.String("logLevel", "debug", "A log level, possible values: debug, info, warning, error, panic, fatal")
+	flagLogFile = flagSet.String("logFile", "", "A path to a log file, where the logs will saved seperatly")
 	flagPauseTimeout = flagSet.Duration("pauseTimeout", 0, "SIGINT/SIGTERM shutdown timeout (seconds), after which pause will be escalated to cancellaton; -1 - no escalation, 0 - do not pause, cancel immediately")
 	flagResumeJobs = flagSet.Bool("resumeJobs", false, "Attempt to resume paused jobs")
 	flagTargetLockDuration = flagSet.Duration("targetLockDuration", config.DefaultTargetLockDuration,
@@ -152,6 +156,15 @@ func Main(pluginConfig *PluginConfig, cmd string, args []string, sigs <-chan os.
 	ctx, pause := xcontext.WithNotify(ctx, xcontext.ErrPaused)
 	log := ctx.Logger()
 	defer cancel()
+
+	if *flagLogFile != "" {
+		f, err := os.OpenFile(*flagLogFile, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0600)
+		if err != nil {
+			return err
+		}
+		defer f.Close()
+		log.OriginalLogger().(*logrus.Entry).Logger.SetOutput(io.MultiWriter(os.Stderr, f))
+	}
 
 	pluginRegistry := pluginregistry.NewPluginRegistry(ctx)
 	if err := registerPlugins(pluginRegistry, pluginConfig); err != nil {
