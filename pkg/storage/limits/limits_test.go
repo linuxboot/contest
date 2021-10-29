@@ -26,6 +26,7 @@ import (
 	"github.com/linuxboot/contest/plugins/reporters/noop"
 	"github.com/linuxboot/contest/plugins/targetmanagers/targetlist"
 	"github.com/linuxboot/contest/plugins/testfetchers/literal"
+	"github.com/linuxboot/contest/plugins/teststeps/echo"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -91,9 +92,18 @@ func TestTestName(t *testing.T) {
 	require.NoError(t, err)
 	err = pluginRegistry.RegisterReporter(noop.Load())
 	require.NoError(t, err)
+	err = pluginRegistry.RegisterTestStep(echo.Load())
+	require.NoError(t, err)
 
 	testFetchParams, err := json.Marshal(&literal.FetchParameters{
 		TestName: strings.Repeat("A", limits.MaxTestNameLen+1),
+		Steps: []*test.TestStepDescriptor{{
+			Label: "abc",
+			Name:  "echo",
+			Parameters: test.TestStepParameters{
+				"text": []test.Param{*test.NewParam("\"abc\"")},
+			},
+		}},
 	})
 	require.NoError(t, err)
 

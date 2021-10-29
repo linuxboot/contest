@@ -35,6 +35,9 @@ func newJob(ctx xcontext.Context, registry *pluginregistry.PluginRegistry, jobDe
 	if err := jobDescriptor.Validate(); err != nil {
 		return nil, fmt.Errorf("could not validate job descriptor: %w", err)
 	}
+	if len(jobDescriptor.TestDescriptors) == 0 {
+		return nil, fmt.Errorf("cannot create job with zero tests")
+	}
 
 	runReportersBundle, finalReportersBundle, err := newReportingBundles(registry, jobDescriptor)
 	if err != nil {
