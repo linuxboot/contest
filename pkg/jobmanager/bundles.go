@@ -75,6 +75,10 @@ func newBundlesFromSteps(ctx xcontext.Context, descriptors []*test.TestStepDescr
 		stepBundles = append(stepBundles, *tsb)
 	}
 
+	if len(stepBundles) == 0 {
+		return nil, fmt.Errorf("at least one test step is required per test")
+	}
+
 	return stepBundles, nil
 
 }

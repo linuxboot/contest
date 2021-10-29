@@ -89,3 +89,70 @@ func TestDisabledTestDescriptor(t *testing.T) {
 	require.Len(t, result.Tests, 1)
 	require.Equal(t, result.Tests[0].Name, "TestEnabled")
 }
+
+func TestNewJobNoTests(t *testing.T) {
+	pr := pluginregistry.NewPluginRegistry(xcontext.Background())
+	// require.NoError(t, pr.RegisterTestStep(echo.Load()))
+	require.NoError(t, pr.RegisterTargetManager(targetlist.Load()))
+	require.NoError(t, pr.RegisterTestFetcher(literal.Load()))
+	require.NoError(t, pr.RegisterReporter(noop.Load()))
+
+	testDescriptors := []*test.TestDescriptor{}
+	jd := job.Descriptor{
+		TestDescriptors: testDescriptors,
+		JobName:         "Test",
+		Reporting: job.Reporting{
+			RunReporters: []job.ReporterConfig{
+				{Name: "noop"},
+			},
+		},
+	}
+
+	_, err := NewJobFromDescriptor(xcontext.Background(), pr, &jd)
+	require.Error(t, err)
+}
+
+func TestNewJobNoTestSteps(t *testing.T) {
+	pr := pluginregistry.NewPluginRegistry(xcontext.Background())
+	// require.NoError(t, pr.RegisterTestStep(echo.Load()))
+	require.NoError(t, pr.RegisterTargetManager(targetlist.Load()))
+	require.NoError(t, pr.RegisterTestFetcher(literal.Load()))
+	require.NoError(t, pr.RegisterReporter(noop.Load()))
+
+	testFetcherParams := `{
+	    "TestName": "TestDisabled",
+		"Steps": [
+		]
+	}`
+
+	targetManagerAcquireParameters := `{
+		"Targets": [
+			{
+				"ID": "id1",
+				"FQDN": "some-host.example.com"
+			}
+		]
+	}`
+
+	testDescriptors := []*test.TestDescriptor{
+		{
+			TargetManagerName:              "targetList",
+			TargetManagerAcquireParameters: []byte(targetManagerAcquireParameters),
+			TargetManagerReleaseParameters: []byte("{}"),
+			TestFetcherName:                "literal",
+			TestFetcherFetchParameters:     []byte(testFetcherParams),
+		},
+	}
+	jd := job.Descriptor{
+		TestDescriptors: testDescriptors,
+		JobName:         "Test",
+		Reporting: job.Reporting{
+			RunReporters: []job.ReporterConfig{
+				{Name: "noop"},
+			},
+		},
+	}
+
+	_, err := NewJobFromDescriptor(xcontext.Background(), pr, &jd)
+	require.Error(t, err)
+}
