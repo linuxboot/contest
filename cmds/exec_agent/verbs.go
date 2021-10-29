@@ -16,7 +16,7 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/facebookincubator/contest/pkg/xcontext"
+	"github.com/linuxboot/contest/pkg/xcontext"
 )
 
 const (

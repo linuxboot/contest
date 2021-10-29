@@ -13,7 +13,7 @@ import (
 	"io"
 	"os/exec"
 
-	"github.com/facebookincubator/contest/pkg/xcontext"
+	"github.com/linuxboot/contest/pkg/xcontext"
 )
 
 type LocalTransport struct{}

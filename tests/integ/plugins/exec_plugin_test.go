@@ -16,13 +16,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/facebookincubator/contest/pkg/event/testevent"
-	"github.com/facebookincubator/contest/pkg/runner"
-	"github.com/facebookincubator/contest/pkg/storage"
-	"github.com/facebookincubator/contest/pkg/target"
-	"github.com/facebookincubator/contest/pkg/test"
-	"github.com/facebookincubator/contest/pkg/types"
-	"github.com/facebookincubator/contest/pkg/xcontext"
+	"github.com/linuxboot/contest/pkg/event/testevent"
+	"github.com/linuxboot/contest/pkg/runner"
+	"github.com/linuxboot/contest/pkg/storage"
+	"github.com/linuxboot/contest/pkg/target"
+	"github.com/linuxboot/contest/pkg/test"
+	"github.com/linuxboot/contest/pkg/types"
+	"github.com/linuxboot/contest/pkg/xcontext"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -184,7 +184,7 @@ func TestExecPluginSSHAsync(t *testing.T) {
 				"identity_file": "/root/.ssh/id_rsa",
 				"send_binary": true,
 				"async": {
-					"agent": "/go/src/github.com/facebookincubator/contest/exec_agent",
+					"agent": "/go/src/github.com/linuxboot/contest/exec_agent",
 					"time_quota": "20s"
 				}
 			}
@@ -259,7 +259,7 @@ func TestExecPluginSSHAsyncCancel(t *testing.T) {
 				"identity_file": "/root/.ssh/id_rsa",
 				"send_binary": true,
 				"async": {
-					"agent": "/go/src/github.com/facebookincubator/contest/exec_agent",
+					"agent": "/go/src/github.com/linuxboot/contest/exec_agent",
 					"time_quota": "25s"
 				}
 			}

@@ -11,10 +11,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/facebookincubator/contest/pkg/runner"
-	"github.com/facebookincubator/contest/pkg/test"
-	"github.com/facebookincubator/contest/pkg/types"
-	"github.com/facebookincubator/contest/pkg/xcontext"
+	"github.com/linuxboot/contest/pkg/runner"
+	"github.com/linuxboot/contest/pkg/test"
+	"github.com/linuxboot/contest/pkg/types"
+	"github.com/linuxboot/contest/pkg/xcontext"
 	"github.com/stretchr/testify/require"
 )
 

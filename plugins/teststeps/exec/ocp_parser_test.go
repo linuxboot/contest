@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/facebookincubator/contest/pkg/event/testevent"
-	"github.com/facebookincubator/contest/pkg/xcontext"
+	"github.com/linuxboot/contest/pkg/event/testevent"
+	"github.com/linuxboot/contest/pkg/xcontext"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )

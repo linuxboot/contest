@@ -12,8 +12,8 @@ import (
 	"io"
 	"time"
 
-	"github.com/facebookincubator/contest/pkg/xcontext"
 	"github.com/kballard/go-shellquote"
+	"github.com/linuxboot/contest/pkg/xcontext"
 	"golang.org/x/crypto/ssh"
 )
 

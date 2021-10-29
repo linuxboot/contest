@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/facebookincubator/contest/pkg/target"
+	"github.com/linuxboot/contest/pkg/target"
 )
 
 type ParamExpander struct {
