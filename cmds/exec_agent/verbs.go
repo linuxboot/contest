@@ -16,12 +16,8 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/linuxboot/contest/pkg/remote"
 	"github.com/linuxboot/contest/pkg/xcontext"
-)
-
-const (
-	ProcessFinishedExitCode = 13
-	DeadAgentExitCode       = 14
 )
 
 func run() error {
@@ -59,13 +55,13 @@ func run() error {
 
 		return kill(pid)
 
-	case "wait":
+	case "reap":
 		pid, err := strconv.Atoi(flagSet.Arg(1))
 		if err != nil {
 			return fmt.Errorf("failed to parse exec id: %w", err)
 		}
 
-		return wait(pid)
+		return reap(pid)
 
 	default:
 		return fmt.Errorf("invalid verb: %s", verb)
@@ -101,8 +97,14 @@ func start(bin string, args []string) error {
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("failed to start process: %w", err)
 	}
-	// NOTE: write this only pid on stdout
-	fmt.Printf("%d\n", cmd.Process.Pid)
+
+	// send back the session id
+	err := remote.SendResponse(&remote.StartMessage{
+		SessionID: strconv.Itoa(cmd.Process.Pid),
+	})
+	if err != nil {
+		return fmt.Errorf("could not send session id: %w", err)
+	}
 
 	cmdErr := make(chan error, 1)
 	go func() {
@@ -159,32 +161,28 @@ func start(bin string, args []string) error {
 	}
 }
 
-func wait(pid int) error {
+func reap(pid int) error {
 	mon := NewMonitorClient(pid)
-	return mon.Wait()
+	return mon.Reap()
 }
 
 func poll(pid int) error {
 	mon := NewMonitorClient(pid)
 
-	data, err := mon.Poll()
+	msg, err := mon.Poll()
 	if err != nil {
 		// connection errors also means that the process or agent might have died
 		var e *ErrCantConnect
 		if errors.As(err, &e) {
-			os.Exit(DeadAgentExitCode)
+			return remote.SendResponse(&remote.PollMessage{
+				Error: "agent is dead or exceeded time quota",
+			})
 		}
 
 		return fmt.Errorf("failed to call monitor: %w", err)
 	}
 
-	fmt.Printf("%s", string(data.Stdout))
-	fmt.Fprintf(os.Stderr, "%s", string(data.Stderr))
-	if !data.Alive {
-		os.Exit(ProcessFinishedExitCode)
-	}
-
-	return nil
+	return remote.SendResponse(msg)
 }
 
 func kill(pid int) error {

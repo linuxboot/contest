@@ -16,20 +16,15 @@ import (
 	"os"
 	"sync"
 	"syscall"
-)
 
-type PollResponse struct {
-	Stdout []byte
-	Stderr []byte
-	Alive  bool
-}
+	"github.com/linuxboot/contest/pkg/remote"
+)
 
 type monitor struct {
 	proc *os.Process
 
-	// TODO: these should really be readonly
-	stdout *SafeBuffer
-	stderr *SafeBuffer
+	stdout LenReader
+	stderr LenReader
 
 	reaper *SafeSignal
 
@@ -38,24 +33,26 @@ type monitor struct {
 	mu sync.Mutex
 }
 
-func newMonitor(proc *os.Process, stdout *SafeBuffer, stderr *SafeBuffer, reaper *SafeSignal) *monitor {
+func newMonitor(proc *os.Process, stdout LenReader, stderr LenReader, reaper *SafeSignal) *monitor {
 	return &monitor{proc, stdout, stderr, reaper, sync.Mutex{}}
 }
 
-func (m *monitor) Poll(_ int, reply *PollResponse) error {
+func (m *monitor) Poll(_ int, reply *remote.PollMessage) error {
 	log.Printf("got a call for: poll")
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	reply.Stdout = make([]byte, m.stdout.Len())
-	if _, err := m.stdout.Read(reply.Stdout); err != nil {
+	stdout := make([]byte, m.stdout.Len())
+	if _, err := m.stdout.Read(stdout); err != nil {
 		return fmt.Errorf("failed to read stdout: %w", err)
 	}
+	reply.Stdout = string(stdout)
 
-	reply.Stderr = make([]byte, m.stderr.Len())
-	if _, err := m.stderr.Read(reply.Stderr); err != nil {
+	stderr := make([]byte, m.stderr.Len())
+	if _, err := m.stderr.Read(stderr); err != nil {
 		return fmt.Errorf("failed to read stderr: %w", err)
 	}
+	reply.Stderr = string(stderr)
 
 	// a signal value of 0 can be sent to the process to probe whether it's still alive
 	// or not, it triggers no handling in the receiver process; apart from this, there
@@ -83,8 +80,8 @@ func (m *monitor) Kill(_ int, _ *interface{}) error {
 	return nil
 }
 
-func (m *monitor) Wait(_ int, _ *interface{}) error {
-	log.Print("got a call for: wait")
+func (m *monitor) Reap(_ int, _ *interface{}) error {
+	log.Print("got a call for: reap")
 
 	m.reaper.Signal()
 	return nil
@@ -99,7 +96,7 @@ type MonitorServer struct {
 	http *http.Server
 }
 
-func NewMonitorServer(proc *os.Process, stdout *SafeBuffer, stderr *SafeBuffer, reap *SafeSignal) *MonitorServer {
+func NewMonitorServer(proc *os.Process, stdout LenReader, stderr LenReader, reap *SafeSignal) *MonitorServer {
 	addr := fmt.Sprintf(sockFormat, proc.Pid)
 	mon := newMonitor(proc, stdout, stderr, reap)
 
@@ -167,29 +164,14 @@ func NewMonitorClient(pid int) *MonitorClient {
 	return &MonitorClient{addr}
 }
 
-func (m *MonitorClient) Wait() error {
-	client, err := rpc.DialHTTP("unix", m.addr)
-	if err != nil {
-		return &ErrCantConnect{fmt.Errorf("failed to connect to %s: %w", m.addr, err)}
-	}
-	defer client.Close()
-
-	var reply interface{}
-	if err := client.Call("api.Wait", 0, &reply); err != nil {
-		return fmt.Errorf("failed to call rpc method: %w", err)
-	}
-
-	return nil
-}
-
-func (m *MonitorClient) Poll() (*PollResponse, error) {
+func (m *MonitorClient) Poll() (*remote.PollMessage, error) {
 	client, err := rpc.DialHTTP("unix", m.addr)
 	if err != nil {
 		return nil, &ErrCantConnect{fmt.Errorf("failed to connect to %s: %w", m.addr, err)}
 	}
 	defer client.Close()
 
-	var reply PollResponse
+	var reply remote.PollMessage
 	if err := client.Call("api.Poll", 0, &reply); err != nil {
 		return nil, fmt.Errorf("failed to call rpc method: %w", err)
 	}
@@ -206,6 +188,21 @@ func (m *MonitorClient) Kill() error {
 
 	var reply interface{}
 	if err := client.Call("api.Kill", 0, &reply); err != nil {
+		return fmt.Errorf("failed to call rpc method: %w", err)
+	}
+
+	return nil
+}
+
+func (m *MonitorClient) Reap() error {
+	client, err := rpc.DialHTTP("unix", m.addr)
+	if err != nil {
+		return &ErrCantConnect{fmt.Errorf("failed to connect to %s: %w", m.addr, err)}
+	}
+	defer client.Close()
+
+	var reply interface{}
+	if err := client.Call("api.Reap", 0, &reply); err != nil {
 		return fmt.Errorf("failed to call rpc method: %w", err)
 	}
 

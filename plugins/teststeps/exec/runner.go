@@ -54,11 +54,13 @@ func (r *TargetRunner) runWithOCP(
 	for dec.More() {
 		var root *OCPRoot
 		if err := dec.Decode(&root); err != nil {
-			ctx.Warnf("failed to decode ocp root: %w", err)
+			ctx.Warnf("failed to decode ocp json: %w", err)
+			break
 		}
 
 		if err := p.Parse(ctx, root); err != nil {
 			ctx.Warnf("failed to parse ocp root: %w", err)
+			break
 		}
 	}
 

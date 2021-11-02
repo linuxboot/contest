@@ -196,6 +196,10 @@ func (p *OCPEventParser) parseStep(ctx xcontext.Context, node *StepArtifact, roo
 }
 
 func (ep *OCPEventParser) Parse(ctx xcontext.Context, root *OCPRoot) error {
+	if root == nil {
+		return fmt.Errorf("invalid nil root object")
+	}
+
 	if root.RunArtifact != nil {
 		return ep.parseRun(ctx, root.RunArtifact, root)
 	}

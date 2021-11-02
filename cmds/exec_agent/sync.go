@@ -7,6 +7,7 @@ package main
 
 import (
 	"bytes"
+	"io"
 	"sync"
 )
 
@@ -67,4 +68,9 @@ func (sb *SafeBuffer) Len() int {
 	defer sb.mu.Unlock()
 
 	return sb.b.Len()
+}
+
+type LenReader interface {
+	io.Reader
+	Len() int
 }

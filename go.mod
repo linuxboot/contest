@@ -4,7 +4,7 @@ go 1.15
 
 require (
 	github.com/OneOfOne/xxhash v1.2.8 // indirect
-	github.com/aws/aws-sdk-go v1.41.13
+	github.com/aws/aws-sdk-go v1.41.14
 	github.com/benbjohnson/clock v1.1.0
 	github.com/cespare/xxhash/v2 v2.1.2 // indirect
 	github.com/chappjc/logrus-prefix v0.0.0-20180227015900-3a1d64819adb
@@ -42,7 +42,7 @@ require (
 	go.uber.org/multierr v1.7.0 // indirect
 	go.uber.org/zap v1.19.1
 	golang.org/x/crypto v0.0.0-20210921155107-089bfa567519
-	golang.org/x/sys v0.0.0-20211025201205-69cdffdb9359 // indirect
+	golang.org/x/sys v0.0.0-20211031064116-611d5d643895 // indirect
 	golang.org/x/term v0.0.0-20210927222741-03fcf44c2211 // indirect
 	google.golang.org/protobuf v1.27.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0
