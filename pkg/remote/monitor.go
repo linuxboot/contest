@@ -3,7 +3,7 @@
 // This source code is licensed under the MIT license found in the
 // LICENSE file in the root directory of this source tree.
 
-package main
+package remote
 
 import (
 	"context"
@@ -16,8 +16,6 @@ import (
 	"os"
 	"os/exec"
 	"sync"
-
-	"github.com/linuxboot/contest/pkg/remote"
 )
 
 type Monitor struct {
@@ -232,7 +230,7 @@ func NewMonitorClient(pid int) *MonitorClient {
 	return &MonitorClient{addr}
 }
 
-func (m *MonitorClient) Poll() (*remote.PollMessage, error) {
+func (m *MonitorClient) Poll() (*PollMessage, error) {
 	client, err := rpc.DialHTTP("unix", m.addr)
 	if err != nil {
 		return nil, &ErrCantConnect{fmt.Errorf("failed to connect to %s: %w", m.addr, err)}
@@ -249,7 +247,7 @@ func (m *MonitorClient) Poll() (*remote.PollMessage, error) {
 		code = &reply.ExitCode
 	}
 
-	return &remote.PollMessage{
+	return &PollMessage{
 		Stdout:   string(reply.Stdout),
 		Stderr:   string(reply.Stderr),
 		ExitCode: code,

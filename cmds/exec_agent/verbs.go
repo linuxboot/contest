@@ -79,7 +79,7 @@ func start(bin string, args []string) error {
 
 	cmd := exec.CommandContext(ctx, bin, args...)
 
-	var stdout, stderr SafeBuffer
+	var stdout, stderr remote.SafeBuffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
@@ -97,14 +97,14 @@ func start(bin string, args []string) error {
 	}
 
 	// start monitoring the cmd, also wait on the process
-	mon := NewMonitor(cmd, &stdout, &stderr)
+	mon := remote.NewMonitor(cmd, &stdout, &stderr)
 	monitorDone := make(chan error, 1)
 	go func() {
 		monitorDone <- mon.Start(ctx)
 	}()
 
 	// start unix socket server to handle process state requests
-	server := NewMonitorServer(mon)
+	server := remote.NewMonitorServer(mon)
 	serverDone := make(chan error, 1)
 	go func() {
 		serverDone <- server.Serve()
@@ -142,12 +142,12 @@ func start(bin string, args []string) error {
 }
 
 func poll(pid int) error {
-	c := NewMonitorClient(pid)
+	c := remote.NewMonitorClient(pid)
 
 	msg, err := c.Poll()
 	if err != nil {
 		// connection errors also means that the process or agent might have died
-		var e *ErrCantConnect
+		var e *remote.ErrCantConnect
 		if errors.As(err, &e) {
 			return remote.SendResponse(&remote.PollMessage{
 				Error: "agent is dead or exceeded time quota",
@@ -161,11 +161,11 @@ func poll(pid int) error {
 }
 
 func kill(pid int) error {
-	c := NewMonitorClient(pid)
+	c := remote.NewMonitorClient(pid)
 	return c.Kill()
 }
 
 func reap(pid int) error {
-	c := NewMonitorClient(pid)
+	c := remote.NewMonitorClient(pid)
 	return c.Reap()
 }
