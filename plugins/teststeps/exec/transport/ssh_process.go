@@ -109,7 +109,7 @@ func (sp *sshProcess) Wait(c xcontext.Context) error {
 	if err := sp.session.Wait(); err != nil {
 		var e *ssh.ExitError
 		if errors.As(err, &e) {
-			return fmt.Errorf("process exited with error: %w", e)
+			return &ExitError{e.ExitStatus()}
 		}
 
 		return fmt.Errorf("failed to wait on process: %w", err)

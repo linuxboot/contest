@@ -7,6 +7,7 @@ package exec
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -14,7 +15,7 @@ import (
 	"github.com/linuxboot/contest/pkg/target"
 	"github.com/linuxboot/contest/pkg/test"
 	"github.com/linuxboot/contest/pkg/xcontext"
-	"github.com/linuxboot/contest/plugins/teststeps/exec/transport"
+	exec_transport "github.com/linuxboot/contest/plugins/teststeps/exec/transport"
 )
 
 type outcome error
@@ -33,7 +34,7 @@ func NewTargetRunner(ts *TestStep, ev testevent.Emitter) *TargetRunner {
 
 func (r *TargetRunner) runWithOCP(
 	ctx xcontext.Context, target *target.Target,
-	transport transport.Transport, params stepParams,
+	transport exec_transport.Transport, params stepParams,
 ) (outcome, error) {
 	proc, err := transport.NewProcess(ctx, params.Bin.Path, params.Bin.Args)
 	if err != nil {
@@ -65,7 +66,7 @@ func (r *TargetRunner) runWithOCP(
 	}
 
 	if err := proc.Wait(ctx); err != nil {
-		return nil, fmt.Errorf("failed to wait on transport: %w", err)
+		return fmt.Errorf("failed to wait on transport: %w", err), nil
 	}
 
 	return p.Error(), nil
@@ -73,7 +74,7 @@ func (r *TargetRunner) runWithOCP(
 
 func (r *TargetRunner) runAny(
 	ctx xcontext.Context, target *target.Target,
-	transport transport.Transport, params stepParams,
+	transport exec_transport.Transport, params stepParams,
 ) (outcome, error) {
 	proc, err := transport.NewProcess(ctx, params.Bin.Path, params.Bin.Args)
 	if err != nil {
@@ -92,16 +93,27 @@ func (r *TargetRunner) runAny(
 	// try to start the process, if that succeeds then the outcome is the result of
 	// waiting on the process for its result; this way there's a semantic difference
 	// between "an error occured while launching" and "this was the outcome of the execution"
-	out := proc.Start(ctx)
-	if out == nil {
-		out = proc.Wait(ctx)
+	outcome := proc.Start(ctx)
+	if outcome == nil {
+		outcome = proc.Wait(ctx)
 	}
 
 	if err := emitEvent(ctx, TestEndEvent, nil, target, r.ev); err != nil {
-		return nil, fmt.Errorf("cannot emit event: %w", err)
+		return fmt.Errorf("cannot emit event: %w", err), nil
 	}
 
-	return out, nil
+	return outcome, nil
+}
+
+func (r *TargetRunner) run(
+	ctx xcontext.Context, target *target.Target,
+	transport exec_transport.Transport, params stepParams,
+) (outcome, error) {
+	if params.OCPOutput {
+		return r.runWithOCP(ctx, target, transport, params)
+	}
+
+	return r.runAny(ctx, target, transport, params)
 }
 
 func (r *TargetRunner) Run(ctx xcontext.Context, target *target.Target) error {
@@ -122,25 +134,26 @@ func (r *TargetRunner) Run(ctx xcontext.Context, target *target.Target) error {
 		return err
 	}
 
-	transport, err := transport.NewTransport(params.Transport.Proto, params.Transport.Options, pe)
+	transport, err := exec_transport.NewTransport(params.Transport.Proto, params.Transport.Options, pe)
 	if err != nil {
 		return fmt.Errorf("fail to create transport: %w", err)
 	}
 
-	if params.OCPOutput {
-		out, err := r.runWithOCP(ctx, target, transport, params)
+	// for any ambiguity, outcome is an error interface, but it encodes whether the process
+	// was launched sucessfully and it resulted in a failure; err means the launch failed
+	outcome, err := r.run(ctx, target, transport, params)
 
-		// for any ambiguity, out is an error interface, but it encodes whether the process
-		// was launched sucessfully and it resulted in a failure; err means the launch failed
-		if out != nil {
-			return out
-		}
+	if err != nil {
 		return err
 	}
 
-	out, err := r.runAny(ctx, target, transport, params)
-	if out != nil {
-		return out
+	// there was no error running the payload; get the outcome
+	// if there was an error map and a valid mapped value, use it
+	var ee *exec_transport.ExitError
+	if errors.As(outcome, &ee) {
+		if mappedError, ok := params.ExitCodeMap[ee.ExitCode]; ok {
+			return fmt.Errorf("exit code mapped error: %s", mappedError)
+		}
 	}
-	return err
+	return outcome
 }

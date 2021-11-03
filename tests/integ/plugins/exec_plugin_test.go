@@ -11,7 +11,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -115,31 +114,9 @@ func TestExecPluginLocalSimple(t *testing.T) {
 			"proto": "local"
 		}
 	}`
-	if err := runExecPlugin(t, ctx, jsonParams); err != nil {
-		t.Error(err)
-	}
-}
 
-func TestExecPluginLocalTimeout(t *testing.T) {
-	jsonParams := `
-	{
-		"bin": {
-			"path": "/bin/sleep",
-			"args": [
-				"20"
-			]
-		},
-		"transport": {
-			"proto": "local"
-		},
-		"constraints": {
-			"time_quota": "1s"
-		}
-	}`
 	err := runExecPlugin(t, ctx, jsonParams)
-	if !strings.Contains(err.Error(), "killed") {
-		t.Error(err)
-	}
+	require.NoError(t, err)
 }
 
 func TestExecPluginSSHSimple(t *testing.T) {
@@ -161,12 +138,41 @@ func TestExecPluginSSHSimple(t *testing.T) {
 			}
 		}
 	}`
-	if err := runExecPlugin(t, ctx, jsonParams); err != nil {
-		t.Error(err)
-	}
+
+	err := runExecPlugin(t, ctx, jsonParams)
+	require.NoError(t, err)
 }
 
-func TestExecPluginSSHAsync(t *testing.T) {
+func TestExecPluginSSHAsyncSimple(t *testing.T) {
+	jsonParams := `
+	{
+		"bin": {
+			"path": "/bin/sh",
+			"args": [
+				"-c",
+				"echo 42"
+			]
+		},
+		"transport": {
+			"proto": "ssh",
+			"options": {
+				"host": "localhost",
+				"user": "root",
+				"identity_file": "/root/.ssh/id_rsa",
+				"send_binary": false,
+				"async": {
+					"agent": "/go/src/github.com/linuxboot/contest/exec_agent",
+					"time_quota": "20s"
+				}
+			}
+		}
+	}`
+
+	err := runExecPlugin(t, ctx, jsonParams)
+	require.NoError(t, err)
+}
+
+func TestExecPluginSSHAsyncSendBinary(t *testing.T) {
 	jsonParams := `
 	{
 		"bin": {
@@ -190,9 +196,86 @@ func TestExecPluginSSHAsync(t *testing.T) {
 			}
 		}
 	}`
-	if err := runExecPlugin(t, ctx, jsonParams); err != nil {
-		t.Error(err)
-	}
+
+	err := runExecPlugin(t, ctx, jsonParams)
+	require.NoError(t, err)
+}
+
+func TestExecPluginLocalTimeout(t *testing.T) {
+	jsonParams := `
+	{
+		"bin": {
+			"path": "/bin/sleep",
+			"args": [
+				"20"
+			]
+		},
+		"transport": {
+			"proto": "local"
+		},
+		"constraints": {
+			"time_quota": "1s"
+		}
+	}`
+
+	err := runExecPlugin(t, ctx, jsonParams)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "non-zero")
+}
+func TestExecPluginSSHTimeout(t *testing.T) {
+	jsonParams := `
+	{
+		"bin": {
+			"path": "/bin/sleep",
+			"args": [
+				"20"
+			]
+		},
+		"transport": {
+			"proto": "ssh",
+			"options": {
+				"host": "localhost",
+				"user": "root",
+				"identity_file": "/root/.ssh/id_rsa"
+			}
+		},
+		"constraints": {
+			"time_quota": "1s"
+		}
+	}`
+
+	err := runExecPlugin(t, ctx, jsonParams)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "non-zero")
+}
+
+func TestExecPluginSSHAsyncTimeout(t *testing.T) {
+	jsonParams := `
+	{
+		"bin": {
+			"path": "/bin/sleep",
+			"args": [
+				"20"
+			]
+		},
+		"transport": {
+			"proto": "ssh",
+			"options": {
+				"host": "localhost",
+				"user": "root",
+				"identity_file": "/root/.ssh/id_rsa",
+				"send_binary": false,
+				"async": {
+					"agent": "/go/src/github.com/linuxboot/contest/exec_agent",
+					"time_quota": "1s"
+				}
+			}
+		}
+	}`
+
+	err := runExecPlugin(t, ctx, jsonParams)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "exceeded time quota")
 }
 
 func TestExecPluginLocalCancel(t *testing.T) {
@@ -271,4 +354,117 @@ func TestExecPluginSSHAsyncCancel(t *testing.T) {
 
 	err := runExecPlugin(t, ctx, jsonParams)
 	assert.ErrorIs(t, err, context.Canceled)
+}
+
+func TestExecPluginLocalExitMap(t *testing.T) {
+	customError := "custom error 42"
+	jsonParams := fmt.Sprintf(`
+	{
+		"bin": {
+			"path": "/bin/sh",
+			"args": [
+				"-c",
+				"exit 42"
+			]
+		},
+		"transport": {
+			"proto": "local"
+		},
+		"exitcode_map": {
+			"42": "%s"
+		}
+	}`, customError)
+
+	err := runExecPlugin(t, ctx, jsonParams)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), customError)
+}
+
+func TestExecPluginLocalExitMapWithOCP(t *testing.T) {
+	customError := "custom error 42"
+	jsonParams := fmt.Sprintf(`
+	{
+		"bin": {
+			"path": "/bin/sh",
+			"args": [
+				"-c",
+				"exit 42"
+			]
+		},
+		"transport": {
+			"proto": "local"
+		},
+		"ocp_output": true,
+		"exitcode_map": {
+			"42": "%s"
+		}
+	}`, customError)
+
+	err := runExecPlugin(t, ctx, jsonParams)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), customError)
+}
+
+func TestExecPluginSSHExitMap(t *testing.T) {
+	customError := "custom error 42"
+	jsonParams := fmt.Sprintf(`
+	{
+		"bin": {
+			"path": "/bin/sh",
+			"args": [
+				"-c",
+				"exit 42"
+			]
+		},
+		"transport": {
+			"proto": "ssh",
+			"options": {
+				"host": "localhost",
+				"user": "root",
+				"identity_file": "/root/.ssh/id_rsa"
+			}
+		},
+		"exitcode_map": {
+			"42": "%s"
+		}
+	}`, customError)
+
+	err := runExecPlugin(t, ctx, jsonParams)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), customError)
+}
+
+func TestExecPluginSSHAsyncExitMap(t *testing.T) {
+	customError := "custom error 42"
+	jsonParams := fmt.Sprintf(`
+	{
+		"bin": {
+			"path": "/bin/sh",
+			"args": [
+				"-c",
+				"exit 42"
+			]
+		},
+		"transport": {
+			"proto": "ssh",
+			"options": {
+				"host": "localhost",
+				"user": "root",
+				"identity_file": "/root/.ssh/id_rsa",
+				"send_binary": false,
+				"async": {
+					"agent": "/go/src/github.com/linuxboot/contest/exec_agent",
+					"time_quota": "20s"
+				}
+			}
+		},
+		"exitcode_map": {
+			"42": "%s",
+			"43": "doesnt exist"
+		}
+	}`, customError)
+
+	err := runExecPlugin(t, ctx, jsonParams)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), customError)
 }

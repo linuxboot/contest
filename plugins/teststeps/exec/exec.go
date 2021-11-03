@@ -34,6 +34,8 @@ type stepParams struct {
 	Constraints struct {
 		TimeQuota xjson.Duration `json:"time_quota,omitempty"`
 	} `json:"constraints,omitempty"`
+
+	ExitCodeMap map[int]string `json:"exitcode_map,omitempty"`
 }
 
 // Name is the name used to look this plugin up.

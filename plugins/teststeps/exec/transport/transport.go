@@ -18,6 +18,16 @@ type Transport interface {
 	NewProcess(ctx xcontext.Context, bin string, args []string) (Process, error)
 }
 
+// ExitError is returned by Process.Wait when the controlled process exited with
+// a non-zero exit code (depending on transport)
+type ExitError struct {
+	ExitCode int
+}
+
+func (e *ExitError) Error() string {
+	return fmt.Sprintf("process exited with non-zero code: %d", e.ExitCode)
+}
+
 type Process interface {
 	Start(ctx xcontext.Context) error
 	Wait(ctx xcontext.Context) error

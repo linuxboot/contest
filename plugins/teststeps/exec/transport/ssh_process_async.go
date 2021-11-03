@@ -246,7 +246,7 @@ func (m *asyncMonitor) Start(
 
 				code := *msg.ExitCode
 				if code != 0 {
-					exitChan <- fmt.Errorf("binary exited with non-zero code: %d", code)
+					exitChan <- &ExitError{code}
 				} else {
 					exitChan <- nil
 				}
