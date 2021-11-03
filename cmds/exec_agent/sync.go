@@ -74,3 +74,25 @@ type LenReader interface {
 	io.Reader
 	Len() int
 }
+
+// SafeExitCode is a sync storage for the exit code of a process
+// the initial value of nil cannot be reset after the first set
+type SafeExitCode struct {
+	exitCode *int
+
+	mu sync.Mutex
+}
+
+func (s *SafeExitCode) Store(code int) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.exitCode = &code
+}
+
+func (s *SafeExitCode) Load() *int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return s.exitCode
+}

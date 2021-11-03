@@ -97,12 +97,12 @@ func (spa *sshProcessAsync) Start(ctx xcontext.Context) error {
 			return
 		}
 
-		var reply remote.StartMessage
-		if err := remote.RecvResponse(stdout, &reply); err != nil {
+		var msg remote.StartMessage
+		if err := remote.RecvResponse(stdout, &msg); err != nil {
 			errChan <- fmt.Errorf("agent did not return a session id: %w", err)
 		}
 
-		resChan <- reply.SessionID
+		resChan <- msg.SessionID
 	}()
 
 	select {
@@ -179,12 +179,6 @@ func (spa *sshProcessAsync) String() string {
 	return spa.cmd
 }
 
-// TODO: maybe extract this to a package?
-const (
-	ProcessFinishedExitCode = 13
-	DeadAgentExitCode       = 14
-)
-
 type asyncMonitor struct {
 	addr         string
 	clientConfig *ssh.ClientConfig
@@ -244,13 +238,18 @@ func (m *asyncMonitor) Start(
 				return
 			}
 
-			if !msg.Alive {
+			if msg.ExitCode != nil {
 				// agent controlled process exited by itself, error was empty
 				if err := m.reap(ctx); err != nil {
 					ctx.Warnf("monitor error: %w", err)
 				}
 
-				exitChan <- nil
+				code := *msg.ExitCode
+				if code != 0 {
+					exitChan <- fmt.Errorf("binary exited with non-zero code: %d", code)
+				} else {
+					exitChan <- nil
+				}
 				return
 			}
 

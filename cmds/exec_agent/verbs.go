@@ -71,20 +71,10 @@ func run() error {
 func start(bin string, args []string) error {
 	ctx := xcontext.Background()
 
-	// signal channel for process exit. Similar to Wait
-	reaper := newSafeSignal()
-	defer reaper.Signal()
-
 	if flagTimeQuota != nil && *flagTimeQuota != 0 {
 		var cancel xcontext.CancelFunc
 		ctx, cancel = xcontext.WithTimeout(ctx, *flagTimeQuota)
 		defer cancel()
-
-		// skip waiting for remote to poll/wait
-		go func() {
-			<-ctx.Done()
-			reaper.Signal()
-		}()
 	}
 
 	cmd := exec.CommandContext(ctx, bin, args...)
@@ -106,24 +96,18 @@ func start(bin string, args []string) error {
 		return fmt.Errorf("could not send session id: %w", err)
 	}
 
-	cmdErr := make(chan error, 1)
+	// start monitoring the cmd, also wait on the process
+	mon := NewMonitor(cmd, &stdout, &stderr)
+	monitorDone := make(chan error, 1)
 	go func() {
-		err := cmd.Wait()
-		if err != nil {
-			log.Printf("process exited with err: %v", err)
-		} else {
-			log.Print("process finished")
-		}
-
-		reaper.Wait()
-		cmdErr <- err
+		monitorDone <- mon.Start(ctx)
 	}()
 
-	// start unix socket server
-	mon := NewMonitorServer(cmd.Process, &stdout, &stderr, reaper)
-	monErr := make(chan error, 1)
+	// start unix socket server to handle process state requests
+	server := NewMonitorServer(mon)
+	serverDone := make(chan error, 1)
 	go func() {
-		monErr <- mon.Serve()
+		serverDone <- server.Serve()
 	}()
 
 	// catch termination signals
@@ -133,43 +117,34 @@ func start(bin string, args []string) error {
 
 	for {
 		select {
-		case err := <-cmdErr:
-			if err := mon.Shutdown(); err != nil {
-				log.Printf("failed to shutdown monitor: %v", err)
+		case err := <-monitorDone:
+			if err := server.Shutdown(); err != nil {
+				log.Printf("failed to shutdown monitor server: %v", err)
 			}
 			return err
 
 		case sig := <-sigs:
-			if err := mon.Shutdown(); err != nil {
-				log.Printf("failed to shutdown monitor: %v", err)
+			if err := server.Shutdown(); err != nil {
+				log.Printf("failed to shutdown monitor server: %v", err)
 			}
-			if cmd.ProcessState == nil {
-				if err := cmd.Process.Kill(); err != nil {
-					log.Printf("failed to kill process on signal: %v", err)
-				}
+			if err := mon.Kill(); err != nil {
+				log.Printf("failed to kill monitored process: %v", err)
 			}
 			return fmt.Errorf("signal caught: %v", sig)
 
-		case err := <-monErr:
-			if cmd.ProcessState == nil {
-				if err := cmd.Process.Kill(); err != nil {
-					log.Printf("failed to kill process on monitor error: %v", err)
-				}
+		case err := <-serverDone:
+			if err := mon.Kill(); err != nil {
+				log.Printf("failed to kill monitored process: %v", err)
 			}
 			return err
 		}
 	}
 }
 
-func reap(pid int) error {
-	mon := NewMonitorClient(pid)
-	return mon.Reap()
-}
-
 func poll(pid int) error {
-	mon := NewMonitorClient(pid)
+	c := NewMonitorClient(pid)
 
-	msg, err := mon.Poll()
+	msg, err := c.Poll()
 	if err != nil {
 		// connection errors also means that the process or agent might have died
 		var e *ErrCantConnect
@@ -186,6 +161,11 @@ func poll(pid int) error {
 }
 
 func kill(pid int) error {
-	mon := NewMonitorClient(pid)
-	return mon.Kill()
+	c := NewMonitorClient(pid)
+	return c.Kill()
+}
+
+func reap(pid int) error {
+	c := NewMonitorClient(pid)
+	return c.Reap()
 }

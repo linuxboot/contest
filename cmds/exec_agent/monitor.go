@@ -14,76 +14,144 @@ import (
 	"net/http"
 	"net/rpc"
 	"os"
+	"os/exec"
 	"sync"
-	"syscall"
 
 	"github.com/linuxboot/contest/pkg/remote"
 )
 
-type monitor struct {
-	proc *os.Process
+type Monitor struct {
+	cmd *exec.Cmd
 
-	stdout LenReader
-	stderr LenReader
+	stdout   LenReader
+	stderr   LenReader
+	exitCode SafeExitCode
 
 	reaper *SafeSignal
+}
+
+func NewMonitor(cmd *exec.Cmd, stdout LenReader, stderr LenReader) *Monitor {
+	reaper := newSafeSignal()
+
+	return &Monitor{
+		cmd:    cmd,
+		stdout: stdout,
+		stderr: stderr,
+		reaper: reaper,
+	}
+}
+
+func (m *Monitor) Start(ctx context.Context) error {
+	go func() {
+		<-ctx.Done()
+
+		// got cancelled; don't wait for a controller to reap
+		m.reaper.Signal()
+	}()
+
+	err := m.cmd.Wait()
+	if err == nil {
+		log.Print("process finished")
+		m.exitCode.Store(0)
+	} else {
+		log.Printf("process exited with err: %v", err)
+
+		var ee *exec.ExitError
+		if errors.As(err, &ee) {
+			m.exitCode.Store(ee.ExitCode())
+		}
+	}
+
+	// wait for controller to read all data then signal the reap
+	m.reaper.Wait()
+	return err
+}
+
+func (m *Monitor) Kill() error {
+	if m.exitCode.Load() == nil {
+		return m.cmd.Process.Kill()
+	}
+
+	return nil
+}
+
+func (m *Monitor) newRPC() *monitorRPC {
+	return &monitorRPC{mon: m}
+}
+
+func (m *Monitor) pollFds() ([]byte, []byte, error) {
+	stdout := make([]byte, m.stdout.Len())
+	if _, err := m.stdout.Read(stdout); err != nil {
+		return nil, nil, fmt.Errorf("failed to read stdout: %w", err)
+	}
+
+	stderr := make([]byte, m.stderr.Len())
+	if _, err := m.stderr.Read(stderr); err != nil {
+		return nil, nil, fmt.Errorf("failed to read stderr: %w", err)
+	}
+
+	return stdout, stderr, nil
+}
+
+type PollReply struct {
+	Stdout []byte
+	Stderr []byte
+
+	ExitCode int
+	Alive    bool
+}
+
+// monitorRPC is a tightly coupled view into Monitor that can be used
+// as a server handler for RPC calls
+type monitorRPC struct {
+	mon *Monitor
 
 	// there really shouldnt be multiple concurrent consumers
 	// by design, but better be safe than sorry
 	mu sync.Mutex
 }
 
-func newMonitor(proc *os.Process, stdout LenReader, stderr LenReader, reaper *SafeSignal) *monitor {
-	return &monitor{proc, stdout, stderr, reaper, sync.Mutex{}}
-}
+func (rpc *monitorRPC) Poll(_ int, reply *PollReply) error {
 
-func (m *monitor) Poll(_ int, reply *remote.PollMessage) error {
 	log.Printf("got a call for: poll")
-	m.mu.Lock()
-	defer m.mu.Unlock()
+	rpc.mu.Lock()
+	defer rpc.mu.Unlock()
 
-	stdout := make([]byte, m.stdout.Len())
-	if _, err := m.stdout.Read(stdout); err != nil {
-		return fmt.Errorf("failed to read stdout: %w", err)
+	stdout, stderr, err := rpc.mon.pollFds()
+	if err != nil {
+		return err
 	}
-	reply.Stdout = string(stdout)
 
-	stderr := make([]byte, m.stderr.Len())
-	if _, err := m.stderr.Read(stderr); err != nil {
-		return fmt.Errorf("failed to read stderr: %w", err)
-	}
-	reply.Stderr = string(stderr)
+	reply.Stdout = stdout
+	reply.Stderr = stderr
 
-	// a signal value of 0 can be sent to the process to probe whether it's still alive
-	// or not, it triggers no handling in the receiver process; apart from this, there
-	// aren't many other ways of checking the process health (apart from poking the pid directly)
-	reply.Alive = true
-	if err := m.proc.Signal(syscall.Signal(0)); err != nil {
-		if errors.Is(err, os.ErrProcessDone) {
-			reply.Alive = false
-			return nil
-		}
-
-		return fmt.Errorf("failed to send signal: %w", err)
+	code := rpc.mon.exitCode.Load()
+	if code == nil {
+		reply.Alive = true
+	} else {
+		reply.ExitCode = *code
 	}
 
 	return nil
 }
 
-func (m *monitor) Kill(_ int, _ *interface{}) error {
+func (rpc *monitorRPC) Kill(_ int, _ *interface{}) error {
 	log.Print("got a call for: kill")
+	rpc.mu.Lock()
+	defer rpc.mu.Unlock()
 
-	if err := m.proc.Signal(syscall.SIGKILL); err != nil {
-		return fmt.Errorf("failed to send SIGKILL: %w", err)
+	if err := rpc.mon.Kill(); err != nil {
+		return fmt.Errorf("failed to kill process: %w", err)
 	}
-
 	return nil
 }
 
-func (m *monitor) Reap(_ int, _ *interface{}) error {
+func (rpc *monitorRPC) Reap(_ int, _ *interface{}) error {
 	log.Print("got a call for: reap")
+	rpc.mu.Lock()
+	defer rpc.mu.Unlock()
 
-	m.reaper.Signal()
+	rpc.mon.reaper.Signal()
 	return nil
 }
 
@@ -91,16 +159,16 @@ const sockFormat = "/tmp/exec_bin_sock_%d"
 
 type MonitorServer struct {
 	addr string
-	mon  *monitor
+	rpc  *monitorRPC
 
 	http *http.Server
 }
 
-func NewMonitorServer(proc *os.Process, stdout LenReader, stderr LenReader, reap *SafeSignal) *MonitorServer {
-	addr := fmt.Sprintf(sockFormat, proc.Pid)
-	mon := newMonitor(proc, stdout, stderr, reap)
-
-	return &MonitorServer{addr, mon, nil}
+func NewMonitorServer(mon *Monitor) *MonitorServer {
+	return &MonitorServer{
+		addr: fmt.Sprintf(sockFormat, mon.cmd.Process.Pid),
+		rpc:  mon.newRPC(),
+	}
 }
 
 func (m *MonitorServer) Serve() error {
@@ -117,7 +185,7 @@ func (m *MonitorServer) Serve() error {
 	defer listener.Close()
 
 	rpcServer := rpc.NewServer()
-	if err := rpcServer.RegisterName("api", m.mon); err != nil {
+	if err := rpcServer.RegisterName("rpc", m.rpc); err != nil {
 		return fmt.Errorf("failed to register rpc api: %v", err)
 	}
 
@@ -133,7 +201,7 @@ func (m *MonitorServer) Shutdown() error {
 	log.Printf("shutting down monitor...")
 
 	if err := os.RemoveAll(m.addr); err != nil {
-		return fmt.Errorf("failed to remove any socket %s: %w", m.addr, err)
+		return fmt.Errorf("failed to remove unix socket %s: %w", m.addr, err)
 	}
 
 	if m.http != nil {
@@ -171,12 +239,21 @@ func (m *MonitorClient) Poll() (*remote.PollMessage, error) {
 	}
 	defer client.Close()
 
-	var reply remote.PollMessage
-	if err := client.Call("api.Poll", 0, &reply); err != nil {
+	var reply PollReply
+	if err := client.Call("rpc.Poll", 0, &reply); err != nil {
 		return nil, fmt.Errorf("failed to call rpc method: %w", err)
 	}
 
-	return &reply, nil
+	var code *int
+	if !reply.Alive {
+		code = &reply.ExitCode
+	}
+
+	return &remote.PollMessage{
+		Stdout:   string(reply.Stdout),
+		Stderr:   string(reply.Stderr),
+		ExitCode: code,
+	}, nil
 }
 
 func (m *MonitorClient) Kill() error {
@@ -187,7 +264,7 @@ func (m *MonitorClient) Kill() error {
 	defer client.Close()
 
 	var reply interface{}
-	if err := client.Call("api.Kill", 0, &reply); err != nil {
+	if err := client.Call("rpc.Kill", 0, &reply); err != nil {
 		return fmt.Errorf("failed to call rpc method: %w", err)
 	}
 
@@ -202,7 +279,7 @@ func (m *MonitorClient) Reap() error {
 	defer client.Close()
 
 	var reply interface{}
-	if err := client.Call("api.Reap", 0, &reply); err != nil {
+	if err := client.Call("rpc.Reap", 0, &reply); err != nil {
 		return fmt.Errorf("failed to call rpc method: %w", err)
 	}
 

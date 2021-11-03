@@ -19,8 +19,12 @@ type StartMessage struct {
 type PollMessage struct {
 	Stdout string `json:"stdout,omitempty"`
 	Stderr string `json:"stderr,omitempty"`
-	Alive  bool   `json:"alive"`
-	Error  string `json:"error,omitempty"`
+
+	// ExitCode is non-nil when the controlled process exited
+	ExitCode *int `json:"exitcode"`
+
+	// Error is any error encountered while trying to reach the agent
+	Error string `json:"error,omitempty"`
 }
 
 // SendResponse conveys to the caller a given response object o
