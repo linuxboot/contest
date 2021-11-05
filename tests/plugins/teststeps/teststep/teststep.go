@@ -44,7 +44,7 @@ var Events = []event.Name{StartedEvent, FinishedEvent, FailedEvent, StepRunningE
 
 type Step struct {
 	failPct      int64
-	failTargets  map[string]bool
+	failTargets  map[string]int
 	delayTargets map[string]time.Duration
 }
 
@@ -54,7 +54,10 @@ func (ts Step) Name() string {
 }
 
 func (ts *Step) shouldFail(t *target.Target, params test.TestStepParameters) bool {
-	if ts.failTargets[t.ID] {
+	if cnt := ts.failTargets[t.ID]; cnt > 0 || cnt == -1 {
+		if cnt != -1 {
+			ts.failTargets[t.ID] = cnt - 1
+		}
 		return true
 	}
 	if ts.failPct > 0 {
@@ -108,7 +111,19 @@ func (ts *Step) ValidateParameters(_ xcontext.Context, params test.TestStepParam
 	targetsToFail := params.GetOne(FailTargetsParam).String()
 	if len(targetsToFail) > 0 {
 		for _, t := range strings.Split(targetsToFail, ",") {
-			ts.failTargets[t] = true
+			parts := strings.Split(t, ":")
+			if len(parts) < 1 || len(parts) > 2 {
+				return fmt.Errorf("invalid target: '%s'", t)
+			}
+			count := -1
+			if len(parts) == 2 {
+				cnt, err := strconv.Atoi(parts[1])
+				if err != nil {
+					return fmt.Errorf("failed to convert '%s' to integer: %w", parts[1], err)
+				}
+				count = cnt
+			}
+			ts.failTargets[parts[0]] = count
 		}
 	}
 	targetsToDelay := params.GetOne(DelayTargetsParam).String()
@@ -138,7 +153,7 @@ func (ts *Step) ValidateParameters(_ xcontext.Context, params test.TestStepParam
 // New initializes and returns a new TestStep.
 func New() test.TestStep {
 	return &Step{
-		failTargets:  make(map[string]bool),
+		failTargets:  make(map[string]int),
 		delayTargets: make(map[string]time.Duration),
 	}
 }

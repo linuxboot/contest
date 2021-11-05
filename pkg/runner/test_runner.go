@@ -64,7 +64,7 @@ type stepState struct {
 	// Channels used to communicate with the plugin.
 	inCh  chan *target.Target
 	outCh chan test.TestStepResult
-	ev    testevent.Emitter
+	ev    *eventDistributor
 
 	tgtDone map[*target.Target]bool // Targets for which results have been received.
 
@@ -96,9 +96,10 @@ type targetState struct {
 	CurStep     int             `json:"S,omitempty"`  // Current step number.
 	CurPhase    targetStepPhase `json:"P,omitempty"`  // Current phase of step execution.
 	Res         *xjson.Error    `json:"R,omitempty"`  // Result of the last attempt or final, if reached the end state.
-	CurRetry    int             `json:"CR,omitempty"` // Current retry number.
+	CurRetry    int             `json:"CR"`           // Current retry number.
 	NextAttempt *time.Time      `json:"NA,omitempty"` // Timestap for the next attempt to begin.
 
+	ev             testevent.Emitter
 	handlerRunning bool
 	resCh          chan error // Channel used to communicate result by the step runner.
 }
@@ -176,18 +177,13 @@ func (tr *TestRunner) run(
 			srs = rs.StepResumeState[i]
 		}
 		tr.steps = append(tr.steps, &stepState{
-			ctx:       stepCtx,
-			cancel:    stepCancel,
-			stepIndex: i,
-			sb:        sb,
-			inCh:      make(chan *target.Target),
-			outCh:     make(chan test.TestStepResult),
-			ev: storage.NewTestEventEmitter(testevent.Header{
-				JobID:         jobID,
-				RunID:         runID,
-				TestName:      t.Name,
-				TestStepLabel: sb.TestStepLabel,
-			}),
+			ctx:         stepCtx,
+			cancel:      stepCancel,
+			stepIndex:   i,
+			sb:          sb,
+			ev:          newEventDistributor(jobID, runID, t.Name, sb.TestStepLabel),
+			inCh:        make(chan *target.Target),
+			outCh:       make(chan test.TestStepResult),
 			tgtDone:     make(map[*target.Target]bool),
 			resumeState: srs,
 		})
@@ -441,7 +437,10 @@ func (tr *TestRunner) awaitTargetResult(ctx xcontext.Context, tgs *targetState, 
 
 // targetHandler takes a single target through each step of the pipeline in sequence.
 // It injects the target, waits for the result, then moves on to the next step.
-func (tr *TestRunner) targetHandler(ctx xcontext.Context, tgs *targetState) {
+func (tr *TestRunner) targetHandler(
+	ctx xcontext.Context,
+	tgs *targetState,
+) {
 	ctx = ctx.WithField("target", tgs.tgt.ID)
 	ctx.Debugf("%s: target handler active", tgs)
 	// NB: CurStep may be non-zero on entry if resumed
@@ -463,11 +462,12 @@ loop:
 		switch tgs.CurPhase {
 		case targetStepPhaseInit:
 			// Normal case, inject and wait for result.
-			inject = true
 			tgs.CurPhase = targetStepPhaseBegin
+			fallthrough
 		case targetStepPhaseBegin:
 			// Paused before injection.
 			inject = true
+			ss.ev.setRetry(tgs.tgt.ID, tgs.CurRetry)
 		case targetStepPhaseRun:
 			// Resumed in running state, skip injection.
 			inject = false
@@ -478,13 +478,14 @@ loop:
 			select {
 			case <-time.After(sleepTime):
 				tr.mu.Lock()
-				tgs.CurRetry++
 				tgs.CurPhase = targetStepPhaseBegin
+				ss.tgtDone[tgs.tgt] = false
 				tr.mu.Unlock()
+				continue loop
 			case <-ctx.Until(xcontext.ErrPaused):
 			case <-ctx.Done():
 			}
-			continue loop
+			break loop
 		case targetStepPhaseEnd:
 			// Resumed in terminal state, we are done.
 			tr.mu.Unlock()
@@ -494,6 +495,7 @@ loop:
 			ss.setErrLocked(fmt.Errorf("%s: invalid phase %s", tgs, tgs.CurPhase))
 			break loop
 		}
+
 		tr.mu.Unlock()
 		// Make sure we have a step runner active. If not, start one.
 		tr.runStepIfNeeded(ss)
@@ -524,7 +526,8 @@ loop:
 		}
 		if res != nil {
 			tgs.Res = xjson.NewError(res)
-			if tgs.CurRetry >= ss.sb.RetryParameters.NumRetries {
+			tgs.CurRetry++
+			if tgs.CurRetry > ss.sb.RetryParameters.NumRetries {
 				tgs.CurPhase = targetStepPhaseEnd
 				tr.mu.Unlock()
 				break
@@ -798,7 +801,7 @@ stepLoop:
 			if !tgs.handlerRunning { // Not running anymore
 				continue
 			}
-			if tgs.CurStep < step || tgs.CurPhase < targetStepPhaseRun {
+			if tgs.CurStep <= step || tgs.CurPhase < targetStepPhaseRun {
 				ctx.Debugf("monitor pass %d: %s: not all targets injected yet (%s)", pass, ss, tgs)
 				ok = false
 				break
@@ -908,4 +911,57 @@ func (tgs *targetState) String() string {
 	finished := !tgs.handlerRunning
 	return fmt.Sprintf("[%s %d %s %d %t %s]",
 		tgs.tgt, tgs.CurStep, tgs.CurPhase, tgs.CurRetry, finished, resText)
+}
+
+// eventDistributor keeps track of retries in target state
+type eventDistributor struct {
+	header        testevent.Header
+	mu            sync.Mutex
+	targetRetries map[string]int
+}
+
+func newEventDistributor(jobID types.JobID, runID types.RunID, testName string, testStepLabel string) *eventDistributor {
+	return &eventDistributor{
+		header: testevent.Header{
+			JobID:         jobID,
+			RunID:         runID,
+			TestName:      testName,
+			TestStepLabel: testStepLabel,
+		},
+		targetRetries: make(map[string]int),
+	}
+}
+
+func (ed *eventDistributor) setRetry(targetID string, retry int) {
+	ed.mu.Lock()
+	defer ed.mu.Unlock()
+	ed.targetRetries[targetID] = retry
+}
+
+func (ed *eventDistributor) Emit(ctx xcontext.Context, data testevent.Data) error {
+	if data.Target == nil {
+		return ed.emitForUnknownTarget(ctx, data)
+	}
+
+	ed.mu.Lock()
+	retry, found := ed.targetRetries[data.Target.ID]
+	ed.mu.Unlock()
+
+	if !found {
+		// this should never happen
+		ctx.Errorf("Unknown target ID: '%s'", data.Target.ID)
+		return ed.emitForUnknownTarget(ctx, data)
+	}
+
+	h := ed.header
+	h.TestStepRetry = retry
+	ev := testevent.NewWithCurrentEmitTime(&h, &data)
+	return storage.EmitTestEvent(ctx, ev)
+}
+
+func (ed *eventDistributor) emitForUnknownTarget(ctx xcontext.Context, data testevent.Data) error {
+	h := ed.header
+	h.TestStepRetry = -1
+	ev := testevent.NewWithCurrentEmitTime(&h, &data)
+	return storage.EmitTestEvent(ctx, ev)
 }

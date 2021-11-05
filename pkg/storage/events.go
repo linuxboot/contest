@@ -7,7 +7,6 @@ package storage
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/linuxboot/contest/pkg/event"
 	"github.com/linuxboot/contest/pkg/event/frameworkevent"
@@ -49,11 +48,7 @@ func (e TestEventEmitter) Emit(ctx xcontext.Context, data testevent.Data) error 
 			return fmt.Errorf("teststep %s is not allowed to emit unregistered event %s", e.header.TestName, data.EventName)
 		}
 	}
-	event := testevent.Event{Header: &e.header, Data: &data, EmitTime: time.Now()}
-	if err := storage.StoreTestEvent(ctx, event); err != nil {
-		return fmt.Errorf("could not persist event data %v: %v", data, err)
-	}
-	return nil
+	return EmitTestEvent(ctx, testevent.NewWithCurrentEmitTime(&e.header, &data))
 }
 
 // Fetch retrieves events based on QueryFields that are used to build a Query object for TestEvents
@@ -151,4 +146,12 @@ func NewFrameworkEventEmitterFetcher() FrameworkEventEmitterFetcher {
 		FrameworkEventEmitter{},
 		FrameworkEventFetcher{},
 	}
+}
+
+// EmitTestEvent emits an event
+func EmitTestEvent(ctx xcontext.Context, event testevent.Event) error {
+	if err := storage.StoreTestEvent(ctx, event); err != nil {
+		return fmt.Errorf("could not persist event %v: %v", event, err)
+	}
+	return nil
 }

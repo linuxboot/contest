@@ -25,6 +25,7 @@ type Header struct {
 	RunID         types.RunID
 	TestName      string
 	TestStepLabel string
+	TestStepRetry int
 }
 
 // Data models the data of a test event. It is populated by the TestStep
@@ -44,6 +45,11 @@ type Event struct {
 // New creates a new Event with zero value header and data
 func New(header *Header, data *Data) Event {
 	return Event{Header: header, Data: data}
+}
+
+// NewWithCurrentEmitTime creates a new Event and sets EmitTime to time.Now()
+func NewWithCurrentEmitTime(header *Header, data *Data) Event {
+	return Event{Header: header, Data: data, EmitTime: time.Now()}
 }
 
 // Query wraps information that are used to build queries for
@@ -155,7 +161,7 @@ type EmitterFetcher interface {
 }
 
 func (h *Header) String() string {
-	return fmt.Sprintf("[%d %d %s %s]", h.JobID, h.RunID, h.TestName, h.TestStepLabel)
+	return fmt.Sprintf("[%d %d %s %s %d]", h.JobID, h.RunID, h.TestName, h.TestStepLabel, h.TestStepRetry)
 }
 
 func (d *Data) String() string {
