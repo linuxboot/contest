@@ -536,8 +536,8 @@ loop:
 					nextAttempt = nextAttempt.Add(time.Duration(*ri))
 				}
 				tgs.NextAttempt = &nextAttempt
-				tr.mu.Unlock()
 				tgs.CurPhase = targetStepPhaseSleepRetry
+				tr.mu.Unlock()
 				continue loop
 			}
 		} else {
