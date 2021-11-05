@@ -51,7 +51,7 @@ type Step struct {
 }
 
 // Name returns the name of the Step
-func (ts Step) Name() string {
+func (ts *Step) Name() string {
 	return Name
 }
 
