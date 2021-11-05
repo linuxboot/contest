@@ -99,7 +99,6 @@ type targetState struct {
 	CurRetry    int             `json:"CR"`           // Current retry number.
 	NextAttempt *time.Time      `json:"NA,omitempty"` // Timestap for the next attempt to begin.
 
-	ev             testevent.Emitter
 	handlerRunning bool
 	resCh          chan error // Channel used to communicate result by the step runner.
 }
