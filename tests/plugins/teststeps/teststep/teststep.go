@@ -11,6 +11,7 @@ import (
 	"math/rand"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/linuxboot/contest/pkg/event"
@@ -43,6 +44,7 @@ const (
 var Events = []event.Name{StartedEvent, FinishedEvent, FailedEvent, StepRunningEvent, StepFinishedEvent}
 
 type Step struct {
+	mu           sync.Mutex
 	failPct      int64
 	failTargets  map[string]int
 	delayTargets map[string]time.Duration
@@ -54,12 +56,16 @@ func (ts Step) Name() string {
 }
 
 func (ts *Step) shouldFail(t *target.Target, params test.TestStepParameters) bool {
+	ts.mu.Lock()
 	if cnt := ts.failTargets[t.ID]; cnt > 0 || cnt == -1 {
 		if cnt != -1 {
 			ts.failTargets[t.ID] = cnt - 1
 		}
+		ts.mu.Unlock()
 		return true
 	}
+	ts.mu.Unlock()
+
 	if ts.failPct > 0 {
 		roll := rand.Int63n(101)
 		return (roll <= ts.failPct)
