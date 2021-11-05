@@ -696,8 +696,8 @@ func (s *TestRunnerSuite) TestRetriesRestore() {
 		require.Equal(s.T(), 1, ts.CurRetry)
 		require.NotNil(s.T(), ts.NextAttempt)
 		require.NotNil(s.T(), ts.Res)
-		require.LessOrEqual(s.T(), ts.NextAttempt.Sub(time.Now()), time.Minute)
-		require.GreaterOrEqual(s.T(), ts.NextAttempt.Sub(time.Now()), 50*time.Second)
+		require.LessOrEqual(s.T(), time.Until(*ts.NextAttempt), time.Minute)
+		require.GreaterOrEqual(s.T(), time.Until(*ts.NextAttempt), 50*time.Second)
 
 		require.Equal(s.T(), `
 {[1 2 SimpleTest Step 1 -1][(*Target)(nil) TestStepRunningEvent]}
