@@ -3,6 +3,7 @@
 // This source code is licensed under the MIT license found in the
 // LICENSE file in the root directory of this source tree.
 
+//go:build integration || integration_storage
 // +build integration integration_storage
 
 package test
@@ -547,18 +548,18 @@ func (suite *TestJobManagerSuite) testPauseAndResume(
 	if finalState == job.EventJobCompleted {
 		// Verify emitted events. Despite pausing ad different stages this should look perfectly normal.
 		require.Equal(suite.T(), strings.Replace(`
-{[JOBID 1 IntegrationTest: resume ][Target{ID: "id1"} TargetAcquired]}
-{[JOBID 1 IntegrationTest: resume Step 1][Target{ID: "id1"} TargetIn]}
-{[JOBID 1 IntegrationTest: resume Step 1][Target{ID: "id1"} TargetOut]}
-{[JOBID 1 IntegrationTest: resume Step 2][Target{ID: "id1"} TargetIn]}
-{[JOBID 1 IntegrationTest: resume Step 2][Target{ID: "id1"} TargetOut]}
-{[JOBID 1 IntegrationTest: resume ][Target{ID: "id1"} TargetReleased]}
-{[JOBID 2 IntegrationTest: resume ][Target{ID: "id1"} TargetAcquired]}
-{[JOBID 2 IntegrationTest: resume Step 1][Target{ID: "id1"} TargetIn]}
-{[JOBID 2 IntegrationTest: resume Step 1][Target{ID: "id1"} TargetOut]}
-{[JOBID 2 IntegrationTest: resume Step 2][Target{ID: "id1"} TargetIn]}
-{[JOBID 2 IntegrationTest: resume Step 2][Target{ID: "id1"} TargetOut]}
-{[JOBID 2 IntegrationTest: resume ][Target{ID: "id1"} TargetReleased]}
+{[JOBID 1 IntegrationTest: resume 0][Target{ID: "id1"} TargetAcquired]}
+{[JOBID 1 IntegrationTest: resume Step 1 0][Target{ID: "id1"} TargetIn]}
+{[JOBID 1 IntegrationTest: resume Step 1 0][Target{ID: "id1"} TargetOut]}
+{[JOBID 1 IntegrationTest: resume Step 2 0][Target{ID: "id1"} TargetIn]}
+{[JOBID 1 IntegrationTest: resume Step 2 0][Target{ID: "id1"} TargetOut]}
+{[JOBID 1 IntegrationTest: resume 0][Target{ID: "id1"} TargetReleased]}
+{[JOBID 2 IntegrationTest: resume 0][Target{ID: "id1"} TargetAcquired]}
+{[JOBID 2 IntegrationTest: resume Step 1 0][Target{ID: "id1"} TargetIn]}
+{[JOBID 2 IntegrationTest: resume Step 1 0][Target{ID: "id1"} TargetOut]}
+{[JOBID 2 IntegrationTest: resume Step 2 0][Target{ID: "id1"} TargetIn]}
+{[JOBID 2 IntegrationTest: resume Step 2 0][Target{ID: "id1"} TargetOut]}
+{[JOBID 2 IntegrationTest: resume 0][Target{ID: "id1"} TargetReleased]}
 `, "JOBID", fmt.Sprintf("%d", jobID), -1),
 			suite.getTargetEvents("IntegrationTest: resume", "id1"))
 	}
