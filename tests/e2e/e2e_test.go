@@ -314,29 +314,29 @@ func (ts *E2ETestSuite) TestPauseResume() {
 		ctx.Debugf("%s", es)
 		require.Equal(ts.T(),
 			fmt.Sprintf(`
-{[%d 1 Test 1 ][Target{ID: "T1"} TargetAcquired]}
-{[%d 1 Test 1 Test 1 Step 1][Target{ID: "T1"} CmdStdout &"{\"Msg\":\"Test 1, Step 1, target T1\\n\"}"]}
-{[%d 1 Test 1 Test 1 Step 4][Target{ID: "T1"} CmdStdout &"{\"Msg\":\"Test 1, Step 3, target T1\\n\"}"]}
-{[%d 1 Test 1 ][Target{ID: "T1"} TargetReleased]}
-{[%d 1 Test 2 ][Target{ID: "T2"} TargetAcquired]}
-{[%d 1 Test 2 Test 2 Step 1][Target{ID: "T2"} CmdStdout &"{\"Msg\":\"Test 2, Step 1, target T2\\n\"}"]}
-{[%d 1 Test 2 Test 2 Step 2][Target{ID: "T2"} CmdStdout &"{\"Msg\":\"\"}"]}
-{[%d 1 Test 2 Test 2 Step 3][Target{ID: "T2"} CmdStdout &"{\"Msg\":\"Test 2, Step 3, target T2\\n\"}"]}
-{[%d 1 Test 2 ][Target{ID: "T2"} TargetReleased]}
-{[%d 2 Test 1 ][Target{ID: "T1"} TargetAcquired]}
-{[%d 2 Test 1 Test 1 Step 1][Target{ID: "T1"} CmdStdout &"{\"Msg\":\"Test 1, Step 1, target T1\\n\"}"]}
-{[%d 2 Test 1 Test 1 Step 4][Target{ID: "T1"} CmdStdout &"{\"Msg\":\"Test 1, Step 3, target T1\\n\"}"]}
-{[%d 2 Test 1 ][Target{ID: "T1"} TargetReleased]}
-{[%d 2 Test 2 ][Target{ID: "T2"} TargetAcquired]}
-{[%d 2 Test 2 Test 2 Step 1][Target{ID: "T2"} CmdStdout &"{\"Msg\":\"Test 2, Step 1, target T2\\n\"}"]}
-{[%d 2 Test 2 Test 2 Step 2][Target{ID: "T2"} CmdStdout &"{\"Msg\":\"\"}"]}
-{[%d 2 Test 2 Test 2 Step 3][Target{ID: "T2"} CmdStdout &"{\"Msg\":\"Test 2, Step 3, target T2\\n\"}"]}
-{[%d 2 Test 2 ][Target{ID: "T2"} TargetReleased]}
+{[%d 1 Test 1  0][Target{ID: "T1"} TargetAcquired]}
+{[%d 1 Test 1 Test 1 Step 1 0][Target{ID: "T1"} CmdStdout &"{\"Msg\":\"Test 1, Step 1, target T1\\n\"}"]}
+{[%d 1 Test 1 Test 1 Step 4 0][Target{ID: "T1"} CmdStdout &"{\"Msg\":\"Test 1, Step 3, target T1\\n\"}"]}
+{[%d 1 Test 1  0][Target{ID: "T1"} TargetReleased]}
+{[%d 1 Test 2  0][Target{ID: "T2"} TargetAcquired]}
+{[%d 1 Test 2 Test 2 Step 1 0][Target{ID: "T2"} CmdStdout &"{\"Msg\":\"Test 2, Step 1, target T2\\n\"}"]}
+{[%d 1 Test 2 Test 2 Step 2 0][Target{ID: "T2"} CmdStdout &"{\"Msg\":\"\"}"]}
+{[%d 1 Test 2 Test 2 Step 3 0][Target{ID: "T2"} CmdStdout &"{\"Msg\":\"Test 2, Step 3, target T2\\n\"}"]}
+{[%d 1 Test 2  0][Target{ID: "T2"} TargetReleased]}
+{[%d 2 Test 1  0][Target{ID: "T1"} TargetAcquired]}
+{[%d 2 Test 1 Test 1 Step 1 0][Target{ID: "T1"} CmdStdout &"{\"Msg\":\"Test 1, Step 1, target T1\\n\"}"]}
+{[%d 2 Test 1 Test 1 Step 4 0][Target{ID: "T1"} CmdStdout &"{\"Msg\":\"Test 1, Step 3, target T1\\n\"}"]}
+{[%d 2 Test 1  0][Target{ID: "T1"} TargetReleased]}
+{[%d 2 Test 2  0][Target{ID: "T2"} TargetAcquired]}
+{[%d 2 Test 2 Test 2 Step 1 0][Target{ID: "T2"} CmdStdout &"{\"Msg\":\"Test 2, Step 1, target T2\\n\"}"]}
+{[%d 2 Test 2 Test 2 Step 2 0][Target{ID: "T2"} CmdStdout &"{\"Msg\":\"\"}"]}
+{[%d 2 Test 2 Test 2 Step 3 0][Target{ID: "T2"} CmdStdout &"{\"Msg\":\"Test 2, Step 3, target T2\\n\"}"]}
+{[%d 2 Test 2  0][Target{ID: "T2"} TargetReleased]}
 `, jobID, jobID, jobID, jobID, jobID, jobID, jobID, jobID, jobID, jobID, jobID, jobID, jobID, jobID, jobID, jobID, jobID, jobID),
 			es,
 		)
 	}
-	require.NoError(ts.T(), ts.stopServer(5*time.Second))
+	require.NoError(ts.T(), ts.stopServer(5*time.Hour))
 	// Shouldn't take more than 20 seconds. If it does, it most likely means state is not saved properly.
 	require.Less(ts.T(), finish.Sub(start), 20*time.Second)
 }
