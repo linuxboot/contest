@@ -178,7 +178,6 @@ func ForEachTargetWithResume(ctx xcontext.Context, ch test.TestStepChannels, res
 mainloop:
 	for {
 		select {
-		// no need to check for pause here, pausing closes the channel
 		case tgt, ok := <-ch.In:
 			if !ok {
 				break mainloop
@@ -186,6 +185,10 @@ mainloop:
 			ctx.Debugf("ForEachTargetWithResume: received target %s", tgt)
 			wg.Add(1)
 			go handleTarget(&TargetWithData{Target: tgt})
+		case <-ctx.Until(xcontext.ErrPaused):
+			ctx.Debugf("ForEachTargetWithResume: paused, terminating")
+			err = xcontext.ErrPaused
+			break mainloop
 		case <-ctx.Done():
 			ctx.Debugf("ForEachTargetWithResume: canceled, terminating")
 			err = xcontext.ErrCanceled
