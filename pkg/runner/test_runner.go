@@ -101,6 +101,7 @@ type targetState struct {
 
 	handlerRunning bool
 	resCh          chan error // Channel used to communicate result by the step runner.
+	resChClosed    bool
 }
 
 // resumeStateStruct is used to serialize runner state to be resumed in the future.
@@ -753,9 +754,9 @@ func (tr *TestRunner) checkStepRunnersLocked() error {
 		case xcontext.ErrPaused:
 			// This is fine, just need to unblock target handlers waiting on result from this step.
 			for _, tgs := range tr.targets {
-				if tgs.resCh != nil && tgs.CurStep == i {
+				if !tgs.resChClosed && tgs.CurStep == i {
 					close(tgs.resCh)
-					tgs.resCh = nil
+					tgs.resChClosed = true
 				}
 			}
 		default:
