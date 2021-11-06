@@ -25,7 +25,7 @@ type Header struct {
 	RunID         types.RunID
 	TestName      string
 	TestStepLabel string
-	TestStepRetry int
+	Retry         int
 }
 
 // Data models the data of a test event. It is populated by the TestStep
@@ -161,7 +161,7 @@ type EmitterFetcher interface {
 }
 
 func (h *Header) String() string {
-	return fmt.Sprintf("[%d %d %s %s %d]", h.JobID, h.RunID, h.TestName, h.TestStepLabel, h.TestStepRetry)
+	return fmt.Sprintf("[%d %d %s %s %d]", h.JobID, h.RunID, h.TestName, h.TestStepLabel, h.Retry)
 }
 
 func (d *Data) String() string {

@@ -95,14 +95,14 @@ func (jr *JobRunner) buildTestStepStatus(ctx xcontext.Context, coordinates job.T
 	// keep only events with the latest retry
 	var lastTestStepRetry int
 	for _, ev := range testEvents {
-		if ev.Header.TestStepRetry > lastTestStepRetry {
-			lastTestStepRetry = ev.Header.TestStepRetry
+		if ev.Header.Retry > lastTestStepRetry {
+			lastTestStepRetry = ev.Header.Retry
 		}
 	}
 
 	var stepEvents, targetEvents []testevent.Event
 	for _, ev := range testEvents {
-		if ev.Header.TestStepRetry >= 0 && ev.Header.TestStepRetry != lastTestStepRetry {
+		if ev.Header.Retry >= 0 && ev.Header.Retry != lastTestStepRetry {
 			continue
 		}
 		if ev.Data.Target == nil {

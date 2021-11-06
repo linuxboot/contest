@@ -954,14 +954,14 @@ func (ed *eventDistributor) Emit(ctx xcontext.Context, data testevent.Data) erro
 	}
 
 	h := ed.header
-	h.TestStepRetry = retry
+	h.Retry = retry
 	ev := testevent.NewWithCurrentEmitTime(&h, &data)
 	return storage.EmitTestEvent(ctx, ev)
 }
 
 func (ed *eventDistributor) emitForUnknownTarget(ctx xcontext.Context, data testevent.Data) error {
 	h := ed.header
-	h.TestStepRetry = -1
+	h.Retry = -1
 	ev := testevent.NewWithCurrentEmitTime(&h, &data)
 	return storage.EmitTestEvent(ctx, ev)
 }
