@@ -23,6 +23,7 @@ type Descriptor struct {
 	JobName                     string
 	Tags                        []string
 	Runs                        uint
+	RunUntilSucceed             bool
 	RunInterval                 xjson.Duration
 	TestDescriptors             []*test.TestDescriptor
 	Reporting                   Reporting
@@ -78,6 +79,10 @@ type Job struct {
 	// Runs to 2 will execute all the tests defined in `Tests` once, and then
 	// will execute them again.
 	Runs uint
+
+	// RunUntilSucceed if set to true will launch tests until all reporters will return succeeded status
+	// In this case Runs defines a maximum number of retries
+	RunUntilSucceed bool
 
 	// RunInterval is the interval between multiple runs, if more than one, or
 	// unlimited, are specified.
