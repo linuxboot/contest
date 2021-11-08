@@ -3,10 +3,11 @@
 // This source code is licensed under the MIT license found in the
 // LICENSE file in the root directory of this source tree.
 
-package main
+package remote
 
 import (
 	"bytes"
+	"io"
 	"sync"
 )
 
@@ -67,4 +68,31 @@ func (sb *SafeBuffer) Len() int {
 	defer sb.mu.Unlock()
 
 	return sb.b.Len()
+}
+
+type LenReader interface {
+	io.Reader
+	Len() int
+}
+
+// SafeExitCode is a sync storage for the exit code of a process
+// the initial value of nil cannot be reset after the first set
+type SafeExitCode struct {
+	exitCode *int
+
+	mu sync.Mutex
+}
+
+func (s *SafeExitCode) Store(code int) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.exitCode = &code
+}
+
+func (s *SafeExitCode) Load() *int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return s.exitCode
 }

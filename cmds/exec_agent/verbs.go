@@ -16,12 +16,8 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/linuxboot/contest/pkg/remote"
 	"github.com/linuxboot/contest/pkg/xcontext"
-)
-
-const (
-	ProcessFinishedExitCode = 13
-	DeadAgentExitCode       = 14
 )
 
 func run() error {
@@ -59,13 +55,13 @@ func run() error {
 
 		return kill(pid)
 
-	case "wait":
+	case "reap":
 		pid, err := strconv.Atoi(flagSet.Arg(1))
 		if err != nil {
 			return fmt.Errorf("failed to parse exec id: %w", err)
 		}
 
-		return wait(pid)
+		return reap(pid)
 
 	default:
 		return fmt.Errorf("invalid verb: %s", verb)
@@ -75,25 +71,15 @@ func run() error {
 func start(bin string, args []string) error {
 	ctx := xcontext.Background()
 
-	// signal channel for process exit. Similar to Wait
-	reaper := newSafeSignal()
-	defer reaper.Signal()
-
 	if flagTimeQuota != nil && *flagTimeQuota != 0 {
 		var cancel xcontext.CancelFunc
 		ctx, cancel = xcontext.WithTimeout(ctx, *flagTimeQuota)
 		defer cancel()
-
-		// skip waiting for remote to poll/wait
-		go func() {
-			<-ctx.Done()
-			reaper.Signal()
-		}()
 	}
 
 	cmd := exec.CommandContext(ctx, bin, args...)
 
-	var stdout, stderr SafeBuffer
+	var stdout, stderr remote.SafeBuffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
@@ -101,27 +87,27 @@ func start(bin string, args []string) error {
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("failed to start process: %w", err)
 	}
-	// NOTE: write this only pid on stdout
-	fmt.Printf("%d\n", cmd.Process.Pid)
 
-	cmdErr := make(chan error, 1)
+	// send back the session id
+	err := remote.SendResponse(&remote.StartMessage{
+		SessionID: strconv.Itoa(cmd.Process.Pid),
+	})
+	if err != nil {
+		return fmt.Errorf("could not send session id: %w", err)
+	}
+
+	// start monitoring the cmd, also wait on the process
+	mon := remote.NewMonitor(cmd, &stdout, &stderr)
+	monitorDone := make(chan error, 1)
 	go func() {
-		err := cmd.Wait()
-		if err != nil {
-			log.Printf("process exited with err: %v", err)
-		} else {
-			log.Print("process finished")
-		}
-
-		reaper.Wait()
-		cmdErr <- err
+		monitorDone <- mon.Start(ctx)
 	}()
 
-	// start unix socket server
-	mon := NewMonitorServer(cmd.Process, &stdout, &stderr, reaper)
-	monErr := make(chan error, 1)
+	// start unix socket server to handle process state requests
+	server := remote.NewMonitorServer(mon)
+	serverDone := make(chan error, 1)
 	go func() {
-		monErr <- mon.Serve()
+		serverDone <- server.Serve()
 	}()
 
 	// catch termination signals
@@ -131,63 +117,55 @@ func start(bin string, args []string) error {
 
 	for {
 		select {
-		case err := <-cmdErr:
-			if err := mon.Shutdown(); err != nil {
-				log.Printf("failed to shutdown monitor: %v", err)
+		case err := <-monitorDone:
+			if err := server.Shutdown(); err != nil {
+				log.Printf("failed to shutdown monitor server: %v", err)
 			}
 			return err
 
 		case sig := <-sigs:
-			if err := mon.Shutdown(); err != nil {
-				log.Printf("failed to shutdown monitor: %v", err)
+			if err := server.Shutdown(); err != nil {
+				log.Printf("failed to shutdown monitor server: %v", err)
 			}
-			if cmd.ProcessState == nil {
-				if err := cmd.Process.Kill(); err != nil {
-					log.Printf("failed to kill process on signal: %v", err)
-				}
+			if err := mon.Kill(); err != nil {
+				log.Printf("failed to kill monitored process: %v", err)
 			}
 			return fmt.Errorf("signal caught: %v", sig)
 
-		case err := <-monErr:
-			if cmd.ProcessState == nil {
-				if err := cmd.Process.Kill(); err != nil {
-					log.Printf("failed to kill process on monitor error: %v", err)
-				}
+		case err := <-serverDone:
+			if err := mon.Kill(); err != nil {
+				log.Printf("failed to kill monitored process: %v", err)
 			}
 			return err
 		}
 	}
 }
 
-func wait(pid int) error {
-	mon := NewMonitorClient(pid)
-	return mon.Wait()
-}
-
 func poll(pid int) error {
-	mon := NewMonitorClient(pid)
+	c := remote.NewMonitorClient(pid)
 
-	data, err := mon.Poll()
+	msg, err := c.Poll()
 	if err != nil {
 		// connection errors also means that the process or agent might have died
-		var e *ErrCantConnect
+		var e *remote.ErrCantConnect
 		if errors.As(err, &e) {
-			os.Exit(DeadAgentExitCode)
+			return remote.SendResponse(&remote.PollMessage{
+				Error: "agent is dead or exceeded time quota",
+			})
 		}
 
 		return fmt.Errorf("failed to call monitor: %w", err)
 	}
 
-	fmt.Printf("%s", string(data.Stdout))
-	fmt.Fprintf(os.Stderr, "%s", string(data.Stderr))
-	if !data.Alive {
-		os.Exit(ProcessFinishedExitCode)
-	}
-
-	return nil
+	return remote.SendResponse(msg)
 }
 
 func kill(pid int) error {
-	mon := NewMonitorClient(pid)
-	return mon.Kill()
+	c := remote.NewMonitorClient(pid)
+	return c.Kill()
+}
+
+func reap(pid int) error {
+	c := remote.NewMonitorClient(pid)
+	return c.Reap()
 }
