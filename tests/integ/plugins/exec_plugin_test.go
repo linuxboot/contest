@@ -11,6 +11,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -246,7 +247,13 @@ func TestExecPluginSSHTimeout(t *testing.T) {
 
 	err := runExecPlugin(t, ctx, jsonParams)
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "non-zero")
+
+	// depending on the ssh server impl, this error can be
+	// 1. process was killed and has non-zero exit code
+	// 2. the context deadline exceeded and process was abandoned
+	if !strings.Contains(err.Error(), "non-zero") && !strings.Contains(err.Error(), "deadline exceeded") {
+		require.Failf(t, "error '%s' was not killed process or timeout related", err.Error())
+	}
 }
 
 func TestExecPluginSSHAsyncTimeout(t *testing.T) {
