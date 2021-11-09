@@ -51,17 +51,6 @@ func newSSHProcessWithStdin(
 }
 
 func (sp *sshProcess) Start(ctx xcontext.Context) error {
-	// important note: turns out that with some sshd configs/implementations
-	// sending signals thru the ssh channel doesn't work (either not implemented or
-	// refused due to privilege separation).
-	// So to work around that, allocate a pty for this session and rely on SIGHUP
-	// to kill the process remotely if the ctx gets cancelled.
-	// This obviously has the limitation that the spawned process can just ignore
-	// SIGHUP and control its own lifetime, but there's no other way to have this.
-	if err := sp.session.RequestPty("xterm", 80, 120, ssh.TerminalModes{}); err != nil {
-		return err
-	}
-
 	ctx.Debugf("starting remote binary: %s", sp.cmd)
 	if err := sp.session.Start(sp.cmd); err != nil {
 		return fmt.Errorf("failed to start process: %w", err)
@@ -82,12 +71,12 @@ func (sp *sshProcess) Start(ctx xcontext.Context) error {
 			case <-ctx.Done():
 				ctx.Debugf("killing ssh session because of cancellation...")
 
-				// Part 2 of the cancellation. Normally this would send a SIGKILL here
-				// but this is sometimes ignored by sshd based on config/impl, so instead
-				// rely on SIGHUP to kill the process by just closing the session.
-				// if err := sp.session.Signal(ssh.SIGINT); err != nil {
-				// 	ctx.Warnf("failed to send KILL on context cancel: %w", err)
-				// }
+				// TODO:  figure out if there's a way to fix this (can be used for resource exhaustion)
+				// note: not all servers implement the signal message so this might
+				// not do anything; see comment about cancellation in Wait()
+				if err := sp.session.Signal(ssh.SIGKILL); err != nil {
+					ctx.Warnf("failed to send KILL on context cancel: %w", err)
+				}
 
 				sp.session.Close()
 				return
@@ -98,7 +87,7 @@ func (sp *sshProcess) Start(ctx xcontext.Context) error {
 	return nil
 }
 
-func (sp *sshProcess) Wait(c xcontext.Context) error {
+func (sp *sshProcess) Wait(ctx xcontext.Context) error {
 	// close these no matter what error we get from the wait
 	defer func() {
 		sp.stack.Done()
@@ -106,16 +95,39 @@ func (sp *sshProcess) Wait(c xcontext.Context) error {
 	}()
 	defer sp.session.Close()
 
-	if err := sp.session.Wait(); err != nil {
-		var e *ssh.ExitError
-		if errors.As(err, &e) {
-			return &ExitError{e.ExitStatus()}
+	errChan := make(chan error, 1)
+	go func() {
+		if err := sp.session.Wait(); err != nil {
+			var e *ssh.ExitError
+			if errors.As(err, &e) {
+				errChan <- &ExitError{e.ExitStatus()}
+				return
+			}
+
+			errChan <- fmt.Errorf("failed to wait on process: %w", err)
+		}
+		errChan <- nil
+	}()
+
+	select {
+	case <-ctx.Done():
+		// cancellation was requested, a kill signal should've been sent but not
+		// all ssh server implementations respect that, so in the worst case scenario
+		// we just disconnect the ssh and leave the remote process to terminate by
+		// itself (pid is also unavailable thru the ssh spec)
+
+		// leave the process some time to exit in case the signal did work
+		select {
+		case <-time.After(3 * time.Second):
+			return ctx.Err()
+
+		case err := <-errChan:
+			return err
 		}
 
-		return fmt.Errorf("failed to wait on process: %w", err)
+	case err := <-errChan:
+		return err
 	}
-
-	return nil
 }
 
 func (sp *sshProcess) StdoutPipe() (io.Reader, error) {
