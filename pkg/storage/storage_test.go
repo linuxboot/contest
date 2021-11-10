@@ -80,17 +80,17 @@ func mockStorage(t *testing.T) (*nullStorage, *nullStorage) {
 	storage := &nullStorage{}
 	storageAsync := &nullStorage{}
 
-	// TODO: the fact that storage is global state is a problem here
-	// also removes the option of running tests in parallel
-	require.NoError(t, SetStorage(storage))
-	require.NoError(t, SetAsyncStorage(storageAsync))
+	// TODO: Add the option of running tests in parallel
+	vault := GetStorageEngineVault()
+	require.NoError(t, vault.StoreEngine(storage, SyncEngine))
+	require.NoError(t, vault.StoreEngine(storageAsync, AsyncEngine))
 	return storage, storageAsync
 }
 
 func TestSetStorage(t *testing.T) {
-	require.NoError(t, SetStorage(&nullStorage{}))
+	require.NoError(t, GetStorageEngineVault().StoreEngine(&nullStorage{}, SyncEngine))
 }
 
 func TestSetAsyncStorage(t *testing.T) {
-	require.NoError(t, SetAsyncStorage(&nullStorage{}))
+	require.NoError(t, GetStorageEngineVault().StoreEngine(&nullStorage{}, AsyncEngine))
 }
