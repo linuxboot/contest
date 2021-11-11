@@ -103,11 +103,8 @@ func (jr *JobRunner) Run(ctx xcontext.Context, j *job.Job, resumeState *job.Paus
 	} else {
 		ctx.Infof("Running job '%s' %d times, starting at #%d test #%d", j.Name, j.Runs, runID, testID)
 	}
-	tl := target.GetLocker()
+
 	ev := storage.NewTestEventFetcher()
-
-	var runErr error
-
 	for ; runID <= types.RunID(j.Runs) || j.Runs == 0; runID++ {
 		runCtx := xcontext.WithValue(ctx, types.KeyRunID, runID)
 		runCtx = runCtx.WithField("run_id", runID)
@@ -139,155 +136,26 @@ func (jr *JobRunner) Run(ctx xcontext.Context, j *job.Job, resumeState *job.Paus
 		}
 
 		for ; testID <= len(j.Tests); testID++ {
-			t := j.Tests[testID-1]
-			runCtx.Infof("Run #%d: fetching targets for test '%s'", runID, t.Name)
-			bundle := t.TargetManagerBundle
-			var (
-				targets  []*target.Target
-				errCh    = make(chan error, 1)
-				acquired = false
-			)
-			// the Acquire semantic is synchronous, so that the implementation
-			// is simpler on the user's side. We run it in a goroutine in
-			// order to use a timeout for target acquisition.
-			go func() {
-				// If resuming with targets already acquired, just make sure we still own them.
-				if resumeState != nil && resumeState.Targets != nil {
-					targets = resumeState.Targets
-					if err := tl.RefreshLocks(runCtx, j.ID, jr.targetLockDuration, targets); err != nil {
-						errCh <- fmt.Errorf("Failed to refresh locks %v: %w", targets, err)
-					}
-					errCh <- nil
-					return
-				}
-				if len(targets) == 0 {
-					targets, err = bundle.TargetManager.Acquire(runCtx, j.ID, j.TargetManagerAcquireTimeout+jr.targetLockDuration, bundle.AcquireParameters, tl)
-					if err != nil {
-						errCh <- err
-						return
-					}
-					acquired = true
-				}
-				// Lock all the targets returned by Acquire.
-				// Targets can also be locked in the `Acquire` method, for
-				// example to allow dynamic acquisition.
-				// We lock them again to ensure that all the acquired
-				// targets are locked before running the job.
-				// Locking an already-locked target (by the same owner)
-				// extends the locking deadline.
-				if err := tl.Lock(runCtx, j.ID, jr.targetLockDuration, targets); err != nil {
-					errCh <- fmt.Errorf("Target locking failed: %w", err)
-				}
-				errCh <- nil
-			}()
-			// wait for targets up to a certain amount of time
-			select {
-			case err := <-errCh:
-				if err != nil {
-					err = fmt.Errorf("run #%d: cannot fetch targets for test '%s': %v", runID, t.Name, err)
-					runCtx.Errorf(err.Error())
-					return nil, err
-				}
-				// Associate targets with the job. Background routine will refresh the locks periodically.
-				jr.jobsMapLock.Lock()
-				jr.jobsMap[j.ID].targets = targets
-				jr.jobsMapLock.Unlock()
-			case <-jr.clock.After(j.TargetManagerAcquireTimeout):
-				return nil, fmt.Errorf("target manager acquire timed out after %s", j.TargetManagerAcquireTimeout)
-				// Note: not handling cancellation here to allow TM plugins to wrap up correctly.
-				// We have timeout to ensure it doesn't get stuck forever.
-			}
-
-			header := testevent.Header{JobID: j.ID, RunID: runID, TestName: t.Name}
-			testEventEmitter := storage.NewTestEventEmitter(header)
-
-			// Emit events tracking targets acquisition
-			if acquired {
-				runErr = jr.emitTargetEvents(runCtx, testEventEmitter, targets, target.EventTargetAcquired)
-			}
-
-			// Check for pause during target acquisition.
-			select {
-			case <-ctx.Until(xcontext.ErrPaused):
+			targets, testRunnerState, runErr := jr.runTest(runCtx, j, runID, testID, resumeState)
+			if runErr == xcontext.ErrPaused {
 				runCtx.Infof("pause requested for job ID %v", j.ID)
 				resumeState = &job.PauseEventPayload{
-					Version: job.CurrentPauseEventPayloadVersion,
-					JobID:   j.ID,
-					RunID:   runID,
-					TestID:  testID,
-					Targets: targets,
+					Version:         job.CurrentPauseEventPayloadVersion,
+					JobID:           j.ID,
+					RunID:           runID,
+					TestID:          testID,
+					Targets:         targets,
+					TestRunnerState: testRunnerState,
 				}
+				// Return without releasing targets and keep the job entry so locks continue to be refreshed
+				// all the way to server exit.
+				keepJobEntry = true
 				return resumeState, xcontext.ErrPaused
-			default:
 			}
 
-			if runErr == nil {
-				runCtx.Infof("Run #%d: running test #%d for job '%s' (job ID: %d) on %d targets",
-					runID, testID, j.Name, j.ID, len(targets))
-				testRunner := NewTestRunner()
-				var testRunnerState json.RawMessage
-				if resumeState != nil {
-					testRunnerState = resumeState.TestRunnerState
-				}
-				testRunnerState, err := testRunner.Run(ctx, t, targets, j.ID, runID, testRunnerState)
-				if err == xcontext.ErrPaused {
-					resumeState := &job.PauseEventPayload{
-						Version:         job.CurrentPauseEventPayloadVersion,
-						JobID:           j.ID,
-						RunID:           runID,
-						TestID:          testID,
-						Targets:         targets,
-						TestRunnerState: testRunnerState,
-					}
-					// Return without releasing targets and keep the job entry so locks continue to be refreshed
-					// all the way to server exit.
-					keepJobEntry = true
-					return resumeState, err
-				} else {
-					runErr = err
-				}
-			}
-
-			// Job is done, release all the targets
-			go func() {
-				// the Release semantic is synchronous, so that the implementation
-				// is simpler on the user's side. We run it in a goroutine in
-				// order to use a timeout for target acquisition. If Release fails, whether
-				// due to an error or for a timeout, the whole Job is considered failed
-				err := bundle.TargetManager.Release(runCtx, j.ID, targets, bundle.ReleaseParameters)
-				// Announce that targets have been released
-				_ = jr.emitTargetEvents(runCtx, testEventEmitter, targets, target.EventTargetReleased)
-				// Stop refreshing the targets.
-				// Here we rely on the fact that jobsMapLock is held continuously during refresh.
-				jr.jobsMapLock.Lock()
-				jr.jobsMap[j.ID].targets = nil
-				jr.jobsMapLock.Unlock()
-				if err := tl.Unlock(runCtx, j.ID, targets); err == nil {
-					runCtx.Infof("Unlocked %d target(s) for job ID %d", len(targets), j.ID)
-				} else {
-					runCtx.Warnf("Failed to unlock %d target(s) (%v): %v", len(targets), targets, err)
-				}
-				errCh <- err
-			}()
-			select {
-			case err := <-errCh:
-				if err != nil {
-					errRelease := fmt.Sprintf("Failed to release targets: %v", err)
-					runCtx.Errorf(errRelease)
-					return nil, fmt.Errorf(errRelease)
-				}
-			case <-jr.clock.After(j.TargetManagerReleaseTimeout):
-				return nil, fmt.Errorf("target manager release timed out after %s", j.TargetManagerReleaseTimeout)
-				// Ignore cancellation here, we want release and unlock to happen in that case.
-			}
-			// return the Run error only after releasing the targets, and only
-			// if we are not running indefinitely. An error returned by the TestRunner
-			// is considered a fatal condition and will cause the termination of the
-			// whole job.
 			if runErr != nil {
 				return nil, runErr
 			}
-
 			resumeState = nil
 		}
 
@@ -361,6 +229,145 @@ func (jr *JobRunner) Run(ctx xcontext.Context, j *job.Job, resumeState *job.Paus
 	}
 
 	return nil, nil
+}
+
+func (jr *JobRunner) runTest(ctx xcontext.Context,
+	j *job.Job, runID types.RunID, testID int,
+	resumeState *job.PauseEventPayload,
+) ([]*target.Target, json.RawMessage, error) {
+	t := j.Tests[testID-1]
+	ctx.Infof("Run #%d: fetching targets for test '%s'", runID, t.Name)
+	bundle := t.TargetManagerBundle
+	var (
+		targets  []*target.Target
+		errCh    = make(chan error, 1)
+		acquired = false
+		runErr   error
+	)
+
+	// the Acquire semantic is synchronous, so that the implementation
+	// is simpler on the user's side. We run it in a goroutine in
+	// order to use a timeout for target acquisition.
+	tl := target.GetLocker()
+	go func() {
+		// If resuming with targets already acquired, just make sure we still own them.
+		if resumeState != nil && resumeState.Targets != nil {
+			targets = resumeState.Targets
+			if err := tl.RefreshLocks(ctx, j.ID, jr.targetLockDuration, targets); err != nil {
+				errCh <- fmt.Errorf("failed to refresh locks %v: %w", targets, err)
+			}
+			errCh <- nil
+			return
+		}
+		if len(targets) == 0 {
+			var err error
+			targets, err = bundle.TargetManager.Acquire(ctx, j.ID, j.TargetManagerAcquireTimeout+jr.targetLockDuration, bundle.AcquireParameters, tl)
+			if err != nil {
+				errCh <- err
+				return
+			}
+			acquired = true
+		}
+		// Lock all the targets returned by Acquire.
+		// Targets can also be locked in the `Acquire` method, for
+		// example to allow dynamic acquisition.
+		// We lock them again to ensure that all the acquired
+		// targets are locked before running the job.
+		// Locking an already-locked target (by the same owner)
+		// extends the locking deadline.
+		if err := tl.Lock(ctx, j.ID, jr.targetLockDuration, targets); err != nil {
+			errCh <- fmt.Errorf("target locking failed: %w", err)
+		}
+		errCh <- nil
+	}()
+
+	// wait for targets up to a certain amount of time
+	select {
+	case err := <-errCh:
+		if err != nil {
+			err = fmt.Errorf("run #%d: cannot fetch targets for test '%s': %v", runID, t.Name, err)
+			ctx.Errorf(err.Error())
+			return nil, nil, err
+		}
+		// Associate targets with the job. Background routine will refresh the locks periodically.
+		jr.jobsMapLock.Lock()
+		jr.jobsMap[j.ID].targets = targets
+		jr.jobsMapLock.Unlock()
+	case <-jr.clock.After(j.TargetManagerAcquireTimeout):
+		return nil, nil, fmt.Errorf("target manager acquire timed out after %s", j.TargetManagerAcquireTimeout)
+		// Note: not handling cancellation here to allow TM plugins to wrap up correctly.
+		// We have timeout to ensure it doesn't get stuck forever.
+	}
+
+	header := testevent.Header{JobID: j.ID, RunID: runID, TestName: t.Name}
+	testEventEmitter := storage.NewTestEventEmitter(header)
+
+	// Emit events tracking targets acquisition
+	if acquired {
+		runErr = jr.emitTargetEvents(ctx, testEventEmitter, targets, target.EventTargetAcquired)
+	}
+
+	// Check for pause during target acquisition.
+	select {
+	case <-ctx.Until(xcontext.ErrPaused):
+		ctx.Infof("pause requested for job ID %v", j.ID)
+		return targets, nil, xcontext.ErrPaused
+	default:
+	}
+
+	if runErr == nil {
+		ctx.Infof("Run #%d: running test #%d for job '%s' (job ID: %d) on %d targets",
+			runID, testID, j.Name, j.ID, len(targets))
+		testRunner := NewTestRunner()
+		var testRunnerState json.RawMessage
+		if resumeState != nil {
+			testRunnerState = resumeState.TestRunnerState
+		}
+		testRunnerState, err := testRunner.Run(ctx, t, targets, j.ID, runID, testRunnerState)
+		if err == xcontext.ErrPaused {
+			return targets, testRunnerState, err
+		} else {
+			runErr = err
+		}
+	}
+
+	// Job is done, release all the targets
+	go func() {
+		// the Release semantic is synchronous, so that the implementation
+		// is simpler on the user's side. We run it in a goroutine in
+		// order to use a timeout for target acquisition. If Release fails, whether
+		// due to an error or for a timeout, the whole Job is considered failed
+		err := bundle.TargetManager.Release(ctx, j.ID, targets, bundle.ReleaseParameters)
+		// Announce that targets have been released
+		_ = jr.emitTargetEvents(ctx, testEventEmitter, targets, target.EventTargetReleased)
+		// Stop refreshing the targets.
+		// Here we rely on the fact that jobsMapLock is held continuously during refresh.
+		jr.jobsMapLock.Lock()
+		jr.jobsMap[j.ID].targets = nil
+		jr.jobsMapLock.Unlock()
+		if err := tl.Unlock(ctx, j.ID, targets); err == nil {
+			ctx.Infof("Unlocked %d target(s) for job ID %d", len(targets), j.ID)
+		} else {
+			ctx.Warnf("Failed to unlock %d target(s) (%v): %v", len(targets), targets, err)
+		}
+		errCh <- err
+	}()
+	select {
+	case err := <-errCh:
+		if err != nil {
+			errRelease := fmt.Sprintf("Failed to release targets: %v", err)
+			ctx.Errorf(errRelease)
+			return nil, nil, fmt.Errorf(errRelease)
+		}
+	case <-jr.clock.After(j.TargetManagerReleaseTimeout):
+		return nil, nil, fmt.Errorf("target manager release timed out after %s", j.TargetManagerReleaseTimeout)
+		// Ignore cancellation here, we want release and unlock to happen in that case.
+	}
+	// return the Run error only after releasing the targets, and only
+	// if we are not running indefinitely. An error returned by the TestRunner
+	// is considered a fatal condition and will cause the termination of the
+	// whole job.
+	return nil, nil, runErr
 }
 
 func (jr *JobRunner) lockRefresher() {
