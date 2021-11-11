@@ -66,10 +66,14 @@ type JobRunner struct {
 // * []job.Report:   all the final reports
 // * error:          an error, if any
 func (jr *JobRunner) Run(ctx xcontext.Context, j *job.Job, resumeState *job.PauseEventPayload) (*job.PauseEventPayload, error) {
-	var delay time.Duration
-	runID := types.RunID(1)
-	testID := 1
-	keepJobEntry := false
+	var (
+		runID           types.RunID = 1
+		testID                      = 1
+		runDelay        time.Duration
+		keepJobEntry    bool
+		testRetry       uint32
+		nextTestAttempt *time.Time
+	)
 
 	// Values are for plugins to read...
 	ctx = xcontext.WithValue(ctx, types.KeyJobID, j.ID)
@@ -89,12 +93,20 @@ func (jr *JobRunner) Run(ctx xcontext.Context, j *job.Job, resumeState *job.Paus
 
 	if resumeState != nil {
 		runID = resumeState.RunID
+		testRetry = resumeState.TestRetry
+		nextTestAttempt = resumeState.NextTestAttempt
 		if resumeState.TestID > 0 {
 			testID = resumeState.TestID
 		}
 		if resumeState.StartAt != nil {
 			// This may get negative. It's fine.
-			delay = resumeState.StartAt.Sub(jr.clock.Now())
+			runDelay = resumeState.StartAt.Sub(jr.clock.Now())
+		}
+
+		if len(resumeState.Targets) > 0 {
+			jr.jobsMapLock.Lock()
+			jr.jobsMap[j.ID].targets = resumeState.Targets
+			jr.jobsMapLock.Unlock()
 		}
 	}
 
@@ -104,15 +116,32 @@ func (jr *JobRunner) Run(ctx xcontext.Context, j *job.Job, resumeState *job.Paus
 		ctx.Infof("Running job '%s' %d times, starting at #%d test #%d", j.Name, j.Runs, runID, testID)
 	}
 
+	onTestPause := func(runID types.RunID, testID int, testRetry uint32, targets []*target.Target, testRunnerState json.RawMessage) (*job.PauseEventPayload, error) {
+		ctx.Infof("pause requested for job ID %v", j.ID)
+		// Return without releasing targets and keep the job entry so locks continue to be refreshed
+		// all the way to server exit.
+		keepJobEntry = true
+		return &job.PauseEventPayload{
+			Version:         job.CurrentPauseEventPayloadVersion,
+			JobID:           j.ID,
+			RunID:           runID,
+			TestID:          testID,
+			TestRetry:       testRetry,
+			NextTestAttempt: nextTestAttempt,
+			Targets:         targets,
+			TestRunnerState: testRunnerState,
+		}, xcontext.ErrPaused
+	}
+
 	ev := storage.NewTestEventFetcher()
 	for ; runID <= types.RunID(j.Runs) || j.Runs == 0; runID++ {
 		runCtx := xcontext.WithValue(ctx, types.KeyRunID, runID)
 		runCtx = runCtx.WithField("run_id", runID)
-		if delay > 0 {
-			nextRun := jr.clock.Now().Add(delay)
-			runCtx.Infof("Sleeping %s before the next run...", delay)
+		if runDelay > 0 {
+			nextRun := jr.clock.Now().Add(runDelay)
+			runCtx.Infof("Sleeping %s before the next run...", runDelay)
 			select {
-			case <-jr.clock.After(delay):
+			case <-jr.clock.After(runDelay):
 			case <-ctx.Until(xcontext.ErrPaused):
 				resumeState = &job.PauseEventPayload{
 					Version: job.CurrentPauseEventPayloadVersion,
@@ -136,26 +165,42 @@ func (jr *JobRunner) Run(ctx xcontext.Context, j *job.Job, resumeState *job.Paus
 		}
 
 		for ; testID <= len(j.Tests); testID++ {
-			targets, testRunnerState, runErr := jr.runTest(runCtx, j, runID, testID, resumeState)
-			if runErr == xcontext.ErrPaused {
-				runCtx.Infof("pause requested for job ID %v", j.ID)
-				resumeState = &job.PauseEventPayload{
-					Version:         job.CurrentPauseEventPayloadVersion,
-					JobID:           j.ID,
-					RunID:           runID,
-					TestID:          testID,
-					Targets:         targets,
-					TestRunnerState: testRunnerState,
+			retryParameters := j.Tests[testID-1].RetryParameters
+			for ; testRetry <= retryParameters.NumRetries; testRetry++ {
+				runCtx.Infof("Current attempt: %d, allowed retries: %d",
+					testRetry,
+					retryParameters.NumRetries,
+				)
+				if nextTestAttempt != nil && time.Now().Before(*nextTestAttempt) {
+					runCtx.Infof("Sleep until next test attempt at '%v'", *nextTestAttempt)
+					select {
+					case <-runCtx.Done():
+						return nil, runCtx.Err()
+					case <-runCtx.Until(xcontext.ErrPaused):
+						return onTestPause(runID, testID, testRetry, resumeState.Targets, resumeState.TestRunnerState)
+					}
 				}
-				// Return without releasing targets and keep the job entry so locks continue to be refreshed
-				// all the way to server exit.
-				keepJobEntry = true
-				return resumeState, xcontext.ErrPaused
-			}
 
-			if runErr != nil {
-				return nil, runErr
+				targets, testRunnerState, succeeded, runErr := jr.runTest(runCtx, j, runID, testID, resumeState)
+				if runErr == xcontext.ErrPaused {
+					return onTestPause(runID, testID, testRetry, targets, testRunnerState)
+				}
+				if runErr != nil {
+					return nil, runErr
+				}
+
+				if succeeded {
+					break
+				}
+
+				resumeState = nil
+				if retryParameters.RetryInterval != nil {
+					nextAttempt := time.Now().Add(time.Duration(*retryParameters.RetryInterval))
+					nextTestAttempt = &nextAttempt
+				}
 			}
+			testRetry = 0
+			nextTestAttempt = nil
 			resumeState = nil
 		}
 
@@ -191,7 +236,7 @@ func (jr *JobRunner) Run(ctx xcontext.Context, j *job.Job, resumeState *job.Paus
 		}
 
 		testID = 1
-		delay = j.RunInterval
+		runDelay = j.RunInterval
 	}
 
 	// Prepare final reports.
@@ -234,14 +279,15 @@ func (jr *JobRunner) Run(ctx xcontext.Context, j *job.Job, resumeState *job.Paus
 func (jr *JobRunner) runTest(ctx xcontext.Context,
 	j *job.Job, runID types.RunID, testID int,
 	resumeState *job.PauseEventPayload,
-) ([]*target.Target, json.RawMessage, error) {
+) ([]*target.Target, json.RawMessage, bool, error) {
 	t := j.Tests[testID-1]
 	ctx.Infof("Run #%d: fetching targets for test '%s'", runID, t.Name)
 	bundle := t.TargetManagerBundle
 	var (
 		targets  []*target.Target
 		errCh    = make(chan error, 1)
-		acquired = false
+		acquired bool
+		succeed  bool
 		runErr   error
 	)
 
@@ -287,14 +333,14 @@ func (jr *JobRunner) runTest(ctx xcontext.Context,
 		if err != nil {
 			err = fmt.Errorf("run #%d: cannot fetch targets for test '%s': %v", runID, t.Name, err)
 			ctx.Errorf(err.Error())
-			return nil, nil, err
+			return nil, nil, false, err
 		}
 		// Associate targets with the job. Background routine will refresh the locks periodically.
 		jr.jobsMapLock.Lock()
 		jr.jobsMap[j.ID].targets = targets
 		jr.jobsMapLock.Unlock()
 	case <-jr.clock.After(j.TargetManagerAcquireTimeout):
-		return nil, nil, fmt.Errorf("target manager acquire timed out after %s", j.TargetManagerAcquireTimeout)
+		return nil, nil, false, fmt.Errorf("target manager acquire timed out after %s", j.TargetManagerAcquireTimeout)
 		// Note: not handling cancellation here to allow TM plugins to wrap up correctly.
 		// We have timeout to ensure it doesn't get stuck forever.
 	}
@@ -311,7 +357,7 @@ func (jr *JobRunner) runTest(ctx xcontext.Context,
 	select {
 	case <-ctx.Until(xcontext.ErrPaused):
 		ctx.Infof("pause requested for job ID %v", j.ID)
-		return targets, nil, xcontext.ErrPaused
+		return targets, nil, false, xcontext.ErrPaused
 	default:
 	}
 
@@ -323,12 +369,24 @@ func (jr *JobRunner) runTest(ctx xcontext.Context,
 		if resumeState != nil {
 			testRunnerState = resumeState.TestRunnerState
 		}
-		testRunnerState, err := testRunner.Run(ctx, t, targets, j.ID, runID, testRunnerState)
-		if err == xcontext.ErrPaused {
-			return targets, testRunnerState, err
-		} else {
-			runErr = err
+
+		ctx = ctx.WithFields(xcontext.Fields{
+			"job_id": j.ID,
+			"run_id": runID,
+		})
+		ctx = xcontext.WithValue(ctx, types.KeyJobID, j.ID)
+		ctx = xcontext.WithValue(ctx, types.KeyRunID, runID)
+
+		testRunnerState, targetsResults, err := testRunner.Run(ctx, t, targets, j.ID, runID, testRunnerState)
+		succeed = len(targetsResults) == len(targets)
+		for _, targetErr := range targetsResults {
+			succeed = succeed && targetErr == nil
 		}
+
+		if err == xcontext.ErrPaused {
+			return targets, testRunnerState, succeed, err
+		}
+		runErr = err
 	}
 
 	// Job is done, release all the targets
@@ -357,17 +415,17 @@ func (jr *JobRunner) runTest(ctx xcontext.Context,
 		if err != nil {
 			errRelease := fmt.Sprintf("Failed to release targets: %v", err)
 			ctx.Errorf(errRelease)
-			return nil, nil, fmt.Errorf(errRelease)
+			return nil, nil, succeed, fmt.Errorf(errRelease)
 		}
 	case <-jr.clock.After(j.TargetManagerReleaseTimeout):
-		return nil, nil, fmt.Errorf("target manager release timed out after %s", j.TargetManagerReleaseTimeout)
+		return nil, nil, succeed, fmt.Errorf("target manager release timed out after %s", j.TargetManagerReleaseTimeout)
 		// Ignore cancellation here, we want release and unlock to happen in that case.
 	}
 	// return the Run error only after releasing the targets, and only
 	// if we are not running indefinitely. An error returned by the TestRunner
 	// is considered a fatal condition and will cause the termination of the
 	// whole job.
-	return nil, nil, runErr
+	return nil, nil, succeed, runErr
 }
 
 func (jr *JobRunner) lockRefresher() {

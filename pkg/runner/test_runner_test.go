@@ -146,7 +146,7 @@ func runWithTimeout(t *testing.T, tr *TestRunner, ctx xcontext.Context, resumeSt
 	}
 	resCh := make(chan runRes)
 	go func() {
-		res, err := tr.Run(newCtx, test, targets, 1, runID, resumeState)
+		res, _, err := tr.Run(newCtx, test, targets, 1, runID, resumeState)
 		resCh <- runRes{res: res, err: err}
 	}()
 	var res runRes

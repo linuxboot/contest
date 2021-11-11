@@ -84,6 +84,7 @@ func newJob(ctx xcontext.Context, registry *pluginregistry.PluginRegistry, jobDe
 			TargetManagerBundle: bundleTargetManager,
 			TestFetcherBundle:   bundleTestFetcher,
 			TestStepsBundles:    bundleTest,
+			RetryParameters:     td.RetryParameters,
 		}
 		tests = append(tests, &test)
 	}

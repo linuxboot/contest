@@ -9,8 +9,15 @@ import (
 	"encoding/json"
 	"errors"
 
+	"github.com/insomniacslk/xjson"
 	"github.com/linuxboot/contest/pkg/target"
 )
+
+// RetryParameters describes optional parameters for retry
+type RetryParameters struct {
+	NumRetries    uint32
+	RetryInterval *xjson.Duration
+}
 
 // Test describes a test definition.
 type Test struct {
@@ -18,6 +25,7 @@ type Test struct {
 	TestStepsBundles    []TestStepBundle
 	TargetManagerBundle *target.TargetManagerBundle
 	TestFetcherBundle   *TestFetcherBundle
+	RetryParameters     RetryParameters
 }
 
 // TestDescriptor models the JSON encoded blob which is given as input to the
@@ -26,6 +34,8 @@ type Test struct {
 type TestDescriptor struct {
 	// Disabled allows to disable the test
 	Disabled bool
+
+	RetryParameters RetryParameters
 
 	// TargetManager-related parameters
 	TargetManagerName              string

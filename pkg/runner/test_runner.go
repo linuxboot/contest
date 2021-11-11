@@ -120,7 +120,7 @@ func (tr *TestRunner) Run(
 	t *test.Test, targets []*target.Target,
 	jobID types.JobID, runID types.RunID,
 	resumeState json.RawMessage,
-) (json.RawMessage, error) {
+) (json.RawMessage, map[string]error, error) {
 
 	ctx = ctx.WithFields(xcontext.Fields{
 		"job_id": jobID,
@@ -130,9 +130,9 @@ func (tr *TestRunner) Run(
 	ctx = xcontext.WithValue(ctx, types.KeyRunID, runID)
 
 	ctx.Debugf("== test runner starting job %d, run %d", jobID, runID)
-	resumeState, err := tr.run(ctx.WithTag("phase", "run"), t, targets, jobID, runID, resumeState)
+	resumeState, targetsResults, err := tr.run(ctx.WithTag("phase", "run"), t, targets, jobID, runID, resumeState)
 	ctx.Debugf("== test runner finished job %d, run %d, err: %v", jobID, runID, err)
-	return resumeState, err
+	return resumeState, targetsResults, err
 }
 
 func (tr *TestRunner) run(
@@ -140,7 +140,7 @@ func (tr *TestRunner) run(
 	t *test.Test, targets []*target.Target,
 	jobID types.JobID, runID types.RunID,
 	resumeState json.RawMessage,
-) (json.RawMessage, error) {
+) (json.RawMessage, map[string]error, error) {
 
 	// Peel off contexts used for steps and target handlers.
 	stepsCtx, stepsCancel := xcontext.WithCancel(ctx)
@@ -153,14 +153,14 @@ func (tr *TestRunner) run(
 	if len(resumeState) > 0 {
 		ctx.Debugf("Attempting to resume from state: %s", string(resumeState))
 		if err := json.Unmarshal(resumeState, &rs); err != nil {
-			return nil, fmt.Errorf("invalid resume state: %w", err)
+			return nil, nil, fmt.Errorf("invalid resume state: %w", err)
 		}
 		if rs.Version != resumeStateStructVersion {
-			return nil, fmt.Errorf("incompatible resume state version %d (want %d)",
+			return nil, nil, fmt.Errorf("incompatible resume state version %d (want %d)",
 				rs.Version, resumeStateStructVersion)
 		}
 		if rs.JobID != jobID {
-			return nil, fmt.Errorf("wrong resume state, job id %d (want %d)", rs.JobID, jobID)
+			return nil, nil, fmt.Errorf("wrong resume state, job id %d (want %d)", rs.JobID, jobID)
 		}
 		tr.targets = rs.Targets
 	}
@@ -274,7 +274,7 @@ func (tr *TestRunner) run(
 
 	// Is there a useful error to report?
 	if runErr != nil {
-		return nil, runErr
+		return nil, nil, runErr
 	}
 
 	// Have we been asked to pause? If yes, is it safe to do so?
@@ -295,13 +295,21 @@ func (tr *TestRunner) run(
 		resumeState, runErr = json.Marshal(rs)
 		if runErr != nil {
 			ctx.Errorf("unable to serialize the state: %s", runErr)
-		} else {
-			runErr = xcontext.ErrPaused
+			return nil, nil, runErr
 		}
+		runErr = xcontext.ErrPaused
 	default:
 	}
 
-	return resumeState, runErr
+	targetsResults := make(map[string]error)
+	for id, state := range tr.targets {
+		if state.Res != nil {
+			targetsResults[id] = state.Res.Unwrap()
+		} else if state.CurStep == len(tr.steps)-1 && state.CurPhase == targetStepPhaseEnd {
+			targetsResults[id] = nil
+		}
+	}
+	return resumeState, targetsResults, runErr
 }
 
 func (tr *TestRunner) waitStepRunners(ctx xcontext.Context) error {
