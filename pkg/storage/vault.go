@@ -20,17 +20,14 @@ const AsyncEngine = "DefaultAsync"
 type EngineVaultMap map[string]Storage
 
 type EngineVault struct {
-	lock  sync.RWMutex
+	sync.RWMutex
 	vault EngineVaultMap
 }
 
-var once sync.Once
-var instance *EngineVault
-
 // GetEngine - get storage engine from the vault. Defaults to SyncEngine.
 func (v *EngineVault) GetEngine(name ...string) (res Storage, err error) {
-	v.lock.RLock()
-	defer v.lock.RUnlock()
+	v.RLock()
+	defer v.RUnlock()
 
 	var engineName string
 	if len(name) > 0 {
@@ -48,8 +45,8 @@ func (v *EngineVault) GetEngine(name ...string) (res Storage, err error) {
 
 // StoreEngine - store supplied engine in the vault. As SyncEngine by default
 func (v *EngineVault) StoreEngine(storageEngine Storage, name ...string) (err error) {
-	v.lock.Lock()
-	defer v.lock.Unlock()
+	v.Lock()
+	defer v.Unlock()
 
 	var engineName string
 	if len(name) > 0 {
@@ -77,6 +74,9 @@ func (v *EngineVault) StoreEngine(storageEngine Storage, name ...string) (err er
 
 	return
 }
+
+var once sync.Once
+var instance *EngineVault
 
 func GetStorageEngineVault() *EngineVault {
 	once.Do(func() {
