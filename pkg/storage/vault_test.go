@@ -27,4 +27,7 @@ func TestStorageEngineVault(t *testing.T) {
 
 	// Delete engine
 	require.NoError(t, vault.StoreEngine(nil, storageName))
+	engine, err = vault.GetEngine(storageName)
+	require.Nil(t, engine)
+	require.Error(t, err)
 }
