@@ -76,21 +76,23 @@ func (n *nullStorage) Version() (uint64, error) {
 	return 0, nil
 }
 
-func mockStorage(t *testing.T) (*nullStorage, *nullStorage) {
+func mockStorage(t *testing.T, ctx xcontext.Context) (xcontext.Context, *nullStorage, *nullStorage) {
+	vault := NewStorageEngineVault()
+	updatedCtx := WithStorageEngineVault(ctx, vault)
+
 	storage := &nullStorage{}
 	storageAsync := &nullStorage{}
 
 	// TODO: Add the option of running tests in parallel
-	vault := GetStorageEngineVault()
 	require.NoError(t, vault.StoreEngine(storage, SyncEngine))
 	require.NoError(t, vault.StoreEngine(storageAsync, AsyncEngine))
-	return storage, storageAsync
+	return updatedCtx, storage, storageAsync
 }
 
 func TestSetStorage(t *testing.T) {
-	require.NoError(t, GetStorageEngineVault().StoreEngine(&nullStorage{}, SyncEngine))
+	require.NoError(t, NewStorageEngineVault().StoreEngine(&nullStorage{}, SyncEngine))
 }
 
 func TestSetAsyncStorage(t *testing.T) {
-	require.NoError(t, GetStorageEngineVault().StoreEngine(&nullStorage{}, AsyncEngine))
+	require.NoError(t, NewStorageEngineVault().StoreEngine(&nullStorage{}, AsyncEngine))
 }

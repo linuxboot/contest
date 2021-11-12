@@ -12,11 +12,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/linuxboot/contest/pkg/storage"
 	"github.com/linuxboot/contest/plugins/storage/rdbms"
 	"github.com/linuxboot/contest/tests/integ/common"
 
-	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -31,8 +29,7 @@ func TestJobManagerSuiteRdbmsStorage(t *testing.T) {
 	if err != nil {
 		panic(fmt.Sprintf("could not initialize rdbms storage layer: %v", err))
 	}
-	err = storage.SetStorage(storageLayer)
-	require.NoError(t, err)
+
 	testSuite.storage = storageLayer
 
 	suite.Run(t, &testSuite)

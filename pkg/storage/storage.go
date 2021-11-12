@@ -47,28 +47,6 @@ type ResettableStorage interface {
 	Reset() error
 }
 
-// SetStorage sets the desired storage engine for events. Switching to a new
-// storage engine implies garbage collecting the old one, with possible loss of
-// pending events if not flushed correctly
-func SetStorage(storageEngine Storage) error {
-	vault := GetStorageEngineVault()
-	return vault.StoreEngine(storageEngine, SyncEngine)
-}
-
-// GetStorage returns the primary storage for events.
-func GetStorage() (Storage, error) {
-	vault := GetStorageEngineVault()
-	return vault.GetEngine(SyncEngine)
-}
-
-// SetAsyncStorage sets the desired storage engine for read-only events. Switching to a new
-// storage engine implies garbage collecting the old one, with possible loss of
-// pending events if not flushed correctly
-func SetAsyncStorage(storageEngine Storage) error {
-	vault := GetStorageEngineVault()
-	return vault.StoreEngine(storageEngine, AsyncEngine)
-}
-
 func isStronglyConsistent(ctx xcontext.Context) bool {
 	value := ctx.Value(consistencyModelKey)
 	ctx.Debugf("consistency model check: %v", value)

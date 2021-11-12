@@ -44,7 +44,7 @@ type TestEventEmitterFetcher struct {
 
 // Emit emits an event using the selected storage layer
 func (e TestEventEmitter) Emit(ctx xcontext.Context, data testevent.Data) error {
-	storage, err := GetStorageEngineVault().GetEngine(SyncEngine)
+	storage, err := GetStorageEngineFromContext(ctx, SyncEngine)
 	if err != nil {
 		return nil
 	}
@@ -64,11 +64,11 @@ func (e TestEventEmitter) Emit(ctx xcontext.Context, data testevent.Data) error 
 
 // Fetch retrieves events based on QueryFields that are used to build a Query object for TestEvents
 func (ev TestEventFetcher) Fetch(ctx xcontext.Context, queryFields ...testevent.QueryField) ([]testevent.Event, error) {
-	engineName := SyncEngine
+	engineType := SyncEngine
 	if !isStronglyConsistent(ctx) {
-		engineName = AsyncEngine
+		engineType = AsyncEngine
 	}
-	storage, err := GetStorageEngineVault().GetEngine(engineName)
+	storage, err := GetStorageEngineFromContext(ctx, engineType)
 	if err != nil {
 		return nil, err
 	}
@@ -128,7 +128,7 @@ type FrameworkEventEmitterFetcher struct {
 
 // Emit emits an event using the selected storage engine
 func (ev FrameworkEventEmitter) Emit(ctx xcontext.Context, event frameworkevent.Event) error {
-	storage, err := GetStorageEngineVault().GetEngine(SyncEngine)
+	storage, err := GetStorageEngineFromContext(ctx, SyncEngine)
 	if err != nil {
 		return err
 	}
@@ -141,11 +141,11 @@ func (ev FrameworkEventEmitter) Emit(ctx xcontext.Context, event frameworkevent.
 
 // Fetch retrieves events based on QueryFields that are used to build a Query object for FrameworkEvents
 func (ev FrameworkEventFetcher) Fetch(ctx xcontext.Context, queryFields ...frameworkevent.QueryField) ([]frameworkevent.Event, error) {
-	engineName := SyncEngine
+	engineType := SyncEngine
 	if !isStronglyConsistent(ctx) {
-		engineName = AsyncEngine
+		engineType = AsyncEngine
 	}
-	storage, err := GetStorageEngineVault().GetEngine(engineName)
+	storage, err := GetStorageEngineFromContext(ctx, engineType)
 	if err != nil {
 		return nil, err
 	}

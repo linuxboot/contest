@@ -75,6 +75,13 @@ var testStepsEvents = map[string][]event.Name{
 }
 
 func TestMain(m *testing.M) {
+	// Init context with EngineStorageVault
+	vault := storage.GetStorageEngineVaultFromContext(ctx)
+	if vault == nil {
+		vault = storage.NewStorageEngineVault()
+		ctx = storage.WithStorageEngineVault(ctx, vault)
+	}
+
 	pluginRegistry = pluginregistry.NewPluginRegistry(ctx)
 	// Setup the PluginRegistry by registering TestSteps
 	for name, tsfactory := range testSteps {
@@ -101,7 +108,8 @@ func TestMain(m *testing.M) {
 	if err != nil {
 		panic(fmt.Sprintf("could not initialize in-memory storage layer: %v", err))
 	}
-	err = storage.SetStorage(s)
+
+	err = vault.StoreEngine(s, storage.SyncEngine)
 	if err != nil {
 		panic(fmt.Sprintf("could not set storage memory layer: %v", err))
 	}

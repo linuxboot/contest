@@ -11,10 +11,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/linuxboot/contest/pkg/storage"
 	"github.com/linuxboot/contest/plugins/storage/memory"
 
-	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -28,8 +26,5 @@ func TestJobManagerSuiteMemoryStorage(t *testing.T) {
 
 	}
 	testSuite.storage = storagelayer
-	err = storage.SetStorage(storagelayer)
-	require.NoError(t, err)
-
 	suite.Run(t, &testSuite)
 }

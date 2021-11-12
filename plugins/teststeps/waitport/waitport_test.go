@@ -15,20 +15,6 @@ import (
 )
 
 func TestWaitForTCPPort(t *testing.T) {
-	initialStorage, _ := storage.GetStorage()
-	defer func() {
-		if err := storage.SetStorage(initialStorage); err != nil {
-			t.Errorf("Failed to set initial storage: '%v'", err)
-		}
-	}()
-	m, err := memory.New()
-	if err != nil {
-		t.Fatalf("could not initialize memory storage: '%v'", err)
-	}
-	if err := storage.SetStorage(m); err != nil {
-		t.Fatalf("Failed to set memory storage: '%v'", err)
-	}
-
 	listener, err := net.Listen("tcp", ":0")
 	if err != nil {
 		t.Fatalf("Failed to start listening TCP port: '%v'", err)
@@ -41,6 +27,17 @@ func TestWaitForTCPPort(t *testing.T) {
 
 	ctx, cancel := xcontext.WithCancel(xcontext.Background())
 	defer cancel()
+
+	vault := storage.NewStorageEngineVault()
+	ctx = storage.WithStorageEngineVault(ctx, vault)
+
+	m, err := memory.New()
+	if err != nil {
+		t.Fatalf("could not initialize memory storage: '%v'", err)
+	}
+	if err := vault.StoreEngine(m, storage.SyncEngine); err != nil {
+		t.Fatalf("Failed to set memory storage: '%v'", err)
+	}
 
 	var wg sync.WaitGroup
 	wg.Add(1)

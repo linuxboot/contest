@@ -84,6 +84,7 @@ func assertTestEvents(t *testing.T, ev []testevent.Event, emitTime time.Time) {
 
 type TestEventsSuite struct {
 	suite.Suite
+
 	// storage is the storage engine initially configured by the upper level TestSuite,
 	// which either configures a memory or a rdbms storage backend.
 	storage storage.Storage
@@ -96,6 +97,14 @@ type TestEventsSuite struct {
 }
 
 func (suite *TestEventsSuite) SetupTest() {
+
+	// Init context with EngineStorageVault
+	vault := storage.GetStorageEngineVaultFromContext(ctx)
+	if vault == nil {
+		vault = storage.NewStorageEngineVault()
+		ctx = storage.WithStorageEngineVault(ctx, vault)
+	}
+
 	suite.txStorage = common.InitStorage(suite.storage)
 }
 
