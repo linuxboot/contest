@@ -52,8 +52,8 @@ func mockTestEventEmitterData() *testEventEmitterFixture {
 }
 
 func TestEmitUnrestricted(t *testing.T) {
-	mockStorage(t)
 	f := mockTestEventEmitterData()
+	f.ctx, _, _ = mockStorage(t, f.ctx)
 
 	em := NewTestEventEmitter(f.header)
 	require.NoError(t, em.Emit(f.ctx, testevent.Data{EventName: f.allowedEvents[0]}))
@@ -62,8 +62,8 @@ func TestEmitUnrestricted(t *testing.T) {
 }
 
 func TestEmitRestricted(t *testing.T) {
-	mockStorage(t)
 	f := mockTestEventEmitterData()
+	f.ctx, _, _ = mockStorage(t, f.ctx)
 
 	em := NewTestEventEmitterWithAllowedEvents(f.header, &f.allowedMap)
 	require.NoError(t, em.Emit(f.ctx, testevent.Data{EventName: f.allowedEvents[0]}))
@@ -82,8 +82,10 @@ func mockTestEventFetcherData() *testEventFetcherFixture {
 }
 
 func TestTestEventFetcherConsistency(t *testing.T) {
-	storage, storageAsync := mockStorage(t)
 	f := mockTestEventFetcherData()
+	var storage, storageAsync *nullStorage
+	f.ctx, storage, storageAsync = mockStorage(t, f.ctx)
+
 	ef := NewTestEventFetcher()
 
 	// test with default context
@@ -105,8 +107,11 @@ func TestTestEventFetcherConsistency(t *testing.T) {
 }
 
 func TestFrameworkEventFetcherConsistency(t *testing.T) {
-	storage, storageAsync := mockStorage(t)
 	f := mockTestEventFetcherData()
+
+	var storage, storageAsync *nullStorage
+	f.ctx, storage, storageAsync = mockStorage(t, f.ctx)
+
 	ef := NewFrameworkEventFetcher()
 
 	// test with default context

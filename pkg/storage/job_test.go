@@ -55,7 +55,8 @@ func TestJobStorageConsistency(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			storage, storageAsync := mockStorage(t)
+			var storage, storageAsync *nullStorage
+			f.ctx, storage, storageAsync = mockStorage(t, f.ctx)
 
 			// test with default context
 			tc.getter(f.ctx, &jsm)

@@ -6,28 +6,100 @@
 package storage
 
 import (
+	"github.com/linuxboot/contest/pkg/xcontext"
 	"github.com/stretchr/testify/require"
 	"testing"
 )
 
+type singleSilentEngineVaultProvider struct {
+	singleEngine Storage
+}
+
+func (v *singleSilentEngineVaultProvider) Init() {
+	v.singleEngine = &nullStorage{}
+}
+
+func (v *singleSilentEngineVaultProvider) Clear() {
+	v.singleEngine = nil
+}
+
+func (v *singleSilentEngineVaultProvider) GetEngine(_ EngineType) (Storage, error) {
+	return v.singleEngine, nil
+}
+
+func (v *singleSilentEngineVaultProvider) StoreEngine(storageEngine Storage, engineType EngineType) error {
+	return nil
+}
+
 func TestStorageEngineVault(t *testing.T) {
-	const storageName = "TestStorageEngineVault"
-	vault := GetStorageEngineVault()
+	const engineId = AsyncEngine
+
+	ctx := xcontext.Background()
+
+	vault := NewStorageEngineVault()
+	ctx = WithStorageEngineVault(ctx, vault)
 
 	// Nothing here upon creation
-	engine, err := vault.GetEngine(storageName)
+	engine, err := GetStorageEngineFromContext(ctx, engineId)
 	require.Nil(t, engine)
 	require.Error(t, err)
 
 	// Create engine
-	require.NoError(t, vault.StoreEngine(&nullStorage{}, storageName))
-	engine, err = vault.GetEngine(storageName)
+	require.NoError(t, vault.StoreEngine(&nullStorage{}, engineId))
+	engine, err = GetStorageEngineFromContext(ctx, engineId)
 	require.NotNil(t, engine)
 	require.NoError(t, err)
 
 	// Delete engine
-	require.NoError(t, vault.StoreEngine(nil, storageName))
-	engine, err = vault.GetEngine(storageName)
+	require.NoError(t, vault.StoreEngine(nil, engineId))
+	engine, err = GetStorageEngineFromContext(ctx, engineId)
 	require.Nil(t, engine)
 	require.Error(t, err)
+
+	// Test clear method
+	vault.Clear()
+
+}
+
+func TestStorageEngineVaultClearing(t *testing.T) {
+	ctx := xcontext.Background()
+
+	vault := NewStorageEngineVault()
+	ctx = WithStorageEngineVault(ctx, vault)
+
+	types := []EngineType{SyncEngine, AsyncEngine}
+
+	for _, engineType := range types {
+		require.NoError(t, vault.StoreEngine(&nullStorage{}, engineType))
+		engine, err := GetStorageEngineFromContext(ctx, engineType)
+		require.NotNil(t, engine)
+		require.NoError(t, err)
+	}
+
+	vault.Clear()
+	for _, engineType := range types {
+		engine, err := GetStorageEngineFromContext(ctx, engineType)
+		require.Nil(t, engine)
+		require.Error(t, err)
+	}
+}
+
+func TestCustomEngineVaultProvider(t *testing.T) {
+	ctx := xcontext.Background()
+
+	vault := &singleSilentEngineVaultProvider{}
+	ctx = WithStorageEngineVault(ctx, vault)
+
+	vault.Init()
+
+	// Now there should be an engine
+	engine, err := GetStorageEngineFromContext(ctx, SyncEngine)
+	require.NotNil(t, engine)
+	require.NoError(t, err)
+
+	vault.Clear()
+	// Now there should be no engine, but no error also
+	engine, err = GetStorageEngineFromContext(ctx, SyncEngine)
+	require.Nil(t, engine)
+	require.NoError(t, err)
 }
