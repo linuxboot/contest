@@ -92,20 +92,31 @@ func (jr *JobRunner) buildTestStepStatus(ctx xcontext.Context, coordinates job.T
 		return nil, fmt.Errorf("could not fetch events associated to test step %s: %v", coordinates.TestStepLabel, err)
 	}
 
+	// keep only events with the max retry
+	var lastRetry uint32
+	for _, ev := range testEvents {
+		if ev.Header.TestRetry > lastRetry {
+			lastRetry = ev.Header.TestRetry
+		}
+	}
+
 	var stepEvents, targetEvents []testevent.Event
-	for _, event := range testEvents {
-		if event.Data.Target == nil {
+	for _, ev := range testEvents {
+		if ev.Header.TestRetry != lastRetry {
+			continue
+		}
+		if ev.Data.Target == nil {
 			// we don't want target routing events in step events, but we want
 			// them in target events below
-			if _, skip := targetRoutingEvents[event.Data.EventName]; skip {
-				ctx.Warnf("Found routing event '%s' with no target associated, this could indicate a bug", event.Data.EventName)
+			if _, skip := targetRoutingEvents[ev.Data.EventName]; skip {
+				ctx.Warnf("Found routing event '%s' with no target associated, this could indicate a bug", ev.Data.EventName)
 				continue
 			}
 			// this goes into TestStepStatus.Events
-			stepEvents = append(stepEvents, event)
+			stepEvents = append(stepEvents, ev)
 		} else {
 			// this goes into TargetStatus.Events
-			targetEvents = append(targetEvents, event)
+			targetEvents = append(targetEvents, ev)
 		}
 	}
 

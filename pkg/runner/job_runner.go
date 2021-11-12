@@ -181,7 +181,7 @@ func (jr *JobRunner) Run(ctx xcontext.Context, j *job.Job, resumeState *job.Paus
 					}
 				}
 
-				targets, testRunnerState, succeeded, runErr := jr.runTest(runCtx, j, runID, testID, resumeState)
+				targets, testRunnerState, succeeded, runErr := jr.runTest(runCtx, j, runID, testID, testRetry, resumeState)
 				if runErr == xcontext.ErrPaused {
 					return onTestPause(runID, testID, testRetry, targets, testRunnerState)
 				}
@@ -277,7 +277,7 @@ func (jr *JobRunner) Run(ctx xcontext.Context, j *job.Job, resumeState *job.Paus
 }
 
 func (jr *JobRunner) runTest(ctx xcontext.Context,
-	j *job.Job, runID types.RunID, testID int,
+	j *job.Job, runID types.RunID, testID int, testRetry uint32,
 	resumeState *job.PauseEventPayload,
 ) ([]*target.Target, json.RawMessage, bool, error) {
 	t := j.Tests[testID-1]
@@ -345,7 +345,7 @@ func (jr *JobRunner) runTest(ctx xcontext.Context,
 		// We have timeout to ensure it doesn't get stuck forever.
 	}
 
-	header := testevent.Header{JobID: j.ID, RunID: runID, TestName: t.Name}
+	header := testevent.Header{JobID: j.ID, RunID: runID, TestName: t.Name, TestRetry: testRetry}
 	testEventEmitter := storage.NewTestEventEmitter(header)
 
 	// Emit events tracking targets acquisition
@@ -370,14 +370,7 @@ func (jr *JobRunner) runTest(ctx xcontext.Context,
 			testRunnerState = resumeState.TestRunnerState
 		}
 
-		ctx = ctx.WithFields(xcontext.Fields{
-			"job_id": j.ID,
-			"run_id": runID,
-		})
-		ctx = xcontext.WithValue(ctx, types.KeyJobID, j.ID)
-		ctx = xcontext.WithValue(ctx, types.KeyRunID, runID)
-
-		testRunnerState, targetsResults, err := testRunner.Run(ctx, t, targets, j.ID, runID, testRunnerState)
+		testRunnerState, targetsResults, err := testRunner.Run(ctx, t, targets, j.ID, runID, testRetry, testRunnerState)
 		succeed = len(targetsResults) == len(targets)
 		for _, targetErr := range targetsResults {
 			succeed = succeed && targetErr == nil

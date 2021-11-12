@@ -68,7 +68,7 @@ func runExecPlugin(t *testing.T, ctx xcontext.Context, jsonParams string) error 
 		}()
 
 		tr := runner.NewTestRunner()
-		_, _, err := tr.Run(ctx, &test.Test{TestStepsBundles: testSteps}, targets, jobID, runID, nil)
+		_, _, err := tr.Run(ctx, &test.Test{TestStepsBundles: testSteps}, targets, jobID, runID, 0, nil)
 		if err != nil {
 			panic(err)
 		}
