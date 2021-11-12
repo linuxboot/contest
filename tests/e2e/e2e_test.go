@@ -12,14 +12,18 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net"
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"testing"
+	"text/template"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
@@ -31,6 +35,7 @@ import (
 	"github.com/linuxboot/contest/pkg/target"
 	"github.com/linuxboot/contest/pkg/test"
 	"github.com/linuxboot/contest/pkg/types"
+	"github.com/linuxboot/contest/pkg/xcontext"
 	"github.com/linuxboot/contest/pkg/xcontext/bundles/logrusctx"
 	"github.com/linuxboot/contest/pkg/xcontext/logger"
 	"github.com/linuxboot/contest/plugins/reporters/noop"
@@ -40,6 +45,7 @@ import (
 	"github.com/linuxboot/contest/plugins/testfetchers/literal"
 	"github.com/linuxboot/contest/plugins/teststeps/cmd"
 	"github.com/linuxboot/contest/plugins/teststeps/sleep"
+	"github.com/linuxboot/contest/plugins/teststeps/waitport"
 	testsCommon "github.com/linuxboot/contest/tests/common"
 	"github.com/linuxboot/contest/tests/common/goroutine_leak_check"
 	"github.com/linuxboot/contest/tests/integ/common"
@@ -116,7 +122,7 @@ func (ts *E2ETestSuite) startServer(extraArgs ...string) {
 				targetlist_with_state.Load,
 			},
 			TestFetcherLoaders: []test.TestFetcherLoader{literal.Load},
-			TestStepLoaders:    []test.TestStepLoader{cmd.Load, sleep.Load},
+			TestStepLoaders:    []test.TestStepLoader{cmd.Load, sleep.Load, waitport.Load},
 			ReporterLoaders:    []job.ReporterLoader{targetsuccess.Load, noop.Load},
 		}
 		err := server.Main(&pc, "contest", args, serverSigs)
@@ -339,6 +345,121 @@ func (ts *E2ETestSuite) TestPauseResume() {
 	require.NoError(ts.T(), ts.stopServer(5*time.Second))
 	// Shouldn't take more than 20 seconds. If it does, it most likely means state is not saved properly.
 	require.Less(ts.T(), finish.Sub(start), 20*time.Second)
+}
+
+func (ts *E2ETestSuite) TestRetries() {
+	type testDescriptorCustomisation struct {
+		WaitPort int
+	}
+
+	ts.startServer()
+
+	waitPort, err := getFreePort()
+	require.NoError(ts.T(), err)
+
+	testDescrTemplate, err := ioutil.ReadFile("test-retry.yaml")
+	require.NoError(ts.T(), err)
+
+	templ, err := template.New("test-description").Delims("[[", "]]").Parse(string(testDescrTemplate))
+	require.NoError(ts.T(), err)
+
+	tmpFile, err := ioutil.TempFile("", "")
+	require.NoError(ts.T(), err)
+	defer func() {
+		assert.NoError(ts.T(), tmpFile.Close())
+		assert.NoError(ts.T(), os.Remove(tmpFile.Name()))
+	}()
+	require.NoError(ts.T(), templ.Execute(tmpFile, testDescriptorCustomisation{WaitPort: waitPort}))
+
+	var jobID types.JobID
+	{ // Start a job.
+		var resp api.StartResponse
+		_, err := ts.runClient(&resp, "start", "-Y", tmpFile.Name())
+		require.NoError(ts.T(), err)
+		ctx.Infof("%+v", resp)
+		require.NotEqual(ts.T(), 0, resp.Data.JobID)
+		jobID = resp.Data.JobID
+	}
+
+	<-time.After(5 * time.Second)
+	listener, err := net.Listen("tcp", fmt.Sprintf("localhost:%d", waitPort))
+	require.NoError(ts.T(), err)
+	defer func() {
+		if err := listener.Close(); err != nil {
+			assert.NoError(ts.T(), err)
+		}
+	}()
+
+	ctx, cancel := xcontext.WithCancel(xcontext.Background())
+	defer cancel()
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		wg.Done()
+		for ctx.Err() == nil {
+			conn, err := listener.Accept()
+			if err == nil || conn == nil {
+				continue
+			}
+			_ = conn.Close()
+		}
+	}()
+
+	{ // Wait for the job to finish
+		var resp api.StatusResponse
+		for i := 1; i < 20; i++ {
+			time.Sleep(1 * time.Second)
+			stdout, err := ts.runClient(&resp, "status", fmt.Sprintf("%d", jobID))
+			require.NoError(ts.T(), err)
+			require.Nil(ts.T(), resp.Err, "error: %s", resp.Err)
+			ctx.Infof("Job %d state %s", jobID, resp.Data.Status.State)
+			if resp.Data.Status.State == string(job.EventJobCompleted) {
+				ctx.Debugf("Job %d status: %s", jobID, stdout)
+				break
+			}
+		}
+		require.Equal(ts.T(), string(job.EventJobCompleted), resp.Data.Status.State)
+	}
+
+	// TODO: Uncomment after database support
+	//	{ // Verify step output.
+	//		es := testsCommon.GetJobEventsAsString(ctx, ts.st, jobID, []event.Name{
+	//			cmd.EventCmdStdout, target.EventTargetAcquired, target.EventTargetReleased,
+	//			target.EventTargetOut, target.EventTargetErr} )
+	//		ctx.Debugf("%s", es)
+	//		require.Equal(ts.T(),
+	//			fmt.Sprintf(`
+	//{[%d 1 Test 1 0 ][Target{ID: "T1"} TargetAcquired]}
+	//{[%d 1 Test 1 0 Step 1][Target{ID: "T1"} CmdStdout &"{\"Msg\":\"Test 1, Step 1, target T1\\n\"}"]}
+	//{[%d 1 Test 1 0 Step 1][Target{ID: "T1"} TargetOut]}
+	//{[%d 1 Test 1 0 Step 2][Target{ID: "T1"} TargetErr &"{\"Error\":\"context deadline exceeded\"}"]}
+	//{[%d 1 Test 1 0 ][Target{ID: "T1"} TargetReleased]}
+	//{[%d 1 Test 1 0 ][Target{ID: "T1"} TargetAcquired]}
+	//{[%d 1 Test 1 0 Step 1][Target{ID: "T1"} CmdStdout &"{\"Msg\":\"Test 1, Step 1, target T1\\n\"}"]}
+	//{[%d 1 Test 1 0 Step 1][Target{ID: "T1"} TargetOut]}
+	//{[%d 1 Test 1 0 Step 2][Target{ID: "T1"} TargetOut]}
+	//{[%d 1 Test 1 0 Step 3][Target{ID: "T1"} CmdStdout &"{\"Msg\":\"Test 1, Step 1, target T1\\n\"}"]}
+	//{[%d 1 Test 1 0 Step 3][Target{ID: "T1"} TargetOut]}
+	//{[%d 1 Test 1 0 ][Target{ID: "T1"} TargetReleased]}
+	//`, jobID, jobID, jobID, jobID, jobID, jobID, jobID, jobID, jobID, jobID, jobID, jobID),
+	//			es,
+	//		)
+	//	}
+
+	require.NoError(ts.T(), ts.stopServer(5*time.Second))
+}
+
+func getFreePort() (int, error) {
+	listener, err := net.Listen("tcp", ":0")
+	if err != nil {
+		return 0, fmt.Errorf("failed to start listening TCP port: '%v'", err)
+	}
+	port := listener.Addr().(*net.TCPAddr).Port
+	if err := listener.Close(); err != nil {
+		return 0, err
+	}
+	return port, nil
 }
 
 func TestE2E(t *testing.T) {

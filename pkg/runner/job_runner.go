@@ -171,13 +171,18 @@ func (jr *JobRunner) Run(ctx xcontext.Context, j *job.Job, resumeState *job.Paus
 					testRetry,
 					retryParameters.NumRetries,
 				)
-				if nextTestAttempt != nil && time.Now().Before(*nextTestAttempt) {
-					runCtx.Infof("Sleep until next test attempt at '%v'", *nextTestAttempt)
-					select {
-					case <-runCtx.Done():
-						return nil, runCtx.Err()
-					case <-runCtx.Until(xcontext.ErrPaused):
-						return onTestPause(runID, testID, testRetry, resumeState.Targets, resumeState.TestRunnerState)
+				if nextTestAttempt != nil {
+					sleepTime := time.Until(*nextTestAttempt)
+					if sleepTime > 0 {
+						runCtx.Infof("Sleep until next test attempt at '%v'", *nextTestAttempt)
+						select {
+						case <-runCtx.Done():
+							return nil, runCtx.Err()
+						case <-runCtx.Until(xcontext.ErrPaused):
+							return onTestPause(runID, testID, testRetry, resumeState.Targets, resumeState.TestRunnerState)
+						case <-time.After(sleepTime):
+							runCtx.Infof("Finish sleep")
+						}
 					}
 				}
 
@@ -372,8 +377,11 @@ func (jr *JobRunner) runTest(ctx xcontext.Context,
 
 		testRunnerState, targetsResults, err := testRunner.Run(ctx, t, targets, j.ID, runID, testRetry, testRunnerState)
 		succeed = len(targetsResults) == len(targets)
-		for _, targetErr := range targetsResults {
-			succeed = succeed && targetErr == nil
+		for targetID, targetErr := range targetsResults {
+			if targetErr != nil {
+				ctx.Infof("target '%s' failed with err: '%v'", targetID, err)
+				succeed = false
+			}
 		}
 
 		if err == xcontext.ErrPaused {

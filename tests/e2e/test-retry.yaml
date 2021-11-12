@@ -1,0 +1,45 @@
+JobName: A job to test retries
+Runs: 1
+TestDescriptors:
+    - RetryParameters:
+        NumRetries: 1
+        RetryInterval: "10s"
+      TargetManagerName: TargetListWithState
+      TargetManagerAcquireParameters:
+        Targets:
+          - ID: T1
+      TargetManagerReleaseParameters:
+      TestFetcherName: literal
+      TestFetcherFetchParameters:
+        TestName: Test 1
+        Steps:
+          - name: cmd
+            label: Step 1
+            parameters:
+              executable: [echo]
+              args: ["Test 1, Step 1, target {{ .ID }}"]
+              emit_stdout: [true]
+              emit_stderr: [true]
+          - name: waitport
+            label: Step 2
+            parameters:
+              target: ["localhost"]
+              port: ["[[ .WaitPort]]"]
+              check_interval: ["50ms"]
+              protocol: ["tcp"]
+              timeout: ["500ms"]
+          - name: cmd
+            label: Step 3
+            parameters:
+              executable: [ echo ]
+              args: [ "Test 1, Step 1, target {{ .ID }}" ]
+              emit_stdout: [ true ]
+              emit_stderr: [ true ]
+Reporting:
+  RunReporters:
+    - name: TargetSuccess
+      parameters:
+        SuccessExpression: "=100%"
+    - name: noop
+  FinalReporters:
+    - name: noop
