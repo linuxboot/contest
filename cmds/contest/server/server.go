@@ -153,6 +153,10 @@ func Main(pluginConfig *PluginConfig, cmd string, args []string, sigs <-chan os.
 	log := ctx.Logger()
 	defer cancel()
 
+	// Let's store storage engine in context
+	vault := storage.NewStorageEngineVault()
+	ctx = storage.WithStorageEngineVault(ctx, vault)
+
 	pluginRegistry := pluginregistry.NewPluginRegistry(ctx)
 	if err := registerPlugins(pluginRegistry, pluginConfig); err != nil {
 		return fmt.Errorf("failed to register plugins: %w", err)
@@ -176,7 +180,7 @@ func Main(pluginConfig *PluginConfig, cmd string, args []string, sigs <-chan os.
 			log.Fatalf("Could not initialize database: %v", err)
 		}
 		storageInstances = append(storageInstances, s)
-		if err := storage.SetStorage(s); err != nil {
+		if err := vault.StoreEngine(s, storage.SyncEngine); err != nil {
 			log.Fatalf("Could not set storage: %v", err)
 		}
 
@@ -196,7 +200,7 @@ func Main(pluginConfig *PluginConfig, cmd string, args []string, sigs <-chan os.
 			log.Fatalf("Could not initialize replica database: %v", err)
 		}
 		storageInstances = append(storageInstances, r)
-		if err := storage.SetAsyncStorage(r); err != nil {
+		if err := vault.StoreEngine(s, storage.AsyncEngine); err != nil {
 			log.Fatalf("Could not set replica storage: %v", err)
 		}
 
@@ -214,10 +218,10 @@ func Main(pluginConfig *PluginConfig, cmd string, args []string, sigs <-chan os.
 		log.Warnf("Using in-memory storage")
 		if ms, err := memory.New(); err == nil {
 			storageInstances = append(storageInstances, ms)
-			if err := storage.SetStorage(ms); err != nil {
+			if err := vault.StoreEngine(ms, storage.SyncEngine); err != nil {
 				log.Fatalf("Could not set storage: %v", err)
 			}
-			if err := storage.SetAsyncStorage(ms); err != nil {
+			if err := vault.StoreEngine(ms, storage.AsyncEngine); err != nil {
 				log.Fatalf("Could not set replica storage: %v", err)
 			}
 		} else {
@@ -315,8 +319,7 @@ func Main(pluginConfig *PluginConfig, cmd string, args []string, sigs <-chan os.
 	err = jm.Run(ctx, *flagResumeJobs)
 
 	target.SetLocker(nil)
-	_ = storage.SetStorage(nil)
-	_ = storage.SetAsyncStorage(nil)
+	vault.Clear()
 
 	log.Infof("Exiting, %v", err)
 

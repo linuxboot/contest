@@ -10,50 +10,57 @@ package storage
 
 import (
 	"fmt"
-	"github.com/linuxboot/contest/pkg/config"
 	"sync"
+
+	"github.com/linuxboot/contest/pkg/config"
+	"github.com/linuxboot/contest/pkg/xcontext"
 )
 
-const SyncEngine = "DefaultSync"
-const AsyncEngine = "DefaultAsync"
+type EngineType int
 
-type EngineVaultMap map[string]Storage
+const (
+	SyncEngine EngineType = iota
+	AsyncEngine
+)
 
-type EngineVault struct {
+const kCtxEngineVaultKey = "StorageEngineVault"
+
+type EngineVault interface {
+	// Clear - erase everything from the vault
+	Clear()
+
+	// GetEngine - fetch the engine of selected type from the vault
+	GetEngine(EngineType) (Storage, error)
+
+	// StoreEngine - put the engine of selected type to the vault, replace it, or delete it if nil given
+	StoreEngine(Storage, EngineType) error
+}
+
+type EngineVaultMap map[EngineType]Storage
+
+type SynchronizedEngineVault struct {
 	sync.RWMutex
 	vault EngineVaultMap
 }
 
 // GetEngine - get storage engine from the vault. Defaults to SyncEngine.
-func (v *EngineVault) GetEngine(name ...string) (res Storage, err error) {
+func (v *SynchronizedEngineVault) GetEngine(engineType EngineType) (res Storage, err error) {
 	v.RLock()
 	defer v.RUnlock()
 
-	var engineName string
-	if len(name) > 0 {
-		engineName = name[0]
-	} else {
-		engineName = SyncEngine
-	}
-
 	var found bool
-	if res, found = v.vault[engineName]; !found {
-		err = fmt.Errorf("storage %s not assigned", engineName)
+	if res, found = v.vault[engineType]; !found {
+		err = fmt.Errorf("storage %d not assigned", engineType)
 	}
 	return
 }
 
 // StoreEngine - store supplied engine in the vault. As SyncEngine by default
-func (v *EngineVault) StoreEngine(storageEngine Storage, name ...string) (err error) {
+// Switching to a new storage engine implies garbage collecting the old one,
+// with possible loss of pending events if not flushed correctly
+func (v *SynchronizedEngineVault) StoreEngine(storageEngine Storage, engineType EngineType) (err error) {
 	v.Lock()
 	defer v.Unlock()
-
-	var engineName string
-	if len(name) > 0 {
-		engineName = name[0]
-	} else {
-		engineName = SyncEngine
-	}
 
 	if storageEngine != nil {
 		var ver uint64
@@ -67,20 +74,51 @@ func (v *EngineVault) StoreEngine(storageEngine Storage, name ...string) (err er
 			return
 		}
 
-		v.vault[engineName] = storageEngine
+		v.vault[engineType] = storageEngine
 	} else {
-		delete(v.vault, engineName)
+		delete(v.vault, engineType)
 	}
 
 	return
 }
 
-var once sync.Once
-var instance *EngineVault
+// Clear - remove everything from the vault
+func (v *SynchronizedEngineVault) Clear() {
+	v.Lock()
+	defer v.Unlock()
 
-func GetStorageEngineVault() *EngineVault {
-	once.Do(func() {
-		instance = &EngineVault{vault: make(EngineVaultMap)}
-	})
-	return instance
+	for k := range v.vault {
+		delete(v.vault, k)
+	}
+}
+
+// NewStorageEngineVault - returns a new instance of SynchronizedEngineVault
+func NewStorageEngineVault() EngineVault {
+	return &SynchronizedEngineVault{vault: make(EngineVaultMap)}
+}
+
+// WithStorageEngineVault - appends EngineVault-object to the given context
+func WithStorageEngineVault(ctx xcontext.Context, vault EngineVault) xcontext.Context {
+	return xcontext.WithValue(ctx, kCtxEngineVaultKey, vault)
+}
+
+// GetStorageEngineVaultFromContext - extracts EngineVault-object from the given context
+func GetStorageEngineVaultFromContext(ctx xcontext.Context) EngineVault {
+	value, ok := ctx.Value(kCtxEngineVaultKey).(EngineVault)
+	if !ok {
+		return nil
+	}
+
+	return value
+}
+
+// GetStorageEngineFromContext - extracts EngineVault-object from the given context
+// and tries to extract an engine of specified type from it
+func GetStorageEngineFromContext(ctx xcontext.Context, engineType EngineType) (Storage, error) {
+	vault := GetStorageEngineVaultFromContext(ctx)
+	if vault == nil {
+		return nil, fmt.Errorf("no StorageVault found in the context")
+	}
+
+	return vault.GetEngine(engineType)
 }

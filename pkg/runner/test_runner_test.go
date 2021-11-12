@@ -52,9 +52,17 @@ var (
 
 func TestMain(m *testing.M) {
 	flag.Parse()
+
+	// Init context with EngineStorageVault
+	vault := storage.GetStorageEngineVaultFromContext(ctx)
+	if vault == nil {
+		vault = storage.NewStorageEngineVault()
+		ctx = storage.WithStorageEngineVault(ctx, vault)
+	}
+
 	if ms, err := memory.New(); err == nil {
 		evs = ms
-		if err := storage.SetStorage(ms); err != nil {
+		if err := vault.StoreEngine(ms, storage.SyncEngine); err != nil {
 			panic(err.Error())
 		}
 	} else {
