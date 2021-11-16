@@ -131,9 +131,9 @@ func (tr *TestRunner) Run(
 	ctx = xcontext.WithValue(ctx, types.KeyRunID, runID)
 
 	ctx.Debugf("== test runner starting job %d, run %d, retry: %d", jobID, runID, retry)
-	resumeState, targetsResults, err := tr.run(ctx.WithTag("phase", "run"), t, targets, jobID, runID, retry, resumeState)
+	resultResumeState, targetsResults, err := tr.run(ctx.WithTag("phase", "run"), t, targets, jobID, runID, retry, resumeState)
 	ctx.Debugf("== test runner finished job %d, run %d, retry: %d, err: %v", jobID, runID, retry, err)
-	return resumeState, targetsResults, err
+	return resultResumeState, targetsResults, err
 }
 
 func (tr *TestRunner) run(

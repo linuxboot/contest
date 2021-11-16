@@ -116,7 +116,7 @@ func (jr *JobRunner) Run(ctx xcontext.Context, j *job.Job, resumeState *job.Paus
 		ctx.Infof("Running job '%s' %d times, starting at #%d test #%d", j.Name, j.Runs, runID, testID)
 	}
 
-	onTestPause := func(runID types.RunID, testID int, testRetry uint32, targets []*target.Target, testRunnerState json.RawMessage) (*job.PauseEventPayload, error) {
+	pauseTest := func(runID types.RunID, testID int, testRetry uint32, targets []*target.Target, testRunnerState json.RawMessage) (*job.PauseEventPayload, error) {
 		ctx.Infof("pause requested for job ID %v", j.ID)
 		// Return without releasing targets and keep the job entry so locks continue to be refreshed
 		// all the way to server exit.
@@ -164,9 +164,9 @@ func (jr *JobRunner) Run(ctx xcontext.Context, j *job.Job, resumeState *job.Paus
 			runCtx.Warnf("Could not emit event run (run %d) start for job %d: %v", runID, j.ID, err)
 		}
 
-		for ; testID <= len(j.Tests); testID++ {
+		for ; testID < len(j.Tests)+1; testID++ {
 			retryParameters := j.Tests[testID-1].RetryParameters
-			for ; testRetry <= retryParameters.NumRetries; testRetry++ {
+			for ; testRetry < retryParameters.NumRetries+1; testRetry++ {
 				runCtx.Infof("Current attempt: %d, allowed retries: %d",
 					testRetry,
 					retryParameters.NumRetries,
@@ -179,7 +179,7 @@ func (jr *JobRunner) Run(ctx xcontext.Context, j *job.Job, resumeState *job.Paus
 						case <-runCtx.Done():
 							return nil, runCtx.Err()
 						case <-runCtx.Until(xcontext.ErrPaused):
-							return onTestPause(runID, testID, testRetry, resumeState.Targets, resumeState.TestRunnerState)
+							return pauseTest(runID, testID, testRetry, resumeState.Targets, resumeState.TestRunnerState)
 						case <-time.After(sleepTime):
 							runCtx.Infof("Finish sleep")
 						}
@@ -188,7 +188,7 @@ func (jr *JobRunner) Run(ctx xcontext.Context, j *job.Job, resumeState *job.Paus
 
 				targets, testRunnerState, succeeded, runErr := jr.runTest(runCtx, j, runID, testID, testRetry, resumeState)
 				if runErr == xcontext.ErrPaused {
-					return onTestPause(runID, testID, testRetry, targets, testRunnerState)
+					return pauseTest(runID, testID, testRetry, targets, testRunnerState)
 				}
 				if runErr != nil {
 					return nil, runErr
@@ -375,6 +375,7 @@ func (jr *JobRunner) runTest(ctx xcontext.Context,
 			testRunnerState = resumeState.TestRunnerState
 		}
 
+		// TODO: move jobID/runID/testRetry from testRunner
 		testRunnerState, targetsResults, err := testRunner.Run(ctx, t, targets, j.ID, runID, testRetry, testRunnerState)
 		succeed = len(targetsResults) == len(targets)
 		for targetID, targetErr := range targetsResults {

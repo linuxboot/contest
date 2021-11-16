@@ -92,17 +92,18 @@ func (jr *JobRunner) buildTestStepStatus(ctx xcontext.Context, coordinates job.T
 		return nil, fmt.Errorf("could not fetch events associated to test step %s: %v", coordinates.TestStepLabel, err)
 	}
 
-	// keep only events with the max retry
-	var lastRetry uint32
+	// Keep only events of the latest attempt
+	// Otherwise we will have to make all reporters do the filtering on their side
+	var lastAttempt uint32
 	for _, ev := range testEvents {
-		if ev.Header.TestRetry > lastRetry {
-			lastRetry = ev.Header.TestRetry
+		if ev.Header.TestRetry > lastAttempt {
+			lastAttempt = ev.Header.TestRetry
 		}
 	}
 
 	var stepEvents, targetEvents []testevent.Event
 	for _, ev := range testEvents {
-		if ev.Header.TestRetry != lastRetry {
+		if ev.Header.TestRetry != lastAttempt {
 			continue
 		}
 		if ev.Data.Target == nil {
