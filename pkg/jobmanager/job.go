@@ -110,6 +110,7 @@ func newJob(ctx xcontext.Context, registry *pluginregistry.PluginRegistry, jobDe
 		Name:                        jobDescriptor.JobName,
 		Tags:                        jobDescriptor.Tags,
 		Runs:                        jobDescriptor.Runs,
+		RunUntilSucceed:             jobDescriptor.RunUntilSucceed,
 		RunInterval:                 time.Duration(jobDescriptor.RunInterval),
 		TargetManagerAcquireTimeout: targetManagerAcquireTimeout,
 		TargetManagerReleaseTimeout: targetManagerReleaseTimeout,

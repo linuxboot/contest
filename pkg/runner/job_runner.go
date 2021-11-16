@@ -291,6 +291,8 @@ func (jr *JobRunner) Run(ctx xcontext.Context, j *job.Job, resumeState *job.Paus
 			resumeState = nil
 		}
 
+		succeeded := true
+
 		// Calculate results for this run via the registered run reporters
 		runCoordinates := job.RunCoordinates{JobID: j.ID, RunID: runID}
 		for _, bundle := range j.RunReporterBundles {
@@ -303,6 +305,7 @@ func (jr *JobRunner) Run(ctx xcontext.Context, j *job.Job, resumeState *job.Paus
 			if err != nil {
 				ctx.Warnf("Run reporter failed while calculating run results, proceeding anyway: %v", err)
 			} else {
+				succeeded = succeeded && success
 				if success {
 					ctx.Infof("Run #%d of job %d considered successful according to %s", runID, j.ID, bundle.Reporter.Name())
 				} else {
@@ -324,6 +327,10 @@ func (jr *JobRunner) Run(ctx xcontext.Context, j *job.Job, resumeState *job.Paus
 
 		testID = 1
 		delay = j.RunInterval
+
+		if succeeded && j.RunUntilSucceed {
+			ctx.Infof("Run #%d of job finished successfully, finish")
+		}
 	}
 
 	// Prepare final reports.
