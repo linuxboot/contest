@@ -102,12 +102,6 @@ func (jr *JobRunner) Run(ctx xcontext.Context, j *job.Job, resumeState *job.Paus
 			// This may get negative. It's fine.
 			runDelay = resumeState.StartAt.Sub(jr.clock.Now())
 		}
-
-		if len(resumeState.Targets) > 0 {
-			jr.jobsMapLock.Lock()
-			jr.jobsMap[j.ID].targets = resumeState.Targets
-			jr.jobsMapLock.Unlock()
-		}
 	}
 
 	if j.Runs == 0 {
