@@ -422,30 +422,29 @@ func (ts *E2ETestSuite) TestRetries() {
 		require.Equal(ts.T(), string(job.EventJobCompleted), resp.Data.Status.State)
 	}
 
-	// TODO: Uncomment after database support
-	//	{ // Verify step output.
-	//		es := testsCommon.GetJobEventsAsString(ctx, ts.st, jobID, []event.Name{
-	//			cmd.EventCmdStdout, target.EventTargetAcquired, target.EventTargetReleased,
-	//			target.EventTargetOut, target.EventTargetErr} )
-	//		ctx.Debugf("%s", es)
-	//		require.Equal(ts.T(),
-	//			fmt.Sprintf(`
-	//{[%d 1 Test 1 0 ][Target{ID: "T1"} TargetAcquired]}
-	//{[%d 1 Test 1 0 Step 1][Target{ID: "T1"} CmdStdout &"{\"Msg\":\"Test 1, Step 1, target T1\\n\"}"]}
-	//{[%d 1 Test 1 0 Step 1][Target{ID: "T1"} TargetOut]}
-	//{[%d 1 Test 1 0 Step 2][Target{ID: "T1"} TargetErr &"{\"Error\":\"context deadline exceeded\"}"]}
-	//{[%d 1 Test 1 0 ][Target{ID: "T1"} TargetReleased]}
-	//{[%d 1 Test 1 0 ][Target{ID: "T1"} TargetAcquired]}
-	//{[%d 1 Test 1 0 Step 1][Target{ID: "T1"} CmdStdout &"{\"Msg\":\"Test 1, Step 1, target T1\\n\"}"]}
-	//{[%d 1 Test 1 0 Step 1][Target{ID: "T1"} TargetOut]}
-	//{[%d 1 Test 1 0 Step 2][Target{ID: "T1"} TargetOut]}
-	//{[%d 1 Test 1 0 Step 3][Target{ID: "T1"} CmdStdout &"{\"Msg\":\"Test 1, Step 1, target T1\\n\"}"]}
-	//{[%d 1 Test 1 0 Step 3][Target{ID: "T1"} TargetOut]}
-	//{[%d 1 Test 1 0 ][Target{ID: "T1"} TargetReleased]}
-	//`, jobID, jobID, jobID, jobID, jobID, jobID, jobID, jobID, jobID, jobID, jobID, jobID),
-	//			es,
-	//		)
-	//	}
+	{ // Verify step output.
+		es := testsCommon.GetJobEventsAsString(ctx, ts.st, jobID, []event.Name{
+			cmd.EventCmdStdout, target.EventTargetAcquired, target.EventTargetReleased,
+			target.EventTargetOut, target.EventTargetErr} )
+		ctx.Debugf("%s", es)
+		require.Equal(ts.T(),
+			fmt.Sprintf(`
+{[%d 1 Test 1 0 ][Target{ID: "T1"} TargetAcquired]}
+{[%d 1 Test 1 0 Step 1][Target{ID: "T1"} CmdStdout &"{\"Msg\":\"Test 1, Step 1, target T1\\n\"}"]}
+{[%d 1 Test 1 0 Step 1][Target{ID: "T1"} TargetOut]}
+{[%d 1 Test 1 0 Step 2][Target{ID: "T1"} TargetErr &"{\"Error\":\"context deadline exceeded\"}"]}
+{[%d 1 Test 1 0 ][Target{ID: "T1"} TargetReleased]}
+{[%d 1 Test 1 1 ][Target{ID: "T1"} TargetAcquired]}
+{[%d 1 Test 1 1 Step 1][Target{ID: "T1"} CmdStdout &"{\"Msg\":\"Test 1, Step 1, target T1\\n\"}"]}
+{[%d 1 Test 1 1 Step 1][Target{ID: "T1"} TargetOut]}
+{[%d 1 Test 1 1 Step 2][Target{ID: "T1"} TargetOut]}
+{[%d 1 Test 1 1 Step 3][Target{ID: "T1"} CmdStdout &"{\"Msg\":\"Test 1, Step 1, target T1\\n\"}"]}
+{[%d 1 Test 1 1 Step 3][Target{ID: "T1"} TargetOut]}
+{[%d 1 Test 1 1 ][Target{ID: "T1"} TargetReleased]}
+`, jobID, jobID, jobID, jobID, jobID, jobID, jobID, jobID, jobID, jobID, jobID, jobID),
+			es,
+		)
+	}
 
 	require.NoError(ts.T(), ts.stopServer(5*time.Second))
 }

@@ -143,6 +143,14 @@ func TestEventTestName(ev testevent.Event) interface{} {
 	return ev.Header.TestName
 }
 
+// TestEventTestAttempt returns the test retry from an events.TestEvent object
+func TestEventTestAttempt(ev testevent.Event) interface{} {
+	if ev.Header == nil {
+		return nil
+	}
+	return ev.Header.TestAttempt
+}
+
 // TestEventTestStepLabel returns the test step label from an events.TestEvent object
 func TestEventTestStepLabel(ev testevent.Event) interface{} {
 	if ev.Header == nil {
@@ -201,13 +209,14 @@ func (r *RDBMS) flushTestEventsLocked() error {
 	r.lockTx()
 	defer r.unlockTx()
 
-	insertStatement := safesql.New("insert into test_events (job_id, run_id, test_name, test_step_label, event_name, target_id, payload, emit_time) values (?, ?, ?, ?, ?, ?, ?, ?)")
+	insertStatement := safesql.New("insert into test_events (job_id, run_id, test_name, test_attempt, test_step_label, event_name, target_id, payload, emit_time) values (?, ?, ?, ?, ?, ?, ?, ?, ?)")
 	for _, event := range r.buffTestEvents {
 		_, err := r.db.Exec(
 			insertStatement,
 			TestEventJobID(event),
 			TestEventRunID(event),
 			TestEventTestName(event),
+			TestEventTestAttempt(event),
 			TestEventTestStepLabel(event),
 			TestEventName(event),
 			TestEventTargetID(event),
@@ -242,13 +251,13 @@ func (r *RDBMS) GetTestEvents(ctx xcontext.Context, eventQuery *testevent.Query)
 	r.lockTx()
 	defer r.unlockTx()
 
-	const baseQuery = "select event_id, job_id, run_id, test_name, test_step_label, event_name, target_id, payload, emit_time from test_events"
+	const baseQuery = "select event_id, job_id, run_id, test_name, test_attempt, test_step_label, event_name, target_id, payload, emit_time from test_events"
 	query, fields, err := buildTestEventQuery(safesql.New(baseQuery), eventQuery)
 	if err != nil {
 		return nil, fmt.Errorf("could not execute select query for test events: %v", err)
 	}
 
-	results := []testevent.Event{}
+	var results []testevent.Event
 	ctx.Debugf("Executing query: %s, fields: %v", query, fields)
 	rows, err := r.db.Query(query, fields...)
 	if err != nil {
@@ -278,6 +287,7 @@ func (r *RDBMS) GetTestEvents(ctx xcontext.Context, eventQuery *testevent.Query)
 			&header.JobID,
 			&header.RunID,
 			&header.TestName,
+			&header.TestAttempt,
 			&header.TestStepLabel,
 			&data.EventName,
 			&targetID,

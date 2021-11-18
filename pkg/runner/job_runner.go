@@ -195,7 +195,6 @@ func (jr *JobRunner) Run(ctx xcontext.Context, j *job.Job, resumeState *job.Paus
 					break
 				}
 
-				resumeState = nil
 				if retryParameters.RetryInterval > 0 {
 					nextAttempt := time.Now().Add(time.Duration(retryParameters.RetryInterval))
 					nextTestAttempt = &nextAttempt
