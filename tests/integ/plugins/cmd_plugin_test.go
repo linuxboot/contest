@@ -43,7 +43,7 @@ func TestCmdPlugin(t *testing.T) {
 	errCh := make(chan error, 1)
 
 	go func() {
-		tr := runner.NewTestRunner()
+		tr := runner.NewTestRunner(storageEngineVault)
 		_, _, err := tr.Run(stateCtx, &test.Test{TestStepsBundles: testSteps}, targets, jobID, runID, 0, nil)
 		errCh <- err
 	}()

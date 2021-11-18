@@ -181,8 +181,8 @@ func (s *JobRunnerSuite) TestSimpleJobStartFinish() {
 		},
 	}
 
-	jsm := storage.NewJobStorageManager()
-	jr := NewJobRunner(jsm, clock.New(), time.Second)
+	jsm := storage.NewJobStorageManager(storageEngineVault)
+	jr := NewJobRunner(jsm, storageEngineVault, clock.New(), time.Second)
 	require.NotNil(s.T(), jr)
 
 	resumeState, err := jr.Run(ctx, &j, nil)
@@ -266,8 +266,8 @@ func (s *JobRunnerSuite) TestJobWithTestRetry() {
 		},
 	}
 
-	jsm := storage.NewJobStorageManager()
-	jr := NewJobRunner(jsm, clock.New(), time.Second)
+	jsm := storage.NewJobStorageManager(storageEngineVault)
+	jr := NewJobRunner(jsm, storageEngineVault, clock.New(), time.Second)
 	require.NotNil(s.T(), jr)
 
 	resumeState, err := jr.Run(ctx, &j, nil)

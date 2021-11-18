@@ -28,11 +28,12 @@ type JobStorage interface {
 
 // JobStorageManager implements JobStorage interface
 type JobStorageManager struct {
+	vault EngineVault
 }
 
 // StoreJobRequest submits a job request to the storage layer
 func (jsm JobStorageManager) StoreJobRequest(ctx xcontext.Context, request *job.Request) (types.JobID, error) {
-	storage, err := GetStorageEngineFromContext(ctx, SyncEngine)
+	storage, err := jsm.vault.GetEngine(DefaultEngine)
 	if err != nil {
 		return 0, err
 	}
@@ -42,11 +43,11 @@ func (jsm JobStorageManager) StoreJobRequest(ctx xcontext.Context, request *job.
 
 // GetJobRequest fetches a job request from the storage layer
 func (jsm JobStorageManager) GetJobRequest(ctx xcontext.Context, jobID types.JobID) (*job.Request, error) {
-	engineType := SyncEngine
+	engineType := DefaultEngine
 	if !isStronglyConsistent(ctx) {
 		engineType = AsyncEngine
 	}
-	storage, err := GetStorageEngineFromContext(ctx, engineType)
+	storage, err := jsm.vault.GetEngine(engineType)
 	if err != nil {
 		return nil, err
 	}
@@ -56,7 +57,7 @@ func (jsm JobStorageManager) GetJobRequest(ctx xcontext.Context, jobID types.Job
 
 // StoreReport submits a job run or final report to the storage layer
 func (jsm JobStorageManager) StoreReport(ctx xcontext.Context, report *job.Report) error {
-	storage, err := GetStorageEngineFromContext(ctx, SyncEngine)
+	storage, err := jsm.vault.GetEngine(DefaultEngine)
 	if err != nil {
 		return err
 	}
@@ -66,11 +67,11 @@ func (jsm JobStorageManager) StoreReport(ctx xcontext.Context, report *job.Repor
 
 // GetJobReport fetches a job report from the storage layer
 func (jsm JobStorageManager) GetJobReport(ctx xcontext.Context, jobID types.JobID) (*job.JobReport, error) {
-	engineType := SyncEngine
+	engineType := DefaultEngine
 	if !isStronglyConsistent(ctx) {
 		engineType = AsyncEngine
 	}
-	storage, err := GetStorageEngineFromContext(ctx, engineType)
+	storage, err := jsm.vault.GetEngine(engineType)
 	if err != nil {
 		return nil, err
 	}
@@ -80,11 +81,11 @@ func (jsm JobStorageManager) GetJobReport(ctx xcontext.Context, jobID types.JobI
 
 // ListJobs returns list of job IDs matching the query
 func (jsm JobStorageManager) ListJobs(ctx xcontext.Context, query *JobQuery) ([]types.JobID, error) {
-	engineType := SyncEngine
+	engineType := DefaultEngine
 	if !isStronglyConsistent(ctx) {
 		engineType = AsyncEngine
 	}
-	storage, err := GetStorageEngineFromContext(ctx, engineType)
+	storage, err := jsm.vault.GetEngine(engineType)
 	if err != nil {
 		return nil, err
 	}
@@ -93,6 +94,6 @@ func (jsm JobStorageManager) ListJobs(ctx xcontext.Context, query *JobQuery) ([]
 }
 
 // NewJobStorageManager creates a new JobStorageManager object
-func NewJobStorageManager() JobStorageManager {
-	return JobStorageManager{}
+func NewJobStorageManager(vault EngineVault) JobStorageManager {
+	return JobStorageManager{vault: vault}
 }

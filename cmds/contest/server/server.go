@@ -154,8 +154,7 @@ func Main(pluginConfig *PluginConfig, cmd string, args []string, sigs <-chan os.
 	defer cancel()
 
 	// Let's store storage engine in context
-	vault := storage.NewStorageEngineVault()
-	ctx = storage.WithStorageEngineVault(ctx, vault)
+	storageEngineVault := storage.NewStorageEngineVault()
 
 	pluginRegistry := pluginregistry.NewPluginRegistry(ctx)
 	if err := registerPlugins(pluginRegistry, pluginConfig); err != nil {
@@ -180,7 +179,7 @@ func Main(pluginConfig *PluginConfig, cmd string, args []string, sigs <-chan os.
 			log.Fatalf("Could not initialize database: %v", err)
 		}
 		storageInstances = append(storageInstances, s)
-		if err := vault.StoreEngine(s, storage.SyncEngine); err != nil {
+		if err := storageEngineVault.StoreEngine(s, storage.DefaultEngine); err != nil {
 			log.Fatalf("Could not set storage: %v", err)
 		}
 
@@ -200,7 +199,7 @@ func Main(pluginConfig *PluginConfig, cmd string, args []string, sigs <-chan os.
 			log.Fatalf("Could not initialize replica database: %v", err)
 		}
 		storageInstances = append(storageInstances, r)
-		if err := vault.StoreEngine(s, storage.AsyncEngine); err != nil {
+		if err := storageEngineVault.StoreEngine(s, storage.AsyncEngine); err != nil {
 			log.Fatalf("Could not set replica storage: %v", err)
 		}
 
@@ -218,10 +217,10 @@ func Main(pluginConfig *PluginConfig, cmd string, args []string, sigs <-chan os.
 		log.Warnf("Using in-memory storage")
 		if ms, err := memory.New(); err == nil {
 			storageInstances = append(storageInstances, ms)
-			if err := vault.StoreEngine(ms, storage.SyncEngine); err != nil {
+			if err := storageEngineVault.StoreEngine(ms, storage.DefaultEngine); err != nil {
 				log.Fatalf("Could not set storage: %v", err)
 			}
-			if err := vault.StoreEngine(ms, storage.AsyncEngine); err != nil {
+			if err := storageEngineVault.StoreEngine(ms, storage.AsyncEngine); err != nil {
 				log.Fatalf("Could not set replica storage: %v", err)
 			}
 		} else {
@@ -267,7 +266,7 @@ func Main(pluginConfig *PluginConfig, cmd string, args []string, sigs <-chan os.
 		opts = append(opts, jobmanager.OptionTargetLockDuration(*flagTargetLockDuration))
 	}
 
-	jm, err := jobmanager.New(listener, pluginRegistry, opts...)
+	jm, err := jobmanager.New(listener, pluginRegistry, storageEngineVault, opts...)
 	if err != nil {
 		log.Fatalf("%v", err)
 	}
@@ -319,7 +318,7 @@ func Main(pluginConfig *PluginConfig, cmd string, args []string, sigs <-chan os.
 	err = jm.Run(ctx, *flagResumeJobs)
 
 	target.SetLocker(nil)
-	vault.Clear()
+	storageEngineVault.Clear()
 
 	log.Infof("Exiting, %v", err)
 

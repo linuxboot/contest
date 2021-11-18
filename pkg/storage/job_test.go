@@ -33,7 +33,8 @@ func mockJobStorageManagerData() *testJobStorageManagerFixture {
 
 func TestJobStorageConsistency(t *testing.T) {
 	f := mockJobStorageManagerData()
-	jsm := NewJobStorageManager()
+	vault := NewStorageEngineVault()
+	jsm := NewJobStorageManager(vault)
 
 	var cases = []struct {
 		name   string
@@ -56,7 +57,7 @@ func TestJobStorageConsistency(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			var storage, storageAsync *nullStorage
-			f.ctx, storage, storageAsync = mockStorage(t, f.ctx)
+			storage, storageAsync = mockStorage(t, vault)
 
 			// test with default context
 			tc.getter(f.ctx, &jsm)

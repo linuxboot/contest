@@ -53,9 +53,10 @@ func mockTestEventEmitterData() *testEventEmitterFixture {
 
 func TestEmitUnrestricted(t *testing.T) {
 	f := mockTestEventEmitterData()
-	f.ctx, _, _ = mockStorage(t, f.ctx)
+	vault := NewStorageEngineVault()
+	_, _ = mockStorage(t, vault)
 
-	em := NewTestEventEmitter(f.header)
+	em := NewTestEventEmitter(vault, f.header)
 	require.NoError(t, em.Emit(f.ctx, testevent.Data{EventName: f.allowedEvents[0]}))
 	require.NoError(t, em.Emit(f.ctx, testevent.Data{EventName: f.allowedEvents[1]}))
 	require.NoError(t, em.Emit(f.ctx, testevent.Data{EventName: f.forbiddenEvents[0]}))
@@ -63,9 +64,10 @@ func TestEmitUnrestricted(t *testing.T) {
 
 func TestEmitRestricted(t *testing.T) {
 	f := mockTestEventEmitterData()
-	f.ctx, _, _ = mockStorage(t, f.ctx)
+	vault := NewStorageEngineVault()
+	_, _ = mockStorage(t, vault)
 
-	em := NewTestEventEmitterWithAllowedEvents(f.header, &f.allowedMap)
+	em := NewTestEventEmitterWithAllowedEvents(vault, f.header, &f.allowedMap)
 	require.NoError(t, em.Emit(f.ctx, testevent.Data{EventName: f.allowedEvents[0]}))
 	require.NoError(t, em.Emit(f.ctx, testevent.Data{EventName: f.allowedEvents[1]}))
 	require.Error(t, em.Emit(f.ctx, testevent.Data{EventName: f.forbiddenEvents[0]}))
@@ -83,10 +85,10 @@ func mockTestEventFetcherData() *testEventFetcherFixture {
 
 func TestTestEventFetcherConsistency(t *testing.T) {
 	f := mockTestEventFetcherData()
-	var storage, storageAsync *nullStorage
-	f.ctx, storage, storageAsync = mockStorage(t, f.ctx)
+	vault := NewStorageEngineVault()
+	storage, storageAsync := mockStorage(t, vault)
 
-	ef := NewTestEventFetcher()
+	ef := NewTestEventFetcher(vault)
 
 	// test with default context
 	_, _ = ef.Fetch(f.ctx)
@@ -109,10 +111,10 @@ func TestTestEventFetcherConsistency(t *testing.T) {
 func TestFrameworkEventFetcherConsistency(t *testing.T) {
 	f := mockTestEventFetcherData()
 
-	var storage, storageAsync *nullStorage
-	f.ctx, storage, storageAsync = mockStorage(t, f.ctx)
+	vault := NewStorageEngineVault()
+	storage, storageAsync := mockStorage(t, vault)
 
-	ef := NewFrameworkEventFetcher()
+	ef := NewFrameworkEventFetcher(vault)
 
 	// test with default context
 	_, _ = ef.Fetch(f.ctx)

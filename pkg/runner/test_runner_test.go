@@ -43,7 +43,8 @@ const (
 )
 
 var (
-	evs storage.ResettableStorage
+	evs                storage.ResettableStorage
+	storageEngineVault = storage.NewStorageEngineVault()
 )
 
 var (
@@ -53,16 +54,9 @@ var (
 func TestMain(m *testing.M) {
 	flag.Parse()
 
-	// Init context with EngineStorageVault
-	vault := storage.GetStorageEngineVaultFromContext(ctx)
-	if vault == nil {
-		vault = storage.NewStorageEngineVault()
-		ctx = storage.WithStorageEngineVault(ctx, vault)
-	}
-
 	if ms, err := memory.New(); err == nil {
 		evs = ms
-		if err := vault.StoreEngine(ms, storage.SyncEngine); err != nil {
+		if err := storageEngineVault.StoreEngine(ms, storage.DefaultEngine); err != nil {
 			panic(err.Error())
 		}
 	} else {
@@ -80,7 +74,7 @@ func TestMain(m *testing.M) {
 }
 
 func newTestRunner() *TestRunner {
-	return NewTestRunnerWithTimeouts(shutdownTimeout)
+	return NewTestRunnerWithTimeouts(storageEngineVault, shutdownTimeout)
 }
 
 func resetEventStorage() {
@@ -218,7 +212,7 @@ func (s *TestRunnerSuite) Test1Step1Success() {
 // Simple case: one target, one step that blocks for a bit, success.
 // We block for longer than the shutdown timeout of the test runner.
 func (s *TestRunnerSuite) Test1StepLongerThanShutdown1Success() {
-	tr := NewTestRunnerWithTimeouts(100 * time.Millisecond)
+	tr := NewTestRunnerWithTimeouts(storageEngineVault, 100*time.Millisecond)
 	_, targetsResults, err := s.runWithTimeout(ctx, tr, nil, 1, 2*time.Second,
 		[]*target.Target{tgt("T1")},
 		[]test.TestStepBundle{
@@ -338,7 +332,7 @@ func (s *TestRunnerSuite) Test3StepsNotReachedStepNotRun() {
 // A misbehaving step that fails to shut down properly after processing targets
 // and does not return.
 func (s *TestRunnerSuite) TestNoReturnStepWithCorrectTargetForwarding() {
-	tr := NewTestRunnerWithTimeouts(200 * time.Millisecond)
+	tr := NewTestRunnerWithTimeouts(storageEngineVault, 200*time.Millisecond)
 	ctx, cancel := xcontext.WithCancel(ctx)
 	defer cancel()
 	_, _, err := s.runWithTimeout(ctx, tr, nil, 1, 2*time.Second,
