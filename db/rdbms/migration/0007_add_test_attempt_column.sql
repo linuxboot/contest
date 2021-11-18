@@ -5,8 +5,8 @@
 
 -- +goose Up
 
-ALTER TABLE test_events ADD COLUMN test_retry INTEGER UNSIGNED NOT NULL DEFAULT 0;
+ALTER TABLE test_events ADD COLUMN test_attempt INTEGER UNSIGNED NOT NULL DEFAULT 0;
 
 -- +goose Down
 
-ALTER TABLE test_events DROP COLUMN test_retry;
+ALTER TABLE test_events DROP COLUMN test_attempt;

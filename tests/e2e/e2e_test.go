@@ -229,7 +229,7 @@ func (ts *E2ETestSuite) TestSimple() {
 		var resp api.StartResponse
 		_, err := ts.runClient(&resp, "start", "-Y", "test-simple.yaml")
 		require.NoError(ts.T(), err)
-		//ctx.Infof("%+v", resp)
+		ctx.Infof("%+v", resp)
 		require.NotEqual(ts.T(), 0, resp.Data.JobID)
 		jobID = resp.Data.JobID
 	}
