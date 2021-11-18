@@ -16,7 +16,7 @@ import (
 // RetryParameters describes optional parameters for retry
 type RetryParameters struct {
 	NumRetries    uint32
-	RetryInterval *xjson.Duration
+	RetryInterval xjson.Duration
 }
 
 // Test describes a test definition.

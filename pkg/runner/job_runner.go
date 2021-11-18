@@ -71,7 +71,7 @@ func (jr *JobRunner) Run(ctx xcontext.Context, j *job.Job, resumeState *job.Paus
 		testID                      = 1
 		runDelay        time.Duration
 		keepJobEntry    bool
-		testRetry       uint32
+		testAttempt     uint32
 		nextTestAttempt *time.Time
 	)
 
@@ -93,7 +93,7 @@ func (jr *JobRunner) Run(ctx xcontext.Context, j *job.Job, resumeState *job.Paus
 
 	if resumeState != nil {
 		runID = resumeState.RunID
-		testRetry = resumeState.TestRetry
+		testAttempt = resumeState.TestAttempt
 		nextTestAttempt = resumeState.NextTestAttempt
 		if resumeState.TestID > 0 {
 			testID = resumeState.TestID
@@ -110,7 +110,7 @@ func (jr *JobRunner) Run(ctx xcontext.Context, j *job.Job, resumeState *job.Paus
 		ctx.Infof("Running job '%s' %d times, starting at #%d test #%d", j.Name, j.Runs, runID, testID)
 	}
 
-	pauseTest := func(runID types.RunID, testID int, testRetry uint32, targets []*target.Target, testRunnerState json.RawMessage) (*job.PauseEventPayload, error) {
+	pauseTest := func(runID types.RunID, testID int, testAttempt uint32, targets []*target.Target, testRunnerState json.RawMessage) (*job.PauseEventPayload, error) {
 		ctx.Infof("pause requested for job ID %v", j.ID)
 		// Return without releasing targets and keep the job entry so locks continue to be refreshed
 		// all the way to server exit.
@@ -120,7 +120,7 @@ func (jr *JobRunner) Run(ctx xcontext.Context, j *job.Job, resumeState *job.Paus
 			JobID:           j.ID,
 			RunID:           runID,
 			TestID:          testID,
-			TestRetry:       testRetry,
+			TestAttempt:     testAttempt,
 			NextTestAttempt: nextTestAttempt,
 			Targets:         targets,
 			TestRunnerState: testRunnerState,
@@ -158,11 +158,14 @@ func (jr *JobRunner) Run(ctx xcontext.Context, j *job.Job, resumeState *job.Paus
 			runCtx.Warnf("Could not emit event run (run %d) start for job %d: %v", runID, j.ID, err)
 		}
 
-		for ; testID < len(j.Tests)+1; testID++ {
+		for ; testID <= len(j.Tests); testID++ {
 			retryParameters := j.Tests[testID-1].RetryParameters
-			for ; testRetry < retryParameters.NumRetries+1; testRetry++ {
+			for ; testAttempt < retryParameters.NumRetries+1; testAttempt++ {
+				usedResumeState := resumeState
+				resumeState = nil
+
 				runCtx.Infof("Current attempt: %d, allowed retries: %d",
-					testRetry,
+					testAttempt,
 					retryParameters.NumRetries,
 				)
 				if nextTestAttempt != nil {
@@ -173,16 +176,16 @@ func (jr *JobRunner) Run(ctx xcontext.Context, j *job.Job, resumeState *job.Paus
 						case <-runCtx.Done():
 							return nil, runCtx.Err()
 						case <-runCtx.Until(xcontext.ErrPaused):
-							return pauseTest(runID, testID, testRetry, resumeState.Targets, resumeState.TestRunnerState)
+							return pauseTest(runID, testID, testAttempt, usedResumeState.Targets, usedResumeState.TestRunnerState)
 						case <-time.After(sleepTime):
 							runCtx.Infof("Finish sleep")
 						}
 					}
 				}
 
-				targets, testRunnerState, succeeded, runErr := jr.runTest(runCtx, j, runID, testID, testRetry, resumeState)
+				targets, testRunnerState, succeeded, runErr := jr.runTest(runCtx, j, runID, testID, testAttempt, usedResumeState)
 				if runErr == xcontext.ErrPaused {
-					return pauseTest(runID, testID, testRetry, targets, testRunnerState)
+					return pauseTest(runID, testID, testAttempt, targets, testRunnerState)
 				}
 				if runErr != nil {
 					return nil, runErr
@@ -193,14 +196,13 @@ func (jr *JobRunner) Run(ctx xcontext.Context, j *job.Job, resumeState *job.Paus
 				}
 
 				resumeState = nil
-				if retryParameters.RetryInterval != nil {
-					nextAttempt := time.Now().Add(time.Duration(*retryParameters.RetryInterval))
+				if retryParameters.RetryInterval > 0 {
+					nextAttempt := time.Now().Add(time.Duration(retryParameters.RetryInterval))
 					nextTestAttempt = &nextAttempt
 				}
 			}
-			testRetry = 0
+			testAttempt = 0
 			nextTestAttempt = nil
-			resumeState = nil
 		}
 
 		// Calculate results for this run via the registered run reporters
@@ -276,7 +278,7 @@ func (jr *JobRunner) Run(ctx xcontext.Context, j *job.Job, resumeState *job.Paus
 }
 
 func (jr *JobRunner) runTest(ctx xcontext.Context,
-	j *job.Job, runID types.RunID, testID int, testRetry uint32,
+	j *job.Job, runID types.RunID, testID int, testAttempt uint32,
 	resumeState *job.PauseEventPayload,
 ) ([]*target.Target, json.RawMessage, bool, error) {
 	t := j.Tests[testID-1]
@@ -344,7 +346,7 @@ func (jr *JobRunner) runTest(ctx xcontext.Context,
 		// We have timeout to ensure it doesn't get stuck forever.
 	}
 
-	header := testevent.Header{JobID: j.ID, RunID: runID, TestName: t.Name, TestRetry: testRetry}
+	header := testevent.Header{JobID: j.ID, RunID: runID, TestName: t.Name, TestAttempt: testAttempt}
 	testEventEmitter := storage.NewTestEventEmitter(header)
 
 	// Emit events tracking targets acquisition
@@ -369,8 +371,8 @@ func (jr *JobRunner) runTest(ctx xcontext.Context,
 			testRunnerState = resumeState.TestRunnerState
 		}
 
-		// TODO: move jobID/runID/testRetry from testRunner
-		testRunnerState, targetsResults, err := testRunner.Run(ctx, t, targets, j.ID, runID, testRetry, testRunnerState)
+		// TODO: move jobID/runID/testAttempt from testRunner
+		testRunnerState, targetsResults, err := testRunner.Run(ctx, t, targets, j.ID, runID, testAttempt, testRunnerState)
 		succeed = len(targetsResults) == len(targets)
 		for targetID, targetErr := range targetsResults {
 			if targetErr != nil {

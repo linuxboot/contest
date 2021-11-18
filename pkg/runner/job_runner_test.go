@@ -231,8 +231,6 @@ func (s *JobRunnerSuite) TestJobWithTestRetry() {
 		},
 	}
 
-	retryTimeout := xjson.Duration(time.Nanosecond)
-
 	reporter := &collectingReporter{}
 	j := job.Job{
 		ID:                          1,
@@ -249,7 +247,7 @@ func (s *JobRunnerSuite) TestJobWithTestRetry() {
 				Name: testName,
 				RetryParameters: test.RetryParameters{
 					NumRetries:    1,
-					RetryInterval: &retryTimeout,
+					RetryInterval: xjson.Duration(time.Millisecond), // make a small interval to test waiting branch
 				},
 				TargetManagerBundle: &target.TargetManagerBundle{
 					AcquireParameters: acquireParameters,
@@ -303,7 +301,7 @@ func (s *JobRunnerSuite) TestJobWithTestRetry() {
 	for _, tgs := range ts.TargetStatuses {
 		require.Equal(s.T(), "T1", tgs.Target.ID)
 		for _, ev := range tgs.Events {
-			require.Equal(s.T(), uint32(1), ev.Header.TestRetry)
+			require.Equal(s.T(), uint32(1), ev.Header.TestAttempt)
 		}
 	}
 }

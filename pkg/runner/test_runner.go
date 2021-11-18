@@ -118,28 +118,28 @@ const resumeStateStructVersion = 2
 func (tr *TestRunner) Run(
 	ctx xcontext.Context,
 	t *test.Test, targets []*target.Target,
-	jobID types.JobID, runID types.RunID, retry uint32,
+	jobID types.JobID, runID types.RunID, attempt uint32,
 	resumeState json.RawMessage,
 ) (json.RawMessage, map[string]error, error) {
 
 	ctx = ctx.WithFields(xcontext.Fields{
-		"job_id": jobID,
-		"run_id": runID,
-		"retry":  retry,
+		"job_id":  jobID,
+		"run_id":  runID,
+		"attempt": attempt,
 	})
 	ctx = xcontext.WithValue(ctx, types.KeyJobID, jobID)
 	ctx = xcontext.WithValue(ctx, types.KeyRunID, runID)
 
-	ctx.Debugf("== test runner starting job %d, run %d, retry: %d", jobID, runID, retry)
-	resultResumeState, targetsResults, err := tr.run(ctx.WithTag("phase", "run"), t, targets, jobID, runID, retry, resumeState)
-	ctx.Debugf("== test runner finished job %d, run %d, retry: %d, err: %v", jobID, runID, retry, err)
+	ctx.Debugf("== test runner starting job %d, run %d, retry: %d", jobID, runID, attempt)
+	resultResumeState, targetsResults, err := tr.run(ctx.WithTag("phase", "run"), t, targets, jobID, runID, attempt, resumeState)
+	ctx.Debugf("== test runner finished job %d, run %d, retry: %d, err: %v", jobID, runID, attempt, err)
 	return resultResumeState, targetsResults, err
 }
 
 func (tr *TestRunner) run(
 	ctx xcontext.Context,
 	t *test.Test, targets []*target.Target,
-	jobID types.JobID, runID types.RunID, retry uint32,
+	jobID types.JobID, runID types.RunID, attempt uint32,
 	resumeState json.RawMessage,
 ) (json.RawMessage, map[string]error, error) {
 
@@ -184,7 +184,7 @@ func (tr *TestRunner) run(
 				JobID:         jobID,
 				RunID:         runID,
 				TestName:      t.Name,
-				TestRetry:     retry,
+				TestAttempt:   attempt,
 				TestStepLabel: sb.TestStepLabel,
 			}),
 			tgtDone:     make(map[*target.Target]bool),

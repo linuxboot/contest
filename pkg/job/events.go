@@ -88,7 +88,7 @@ type PauseEventPayload struct {
 	JobID           types.JobID `json:"J"`
 	RunID           types.RunID `json:"R"`
 	TestID          int         `json:"T,omitempty"`
-	TestRetry       uint32      `json:"TR"`
+	TestAttempt     uint32      `json:"TA"`
 	NextTestAttempt *time.Time  `json:"NTA,omitempty"`
 	// If we are sleeping before the run, this will specify when the run should begin.
 	StartAt *time.Time `json:"S,omitempty"`
@@ -107,7 +107,7 @@ func (pp *PauseEventPayload) String() string {
 		nta = pp.NextTestAttempt.Unix()
 	}
 	return fmt.Sprintf("[V:%d J:%d R:%d T:%d TR:%d NTA: %d ST:%d TT:%v TRS:%s]",
-		pp.Version, pp.JobID, pp.RunID, pp.TestID, pp.TestRetry, nta, sts, pp.Targets, pp.TestRunnerState,
+		pp.Version, pp.JobID, pp.RunID, pp.TestID, pp.TestAttempt, nta, sts, pp.Targets, pp.TestRunnerState,
 	)
 }
 

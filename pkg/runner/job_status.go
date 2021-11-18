@@ -96,14 +96,14 @@ func (jr *JobRunner) buildTestStepStatus(ctx xcontext.Context, coordinates job.T
 	// Otherwise we will have to make all reporters do the filtering on their side
 	var lastAttempt uint32
 	for _, ev := range testEvents {
-		if ev.Header.TestRetry > lastAttempt {
-			lastAttempt = ev.Header.TestRetry
+		if ev.Header.TestAttempt > lastAttempt {
+			lastAttempt = ev.Header.TestAttempt
 		}
 	}
 
 	var stepEvents, targetEvents []testevent.Event
 	for _, ev := range testEvents {
-		if ev.Header.TestRetry != lastAttempt {
+		if ev.Header.TestAttempt != lastAttempt {
 			continue
 		}
 		if ev.Data.Target == nil {
