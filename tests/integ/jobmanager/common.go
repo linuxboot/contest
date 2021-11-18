@@ -217,9 +217,6 @@ type TestJobManagerSuite struct {
 	// ctx is an input context to the JobManager which can be used to pause or cancel JobManager
 	jmCtx             xcontext.Context
 	jmPause, jmCancel func()
-
-	// StorageEnginesVault
-	jmVault storage.EngineVault
 }
 
 func (suite *TestJobManagerSuite) startJobManager(resumeJobs bool) {
@@ -334,9 +331,6 @@ func (suite *TestJobManagerSuite) SetupTest() {
 	pr.RegisterTestStep(readmetastep.Name, readmetastep.New, readmetastep.Events)
 	pr.RegisterTestStep(slowecho.Name, slowecho.New, slowecho.Events)
 	suite.pluginRegistry = pr
-
-	suite.jmVault = storage.NewSimpleEngineVault()
-	require.NotNil(suite.T(), suite.jmVault)
 
 	suite.txStorage = testsIntegCommon.InitStorage(suite.storage)
 	require.NoError(suite.T(), suite.storageEngineVault.StoreEngine(suite.txStorage, storage.SyncEngine))
