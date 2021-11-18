@@ -28,14 +28,12 @@ func TestWaitForTCPPort(t *testing.T) {
 	ctx, cancel := xcontext.WithCancel(xcontext.Background())
 	defer cancel()
 
-	vault := storage.NewStorageEngineVault()
-	ctx = storage.WithStorageEngineVault(ctx, vault)
-
 	m, err := memory.New()
 	if err != nil {
 		t.Fatalf("could not initialize memory storage: '%v'", err)
 	}
-	if err := vault.StoreEngine(m, storage.SyncEngine); err != nil {
+	storageEngineVault := storage.NewStorageEngineVault()
+	if err := storageEngineVault.StoreEngine(m, storage.DefaultEngine); err != nil {
 		t.Fatalf("Failed to set memory storage: '%v'", err)
 	}
 
@@ -57,13 +55,11 @@ func TestWaitForTCPPort(t *testing.T) {
 		In:  inCh,
 		Out: make(chan test.TestStepResult, 1),
 	}
-	ev := storage.NewTestEventEmitterFetcher(
-		testevent.Header{
-			JobID:         12345,
-			TestName:      "waitport_tests",
-			TestStepLabel: "waitport",
-		},
-	)
+	ev := storage.NewTestEventEmitterFetcher(storageEngineVault, testevent.Header{
+		JobID:         12345,
+		TestName:      "waitport_tests",
+		TestStepLabel: "waitport",
+	})
 
 	inCh <- &target.Target{
 		ID:   "some_id",

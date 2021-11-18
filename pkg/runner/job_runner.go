@@ -39,6 +39,9 @@ type JobRunner struct {
 	// jobStorage is used to store job reports
 	jobStorage storage.JobStorage
 
+	// Vault to fetch storage-engines from
+	storageEngineVault storage.EngineVault
+
 	// frameworkEventManager is used by the JobRunner to emit framework events
 	frameworkEventManager frameworkevent.EmitterFetcher
 
@@ -104,7 +107,7 @@ func (jr *JobRunner) Run(ctx xcontext.Context, j *job.Job, resumeState *job.Paus
 		ctx.Infof("Running job '%s' %d times, starting at #%d test #%d", j.Name, j.Runs, runID, testID)
 	}
 	tl := target.GetLocker()
-	ev := storage.NewTestEventFetcher()
+	ev := storage.NewTestEventFetcher(jr.storageEngineVault)
 
 	var runErr error
 
@@ -199,7 +202,7 @@ func (jr *JobRunner) Run(ctx xcontext.Context, j *job.Job, resumeState *job.Paus
 			}
 
 			header := testevent.Header{JobID: j.ID, RunID: runID, TestName: t.Name}
-			testEventEmitter := storage.NewTestEventEmitter(header)
+			testEventEmitter := storage.NewTestEventEmitter(jr.storageEngineVault, header)
 
 			// Emit events tracking targets acquisition
 			if acquired {
@@ -224,7 +227,7 @@ func (jr *JobRunner) Run(ctx xcontext.Context, j *job.Job, resumeState *job.Paus
 			if runErr == nil {
 				runCtx.Infof("Run #%d: running test #%d for job '%s' (job ID: %d) on %d targets",
 					runID, testID, j.Name, j.ID, len(targets))
-				testRunner := NewTestRunner()
+				testRunner := NewTestRunner(jr.storageEngineVault)
 				var testRunnerState json.RawMessage
 				if resumeState != nil {
 					testRunnerState = resumeState.TestRunnerState
@@ -453,12 +456,13 @@ func (jr *JobRunner) emitEvent(ctx xcontext.Context, jobID types.JobID, eventNam
 }
 
 // NewJobRunner returns a new JobRunner, which holds an empty registry of jobs
-func NewJobRunner(js storage.JobStorage, clk clock.Clock, lockDuration time.Duration) *JobRunner {
+func NewJobRunner(js storage.JobStorage, storageVault storage.EngineVault, clk clock.Clock, lockDuration time.Duration) *JobRunner {
 	jr := &JobRunner{
 		jobsMap:               make(map[types.JobID]*jobInfo),
 		jobStorage:            js,
-		frameworkEventManager: storage.NewFrameworkEventEmitterFetcher(),
-		testEvManager:         storage.NewTestEventFetcher(),
+		storageEngineVault:    storageVault,
+		frameworkEventManager: storage.NewFrameworkEventEmitterFetcher(storageVault),
+		testEvManager:         storage.NewTestEventFetcher(storageVault),
 		targetLockDuration:    lockDuration,
 		clock:                 clk,
 		stopLockRefresh:       make(chan struct{}),

@@ -42,8 +42,9 @@ const (
 )
 
 var (
-	evs            storage.ResettableStorage
-	pluginRegistry *pluginregistry.PluginRegistry
+	evs                storage.ResettableStorage
+	pluginRegistry     *pluginregistry.PluginRegistry
+	storageEngineVault = storage.NewStorageEngineVault()
 )
 
 var (
@@ -53,16 +54,9 @@ var (
 func TestMain(m *testing.M) {
 	flag.Parse()
 
-	// Init context with EngineStorageVault
-	vault := storage.GetStorageEngineVaultFromContext(ctx)
-	if vault == nil {
-		vault = storage.NewStorageEngineVault()
-		ctx = storage.WithStorageEngineVault(ctx, vault)
-	}
-
 	if ms, err := memory.New(); err == nil {
 		evs = ms
-		if err := vault.StoreEngine(ms, storage.SyncEngine); err != nil {
+		if err := storageEngineVault.StoreEngine(ms, storage.DefaultEngine); err != nil {
 			panic(err.Error())
 		}
 	} else {
@@ -97,7 +91,7 @@ func TestMain(m *testing.M) {
 }
 
 func newTestRunner() *TestRunner {
-	return NewTestRunnerWithTimeouts(shutdownTimeout)
+	return NewTestRunnerWithTimeouts(storageEngineVault, shutdownTimeout)
 }
 
 func resetEventStorage() {
@@ -194,7 +188,7 @@ func Test1Step1Success(t *testing.T) {
 // We block for longer than the shutdown timeout of the test runner.
 func Test1StepLongerThanShutdown1Success(t *testing.T) {
 	resetEventStorage()
-	tr := NewTestRunnerWithTimeouts(100 * time.Millisecond)
+	tr := NewTestRunnerWithTimeouts(storageEngineVault, 100*time.Millisecond)
 	_, err := runWithTimeout(t, tr, ctx, nil, 1, 2*time.Second,
 		[]*target.Target{tgt("T1")},
 		[]test.TestStepBundle{
@@ -311,7 +305,7 @@ func Test3StepsNotReachedStepNotRun(t *testing.T) {
 // and does not return.
 func TestNoReturnStepWithCorrectTargetForwarding(t *testing.T) {
 	resetEventStorage()
-	tr := NewTestRunnerWithTimeouts(200 * time.Millisecond)
+	tr := NewTestRunnerWithTimeouts(storageEngineVault, 200*time.Millisecond)
 	ctx, cancel := xcontext.WithCancel(ctx)
 	defer cancel()
 	_, err := runWithTimeout(t, tr, ctx, nil, 1, 2*time.Second,

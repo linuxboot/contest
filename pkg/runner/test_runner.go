@@ -47,6 +47,8 @@ type TestRunner struct {
 	targets   map[string]*targetState // Target state lookup map
 	targetsWg sync.WaitGroup          // Tracks all the target handlers
 
+	storageEngineVault storage.EngineVault // Where to look for storage engines
+
 	// One mutex to rule them all, used to serialize access to all the state above.
 	// Could probably be split into several if necessary.
 	mu   sync.Mutex
@@ -179,7 +181,7 @@ func (tr *TestRunner) run(
 			sb:        sb,
 			inCh:      make(chan *target.Target),
 			outCh:     make(chan test.TestStepResult),
-			ev: storage.NewTestEventEmitter(testevent.Header{
+			ev: storage.NewTestEventEmitter(tr.storageEngineVault, testevent.Header{
 				JobID:         jobID,
 				RunID:         runID,
 				TestName:      t.Name,
@@ -829,16 +831,17 @@ tgtLoop:
 	return runErr
 }
 
-func NewTestRunnerWithTimeouts(shutdownTimeout time.Duration) *TestRunner {
+func NewTestRunnerWithTimeouts(storageVault storage.EngineVault, shutdownTimeout time.Duration) *TestRunner {
 	tr := &TestRunner{
-		shutdownTimeout: shutdownTimeout,
+		shutdownTimeout:    shutdownTimeout,
+		storageEngineVault: storageVault,
 	}
 	tr.cond = sync.NewCond(&tr.mu)
 	return tr
 }
 
-func NewTestRunner() *TestRunner {
-	return NewTestRunnerWithTimeouts(config.TestRunnerShutdownTimeout)
+func NewTestRunner(storageVault storage.EngineVault) *TestRunner {
+	return NewTestRunnerWithTimeouts(storageVault, config.TestRunnerShutdownTimeout)
 }
 
 func (tph targetStepPhase) String() string {

@@ -19,7 +19,7 @@ import (
 
 func TestTestEventsSuiteMemoryStorage(t *testing.T) {
 
-	testSuite := TestEventsSuite{}
+	testSuite := NewTestEventSuite(storage.NewStorageEngineVault())
 	// Run the TestSuite with memory storage layer
 	storagelayer, err := memory.New()
 	if err != nil {
@@ -27,13 +27,7 @@ func TestTestEventsSuiteMemoryStorage(t *testing.T) {
 	}
 	testSuite.storage = storagelayer
 
-	// Init context with EngineStorageVault
-	vault := storage.GetStorageEngineVaultFromContext(ctx)
-	if vault == nil {
-		vault = storage.NewStorageEngineVault()
-		ctx = storage.WithStorageEngineVault(ctx, vault)
-	}
-	err = vault.StoreEngine(storagelayer, storage.SyncEngine)
+	err = testSuite.GetStorageEngineVault().StoreEngine(storagelayer, storage.DefaultEngine)
 	require.NoError(t, err)
 
 	suite.Run(t, &testSuite)

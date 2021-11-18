@@ -67,14 +67,14 @@ type jobInfo struct {
 }
 
 // New initializes and returns a new JobManager with the given API listener.
-func New(l api.Listener, pr *pluginregistry.PluginRegistry, opts ...Option) (*JobManager, error) {
+func New(l api.Listener, pr *pluginregistry.PluginRegistry, storageEngineVault storage.EngineVault, opts ...Option) (*JobManager, error) {
 	if pr == nil {
 		return nil, errors.New("plugin registry cannot be nil")
 	}
-	jsm := storage.NewJobStorageManager()
+	jsm := storage.NewJobStorageManager(storageEngineVault)
 
-	frameworkEvManager := storage.NewFrameworkEventEmitterFetcher()
-	testEvManager := storage.NewTestEventFetcher()
+	frameworkEvManager := storage.NewFrameworkEventEmitterFetcher(storageEngineVault)
+	testEvManager := storage.NewTestEventFetcher(storageEngineVault)
 
 	cfg := getConfig(opts...)
 	if cfg.instanceTag != "" {
@@ -95,7 +95,7 @@ func New(l api.Listener, pr *pluginregistry.PluginRegistry, opts ...Option) (*Jo
 		frameworkEvManager: frameworkEvManager,
 		testEvManager:      testEvManager,
 	}
-	jm.jobRunner = runner.NewJobRunner(jsm, cfg.clock, cfg.targetLockDuration)
+	jm.jobRunner = runner.NewJobRunner(jsm, storageEngineVault, cfg.clock, cfg.targetLockDuration)
 	return &jm, nil
 }
 

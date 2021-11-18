@@ -51,6 +51,13 @@ func (n *nullStorage) ListJobs(ctx xcontext.Context, query *JobQuery) ([]types.J
 	return nil, nil
 }
 
+func (n *nullStorage) GetEngineVault() EngineVault {
+	return nil
+}
+
+func (n *nullStorage) SetEngineVault(_ EngineVault) {
+}
+
 // events interface
 func (n *nullStorage) StoreTestEvent(ctx xcontext.Context, event testevent.Event) error {
 	n.eventRequestCount++
@@ -76,21 +83,18 @@ func (n *nullStorage) Version() (uint64, error) {
 	return 0, nil
 }
 
-func mockStorage(t *testing.T, ctx xcontext.Context) (xcontext.Context, *nullStorage, *nullStorage) {
-	vault := NewStorageEngineVault()
-	updatedCtx := WithStorageEngineVault(ctx, vault)
-
+func mockStorage(t *testing.T, vault EngineVault) (*nullStorage, *nullStorage) {
 	storage := &nullStorage{}
 	storageAsync := &nullStorage{}
 
 	// TODO: Add the option of running tests in parallel
-	require.NoError(t, vault.StoreEngine(storage, SyncEngine))
+	require.NoError(t, vault.StoreEngine(storage, DefaultEngine))
 	require.NoError(t, vault.StoreEngine(storageAsync, AsyncEngine))
-	return updatedCtx, storage, storageAsync
+	return storage, storageAsync
 }
 
 func TestSetStorage(t *testing.T) {
-	require.NoError(t, NewStorageEngineVault().StoreEngine(&nullStorage{}, SyncEngine))
+	require.NoError(t, NewStorageEngineVault().StoreEngine(&nullStorage{}, DefaultEngine))
 }
 
 func TestSetAsyncStorage(t *testing.T) {

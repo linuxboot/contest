@@ -66,13 +66,13 @@ func runExecPlugin(t *testing.T, ctx xcontext.Context, jsonParams string) error 
 			errCh <- nil
 		}()
 
-		tr := runner.NewTestRunner()
+		tr := runner.NewTestRunner(storageEngineVault)
 		_, err := tr.Run(ctx, &test.Test{TestStepsBundles: testSteps}, targets, jobID, runID, nil)
 		if err != nil {
 			panic(err)
 		}
 
-		ev := storage.NewTestEventFetcher()
+		ev := storage.NewTestEventFetcher(storageEngineVault)
 		events, err := ev.Fetch(ctx, testevent.QueryJobID(jobID), testevent.QueryEventName(target.EventTargetErr))
 		if err != nil {
 			panic(err)
