@@ -6,7 +6,6 @@
 package storage
 
 import (
-	"github.com/linuxboot/contest/pkg/xcontext"
 	"github.com/stretchr/testify/require"
 	"testing"
 )
@@ -34,25 +33,22 @@ func (v *singleSilentEngineVaultProvider) StoreEngine(storageEngine Storage, eng
 func TestStorageEngineVault(t *testing.T) {
 	const engineId = AsyncEngine
 
-	ctx := xcontext.Background()
-
 	vault := NewStorageEngineVault()
-	ctx = WithStorageEngineVault(ctx, vault)
 
 	// Nothing here upon creation
-	engine, err := GetStorageEngineFromContext(ctx, engineId)
+	engine, err := vault.GetEngine(engineId)
 	require.Nil(t, engine)
 	require.Error(t, err)
 
 	// Create engine
 	require.NoError(t, vault.StoreEngine(&nullStorage{}, engineId))
-	engine, err = GetStorageEngineFromContext(ctx, engineId)
+	engine, err = vault.GetEngine(engineId)
 	require.NotNil(t, engine)
 	require.NoError(t, err)
 
 	// Delete engine
 	require.NoError(t, vault.StoreEngine(nil, engineId))
-	engine, err = GetStorageEngineFromContext(ctx, engineId)
+	engine, err = vault.GetEngine(engineId)
 	require.Nil(t, engine)
 	require.Error(t, err)
 
@@ -62,44 +58,37 @@ func TestStorageEngineVault(t *testing.T) {
 }
 
 func TestStorageEngineVaultClearing(t *testing.T) {
-	ctx := xcontext.Background()
-
 	vault := NewStorageEngineVault()
-	ctx = WithStorageEngineVault(ctx, vault)
 
-	types := []EngineType{SyncEngine, AsyncEngine}
+	types := []EngineType{DefaultEngine, AsyncEngine}
 
 	for _, engineType := range types {
 		require.NoError(t, vault.StoreEngine(&nullStorage{}, engineType))
-		engine, err := GetStorageEngineFromContext(ctx, engineType)
+		engine, err := vault.GetEngine(engineType)
 		require.NotNil(t, engine)
 		require.NoError(t, err)
 	}
 
 	vault.Clear()
 	for _, engineType := range types {
-		engine, err := GetStorageEngineFromContext(ctx, engineType)
+		engine, err := vault.GetEngine(engineType)
 		require.Nil(t, engine)
 		require.Error(t, err)
 	}
 }
 
 func TestCustomEngineVaultProvider(t *testing.T) {
-	ctx := xcontext.Background()
-
 	vault := &singleSilentEngineVaultProvider{}
-	ctx = WithStorageEngineVault(ctx, vault)
-
 	vault.Init()
 
 	// Now there should be an engine
-	engine, err := GetStorageEngineFromContext(ctx, SyncEngine)
+	engine, err := vault.GetEngine(DefaultEngine)
 	require.NotNil(t, engine)
 	require.NoError(t, err)
 
 	vault.Clear()
 	// Now there should be no engine, but no error also
-	engine, err = GetStorageEngineFromContext(ctx, SyncEngine)
+	engine, err = vault.GetEngine(DefaultEngine)
 	require.Nil(t, engine)
 	require.NoError(t, err)
 }

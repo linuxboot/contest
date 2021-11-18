@@ -39,7 +39,8 @@ import (
 )
 
 var (
-	ctx = logrusctx.NewContext(logger.LevelDebug)
+	ctx                = logrusctx.NewContext(logger.LevelDebug)
+	storageEngineVault = storage.NewStorageEngineVault()
 )
 
 var (
@@ -75,13 +76,6 @@ var testStepsEvents = map[string][]event.Name{
 }
 
 func TestMain(m *testing.M) {
-	// Init context with EngineStorageVault
-	vault := storage.GetStorageEngineVaultFromContext(ctx)
-	if vault == nil {
-		vault = storage.NewStorageEngineVault()
-		ctx = storage.WithStorageEngineVault(ctx, vault)
-	}
-
 	pluginRegistry = pluginregistry.NewPluginRegistry(ctx)
 	// Setup the PluginRegistry by registering TestSteps
 	for name, tsfactory := range testSteps {
@@ -109,7 +103,7 @@ func TestMain(m *testing.M) {
 		panic(fmt.Sprintf("could not initialize in-memory storage layer: %v", err))
 	}
 
-	err = vault.StoreEngine(s, storage.SyncEngine)
+	err = storageEngineVault.StoreEngine(s, storage.DefaultEngine)
 	if err != nil {
 		panic(fmt.Sprintf("could not set storage memory layer: %v", err))
 	}
@@ -139,7 +133,7 @@ func TestSuccessfulCompletion(t *testing.T) {
 	errCh := make(chan error, 1)
 
 	go func() {
-		tr := runner.NewTestRunner()
+		tr := runner.NewTestRunner(storageEngineVault)
 		_, _, err := tr.Run(ctx, &test.Test{TestStepsBundles: testSteps}, targets, jobID, runID, 0, nil)
 		errCh <- err
 	}()

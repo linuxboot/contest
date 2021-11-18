@@ -27,6 +27,8 @@ type EventStorage interface {
 
 // TestEventEmitter implements Emitter interface from the testevent package
 type TestEventEmitter struct {
+	emitterVault EngineVault
+
 	header testevent.Header
 	// allowedEvents restricts the events this emitter will accept, if set
 	allowedEvents *map[event.Name]bool
@@ -34,6 +36,7 @@ type TestEventEmitter struct {
 
 // TestEventFetcher implements the Fetcher interface from the testevent package
 type TestEventFetcher struct {
+	fetcherVault EngineVault
 }
 
 // TestEventEmitterFetcher implements Emitter and Fetcher interface of the testevent package
@@ -44,7 +47,11 @@ type TestEventEmitterFetcher struct {
 
 // Emit emits an event using the selected storage layer
 func (e TestEventEmitter) Emit(ctx xcontext.Context, data testevent.Data) error {
-	storage, err := GetStorageEngineFromContext(ctx, SyncEngine)
+	if e.emitterVault == nil {
+		panic("engine storage is not set")
+	}
+
+	storage, err := e.emitterVault.GetEngine(DefaultEngine)
 	if err != nil {
 		return nil
 	}
@@ -64,11 +71,15 @@ func (e TestEventEmitter) Emit(ctx xcontext.Context, data testevent.Data) error 
 
 // Fetch retrieves events based on QueryFields that are used to build a Query object for TestEvents
 func (ev TestEventFetcher) Fetch(ctx xcontext.Context, queryFields ...testevent.QueryField) ([]testevent.Event, error) {
-	engineType := SyncEngine
+	engineType := DefaultEngine
 	if !isStronglyConsistent(ctx) {
 		engineType = AsyncEngine
 	}
-	storage, err := GetStorageEngineFromContext(ctx, engineType)
+
+	if ev.fetcherVault == nil {
+		panic("engine storage is not set")
+	}
+	storage, err := ev.fetcherVault.GetEngine(engineType)
 	if err != nil {
 		return nil, err
 	}
@@ -82,42 +93,44 @@ func (ev TestEventFetcher) Fetch(ctx xcontext.Context, queryFields ...testevent.
 }
 
 // NewTestEventEmitter creates a new Emitter object associated with a Header
-func NewTestEventEmitter(header testevent.Header) testevent.Emitter {
-	return TestEventEmitter{header: header}
+func NewTestEventEmitter(vault EngineVault, header testevent.Header) testevent.Emitter {
+	return TestEventEmitter{emitterVault: vault, header: header}
 }
 
 // NewTestEventEmitterWithAllowedEvents creates a new Emitter object associated with a Header
-func NewTestEventEmitterWithAllowedEvents(header testevent.Header, allowedEvents *map[event.Name]bool) testevent.Emitter {
-	return TestEventEmitter{header: header, allowedEvents: allowedEvents}
+func NewTestEventEmitterWithAllowedEvents(vault EngineVault, header testevent.Header, allowedEvents *map[event.Name]bool) testevent.Emitter {
+	return TestEventEmitter{emitterVault: vault, header: header, allowedEvents: allowedEvents}
 }
 
 // NewTestEventFetcher creates a new Fetcher object associated with a Header
-func NewTestEventFetcher() testevent.Fetcher {
-	return TestEventFetcher{}
+func NewTestEventFetcher(vault EngineVault) testevent.Fetcher {
+	return TestEventFetcher{fetcherVault: vault}
 }
 
 // NewTestEventEmitterFetcher creates a new EmitterFetcher object associated with a Header
-func NewTestEventEmitterFetcher(header testevent.Header) testevent.EmitterFetcher {
+func NewTestEventEmitterFetcher(vault EngineVault, header testevent.Header) testevent.EmitterFetcher {
 	return TestEventEmitterFetcher{
-		TestEventEmitter{header: header},
-		TestEventFetcher{},
+		TestEventEmitter{header: header, emitterVault: vault},
+		TestEventFetcher{fetcherVault: vault},
 	}
 }
 
 // NewTestEventEmitterFetcherWithAllowedEvents creates a new EmitterFetcher object associated with a Header
-func NewTestEventEmitterFetcherWithAllowedEvents(header testevent.Header, allowedEvents *map[event.Name]bool) testevent.EmitterFetcher {
+func NewTestEventEmitterFetcherWithAllowedEvents(vault EngineVault, header testevent.Header, allowedEvents *map[event.Name]bool) testevent.EmitterFetcher {
 	return TestEventEmitterFetcher{
-		TestEventEmitter{header: header},
-		TestEventFetcher{},
+		TestEventEmitter{header: header, emitterVault: vault},
+		TestEventFetcher{fetcherVault: vault},
 	}
 }
 
 // FrameworkEventEmitter implements Emitter interface from the frameworkevent package
 type FrameworkEventEmitter struct {
+	emitterVault EngineVault
 }
 
 // FrameworkEventFetcher implements the Fetcher interface from the frameworkevent package
 type FrameworkEventFetcher struct {
+	fetcherVault EngineVault
 }
 
 // FrameworkEventEmitterFetcher implements Emitter and Fetcher interface from the frameworkevent package
@@ -128,7 +141,11 @@ type FrameworkEventEmitterFetcher struct {
 
 // Emit emits an event using the selected storage engine
 func (ev FrameworkEventEmitter) Emit(ctx xcontext.Context, event frameworkevent.Event) error {
-	storage, err := GetStorageEngineFromContext(ctx, SyncEngine)
+	if ev.emitterVault == nil {
+		panic("engine storage is not set")
+	}
+
+	storage, err := ev.emitterVault.GetEngine(DefaultEngine)
 	if err != nil {
 		return err
 	}
@@ -141,11 +158,15 @@ func (ev FrameworkEventEmitter) Emit(ctx xcontext.Context, event frameworkevent.
 
 // Fetch retrieves events based on QueryFields that are used to build a Query object for FrameworkEvents
 func (ev FrameworkEventFetcher) Fetch(ctx xcontext.Context, queryFields ...frameworkevent.QueryField) ([]frameworkevent.Event, error) {
-	engineType := SyncEngine
+	engineType := DefaultEngine
 	if !isStronglyConsistent(ctx) {
 		engineType = AsyncEngine
 	}
-	storage, err := GetStorageEngineFromContext(ctx, engineType)
+
+	if ev.fetcherVault == nil {
+		panic("engine storage is not set")
+	}
+	storage, err := ev.fetcherVault.GetEngine(engineType)
 	if err != nil {
 		return nil, err
 	}
@@ -159,19 +180,19 @@ func (ev FrameworkEventFetcher) Fetch(ctx xcontext.Context, queryFields ...frame
 }
 
 // NewFrameworkEventEmitter creates a new Emitter object for framework events
-func NewFrameworkEventEmitter() FrameworkEventEmitter {
-	return FrameworkEventEmitter{}
+func NewFrameworkEventEmitter(vault EngineVault) FrameworkEventEmitter {
+	return FrameworkEventEmitter{emitterVault: vault}
 }
 
 // NewFrameworkEventFetcher creates a new Fetcher object for framework events
-func NewFrameworkEventFetcher() FrameworkEventFetcher {
-	return FrameworkEventFetcher{}
+func NewFrameworkEventFetcher(vault EngineVault) FrameworkEventFetcher {
+	return FrameworkEventFetcher{fetcherVault: vault}
 }
 
 // NewFrameworkEventEmitterFetcher creates a new EmitterFetcher object for framework events
-func NewFrameworkEventEmitterFetcher() FrameworkEventEmitterFetcher {
+func NewFrameworkEventEmitterFetcher(vault EngineVault) FrameworkEventEmitterFetcher {
 	return FrameworkEventEmitterFetcher{
-		FrameworkEventEmitter{},
-		FrameworkEventFetcher{},
+		FrameworkEventEmitter{emitterVault: vault},
+		FrameworkEventFetcher{fetcherVault: vault},
 	}
 }
