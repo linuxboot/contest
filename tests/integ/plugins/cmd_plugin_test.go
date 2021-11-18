@@ -3,6 +3,7 @@
 // This source code is licensed under the MIT license found in the
 // LICENSE file in the root directory of this source tree.
 
+//go:build integration
 // +build integration
 
 package tests
@@ -43,7 +44,7 @@ func TestCmdPlugin(t *testing.T) {
 
 	go func() {
 		tr := runner.NewTestRunner()
-		_, err := tr.Run(stateCtx, &test.Test{TestStepsBundles: testSteps}, targets, jobID, runID, nil)
+		_, _, err := tr.Run(stateCtx, &test.Test{TestStepsBundles: testSteps}, targets, jobID, runID, 0, nil)
 		errCh <- err
 	}()
 

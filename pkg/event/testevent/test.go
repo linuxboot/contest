@@ -24,6 +24,7 @@ type Header struct {
 	JobID         types.JobID
 	RunID         types.RunID
 	TestName      string
+	TestAttempt   uint32
 	TestStepLabel string
 }
 
@@ -155,7 +156,7 @@ type EmitterFetcher interface {
 }
 
 func (h *Header) String() string {
-	return fmt.Sprintf("[%d %d %s %s]", h.JobID, h.RunID, h.TestName, h.TestStepLabel)
+	return fmt.Sprintf("[%d %d %s %d %s]", h.JobID, h.RunID, h.TestName, h.TestAttempt, h.TestStepLabel)
 }
 
 func (d *Data) String() string {

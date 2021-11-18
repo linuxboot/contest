@@ -65,7 +65,7 @@ done
 # They are run explicitly to avoid unintended influence of global variables.
 i=1
 echo "Running E2E tests"
-for t in TestE2E/TestCLI TestE2E/TestSimple TestE2E/TestPauseResume; do
+for t in TestE2E/TestCLI TestE2E/TestSimple TestE2E/TestPauseResume TestE2E/TestRetries; do
     echo "  $t"
     go test -tags=e2e -race -coverprofile="e2e.$i.cov" -covermode=atomic -coverpkg=all ./tests/e2e/... -run "$t"
     i=$(($i + 1))

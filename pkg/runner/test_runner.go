@@ -118,29 +118,30 @@ const resumeStateStructVersion = 2
 func (tr *TestRunner) Run(
 	ctx xcontext.Context,
 	t *test.Test, targets []*target.Target,
-	jobID types.JobID, runID types.RunID,
+	jobID types.JobID, runID types.RunID, attempt uint32,
 	resumeState json.RawMessage,
-) (json.RawMessage, error) {
+) (json.RawMessage, map[string]error, error) {
 
 	ctx = ctx.WithFields(xcontext.Fields{
-		"job_id": jobID,
-		"run_id": runID,
+		"job_id":  jobID,
+		"run_id":  runID,
+		"attempt": attempt,
 	})
 	ctx = xcontext.WithValue(ctx, types.KeyJobID, jobID)
 	ctx = xcontext.WithValue(ctx, types.KeyRunID, runID)
 
-	ctx.Debugf("== test runner starting job %d, run %d", jobID, runID)
-	resumeState, err := tr.run(ctx.WithTag("phase", "run"), t, targets, jobID, runID, resumeState)
-	ctx.Debugf("== test runner finished job %d, run %d, err: %v", jobID, runID, err)
-	return resumeState, err
+	ctx.Debugf("== test runner starting job %d, run %d, retry: %d", jobID, runID, attempt)
+	resultResumeState, targetsResults, err := tr.run(ctx.WithTag("phase", "run"), t, targets, jobID, runID, attempt, resumeState)
+	ctx.Debugf("== test runner finished job %d, run %d, retry: %d, err: %v", jobID, runID, attempt, err)
+	return resultResumeState, targetsResults, err
 }
 
 func (tr *TestRunner) run(
 	ctx xcontext.Context,
 	t *test.Test, targets []*target.Target,
-	jobID types.JobID, runID types.RunID,
+	jobID types.JobID, runID types.RunID, attempt uint32,
 	resumeState json.RawMessage,
-) (json.RawMessage, error) {
+) (json.RawMessage, map[string]error, error) {
 
 	// Peel off contexts used for steps and target handlers.
 	stepsCtx, stepsCancel := xcontext.WithCancel(ctx)
@@ -153,14 +154,14 @@ func (tr *TestRunner) run(
 	if len(resumeState) > 0 {
 		ctx.Debugf("Attempting to resume from state: %s", string(resumeState))
 		if err := json.Unmarshal(resumeState, &rs); err != nil {
-			return nil, fmt.Errorf("invalid resume state: %w", err)
+			return nil, nil, fmt.Errorf("invalid resume state: %w", err)
 		}
 		if rs.Version != resumeStateStructVersion {
-			return nil, fmt.Errorf("incompatible resume state version %d (want %d)",
+			return nil, nil, fmt.Errorf("incompatible resume state version %d (want %d)",
 				rs.Version, resumeStateStructVersion)
 		}
 		if rs.JobID != jobID {
-			return nil, fmt.Errorf("wrong resume state, job id %d (want %d)", rs.JobID, jobID)
+			return nil, nil, fmt.Errorf("wrong resume state, job id %d (want %d)", rs.JobID, jobID)
 		}
 		tr.targets = rs.Targets
 	}
@@ -183,6 +184,7 @@ func (tr *TestRunner) run(
 				JobID:         jobID,
 				RunID:         runID,
 				TestName:      t.Name,
+				TestAttempt:   attempt,
 				TestStepLabel: sb.TestStepLabel,
 			}),
 			tgtDone:     make(map[*target.Target]bool),
@@ -197,6 +199,8 @@ func (tr *TestRunner) run(
 	}
 	// Initialize remaining fields of the target structures,
 	// build the map and kick off target processing.
+
+	minStep := len(tr.steps)
 	for _, tgt := range targets {
 		tr.mu.Lock()
 		tgs := tr.targets[tgt.ID]
@@ -212,6 +216,9 @@ func (tr *TestRunner) run(
 		tgs.resCh = make(chan error, 1)
 		tgs.handlerRunning = true
 		tr.targets[tgt.ID] = tgs
+		if tgs.CurStep < minStep {
+			minStep = tgs.CurStep
+		}
 		tr.mu.Unlock()
 		tr.targetsWg.Add(1)
 		go func() {
@@ -221,7 +228,7 @@ func (tr *TestRunner) run(
 	}
 
 	// Run until no more progress can be made.
-	runErr := tr.runMonitor(ctx)
+	runErr := tr.runMonitor(ctx, minStep)
 	if runErr != nil {
 		ctx.Errorf("monitor returned error: %q, canceling", runErr)
 		stepsCancel()
@@ -274,7 +281,7 @@ func (tr *TestRunner) run(
 
 	// Is there a useful error to report?
 	if runErr != nil {
-		return nil, runErr
+		return nil, nil, runErr
 	}
 
 	// Have we been asked to pause? If yes, is it safe to do so?
@@ -295,13 +302,21 @@ func (tr *TestRunner) run(
 		resumeState, runErr = json.Marshal(rs)
 		if runErr != nil {
 			ctx.Errorf("unable to serialize the state: %s", runErr)
-		} else {
-			runErr = xcontext.ErrPaused
+			return nil, nil, runErr
 		}
+		runErr = xcontext.ErrPaused
 	default:
 	}
 
-	return resumeState, runErr
+	targetsResults := make(map[string]error)
+	for id, state := range tr.targets {
+		if state.Res != nil {
+			targetsResults[id] = state.Res.Unwrap()
+		} else if state.CurStep == len(tr.steps)-1 && state.CurPhase == targetStepPhaseEnd {
+			targetsResults[id] = nil
+		}
+	}
+	return resumeState, targetsResults, runErr
 }
 
 func (tr *TestRunner) waitStepRunners(ctx xcontext.Context) error {
@@ -739,18 +754,11 @@ func (tr *TestRunner) checkStepRunnersLocked() error {
 // It also monitors steps for critical errors and cancels the whole run.
 // Note: input channels remain open when cancellation is requested,
 // plugins are expected to handle it explicitly.
-func (tr *TestRunner) runMonitor(ctx xcontext.Context) error {
+func (tr *TestRunner) runMonitor(ctx xcontext.Context, minStep int) error {
 	ctx.Debugf("monitor: active")
 	tr.mu.Lock()
 	defer tr.mu.Unlock()
-	// First, compute the starting step of the pipeline (it may be non-zero
-	// if the pipeline was resumed).
-	minStep := len(tr.steps)
-	for _, tgs := range tr.targets {
-		if tgs.CurStep < minStep {
-			minStep = tgs.CurStep
-		}
-	}
+
 	if minStep < len(tr.steps) {
 		ctx.Debugf("monitor: starting at step %s", tr.steps[minStep])
 	}
