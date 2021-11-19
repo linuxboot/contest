@@ -84,7 +84,8 @@ func (jm *JobManager) status(ev *api.Event) *api.EventResponse {
 		completionEvents[eventName] = true
 	}
 
-	for _, ev := range jobEvents {
+	var lastJobEventIdx int
+	for idx, ev := range jobEvents {
 		if ev.EventName == job.EventJobStarted {
 			startTime = ev.EmitTime
 		} else if _, ok := completionEvents[ev.EventName]; ok {
@@ -92,14 +93,19 @@ func (jm *JobManager) status(ev *api.Event) *api.EventResponse {
 			if endTime != nil && !endTime.IsZero() {
 				log.Warningf("Job %d is associated to multiple completion events", jobID)
 			}
-			endTime = &ev.EmitTime
+			if endTime == nil || ev.EmitTime.After(*endTime) {
+				endTime = &ev.EmitTime
+			}
+		}
+		if ev.ID > jobEvents[lastJobEventIdx].ID {
+			lastJobEventIdx = idx
 		}
 	}
 
 	state := "Unknown"
 	var stateErrMsg string
 	if len(jobEvents) > 0 {
-		je := jobEvents[len(jobEvents)-1]
+		je := jobEvents[lastJobEventIdx]
 		state = string(je.EventName)
 		if je.EventName == job.EventJobFailed {
 			// if there was a framework failure, retrieve the failure event and

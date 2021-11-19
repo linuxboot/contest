@@ -426,8 +426,7 @@ func (r *RDBMS) GetFrameworkEvent(ctx xcontext.Context, eventQuery *frameworkeve
 
 	for rows.Next() {
 		event := frameworkevent.New()
-		var eventID int
-		err := rows.Scan(&eventID, &event.JobID, &event.EventName, &event.Payload, &event.EmitTime)
+		err := rows.Scan(&event.ID, &event.JobID, &event.EventName, &event.Payload, &event.EmitTime)
 		if err != nil {
 			return nil, fmt.Errorf("could not read results from db: %v", err)
 		}
