@@ -8,7 +8,6 @@ package jobmanager
 import (
 	"encoding/json"
 	"fmt"
-	"sort"
 
 	"github.com/linuxboot/contest/pkg/event/frameworkevent"
 	"github.com/linuxboot/contest/pkg/job"
@@ -46,13 +45,19 @@ func (jm *JobManager) resumeJob(ctx xcontext.Context, jobID types.JobID) error {
 	if len(results) == 0 {
 		return fmt.Errorf("no resume state found for job %d", jobID)
 	}
-	// Sort by EmitTime in descending order.
-	sort.Slice(results, func(i, j int) bool { return results[i].EmitTime.After(results[j].EmitTime) })
+
+	// get the latest event by id
+	var lastEventIdx int
+	for idx, ev := range results {
+		if ev.ID > results[lastEventIdx].ID {
+			lastEventIdx = idx
+		}
+	}
 	var resumeState job.PauseEventPayload
-	if results[0].Payload == nil {
+	if results[lastEventIdx].Payload == nil {
 		return fmt.Errorf("invald resume state for job %d: %+v", jobID, results[0])
 	}
-	if err := json.Unmarshal(*results[0].Payload, &resumeState); err != nil {
+	if err := json.Unmarshal(*results[lastEventIdx].Payload, &resumeState); err != nil {
 		return fmt.Errorf("invald resume state for job %d: %w", jobID, err)
 	}
 	if resumeState.Version != job.CurrentPauseEventPayloadVersion {
