@@ -18,10 +18,8 @@ import (
 	"github.com/linuxboot/contest/pkg/config"
 	"github.com/linuxboot/contest/pkg/event"
 	"github.com/linuxboot/contest/pkg/event/testevent"
-	"github.com/linuxboot/contest/pkg/storage"
 	"github.com/linuxboot/contest/pkg/target"
 	"github.com/linuxboot/contest/pkg/test"
-	"github.com/linuxboot/contest/pkg/types"
 	"github.com/linuxboot/contest/pkg/xcontext"
 )
 
@@ -46,8 +44,6 @@ type TestRunner struct {
 	steps     []*stepState            // The pipeline, in order of execution
 	targets   map[string]*targetState // Target state lookup map
 	targetsWg sync.WaitGroup          // Tracks all the target handlers
-
-	storageEngineVault storage.EngineVault // Where to look for storage engines
 
 	// One mutex to rule them all, used to serialize access to all the state above.
 	// Could probably be split into several if necessary.
@@ -105,8 +101,6 @@ type targetState struct {
 // resumeStateStruct is used to serialize runner state to be resumed in the future.
 type resumeStateStruct struct {
 	Version         int                     `json:"V"`
-	JobID           types.JobID             `json:"J"`
-	RunID           types.RunID             `json:"R"`
 	Targets         map[string]*targetState `json:"T"`
 	StepResumeState []json.RawMessage       `json:"SRS,omitempty"`
 }
@@ -116,32 +110,15 @@ type resumeStateStruct struct {
 // Restoring incompatible state will abort the job.
 const resumeStateStructVersion = 2
 
+type TestStepEventsEmitterFactory interface {
+	New(testStepLabel string) testevent.Emitter
+}
+
 // Run is the main enty point of the runner.
 func (tr *TestRunner) Run(
 	ctx xcontext.Context,
 	t *test.Test, targets []*target.Target,
-	jobID types.JobID, runID types.RunID, attempt uint32,
-	resumeState json.RawMessage,
-) (json.RawMessage, map[string]error, error) {
-
-	ctx = ctx.WithFields(xcontext.Fields{
-		"job_id":  jobID,
-		"run_id":  runID,
-		"attempt": attempt,
-	})
-	ctx = xcontext.WithValue(ctx, types.KeyJobID, jobID)
-	ctx = xcontext.WithValue(ctx, types.KeyRunID, runID)
-
-	ctx.Debugf("== test runner starting job %d, run %d, retry: %d", jobID, runID, attempt)
-	resultResumeState, targetsResults, err := tr.run(ctx.WithTag("phase", "run"), t, targets, jobID, runID, attempt, resumeState)
-	ctx.Debugf("== test runner finished job %d, run %d, retry: %d, err: %v", jobID, runID, attempt, err)
-	return resultResumeState, targetsResults, err
-}
-
-func (tr *TestRunner) run(
-	ctx xcontext.Context,
-	t *test.Test, targets []*target.Target,
-	jobID types.JobID, runID types.RunID, attempt uint32,
+	emitterFactory TestStepEventsEmitterFactory,
 	resumeState json.RawMessage,
 ) (json.RawMessage, map[string]error, error) {
 
@@ -162,9 +139,6 @@ func (tr *TestRunner) run(
 			return nil, nil, fmt.Errorf("incompatible resume state version %d (want %d)",
 				rs.Version, resumeStateStructVersion)
 		}
-		if rs.JobID != jobID {
-			return nil, nil, fmt.Errorf("wrong resume state, job id %d (want %d)", rs.JobID, jobID)
-		}
 		tr.targets = rs.Targets
 	}
 
@@ -176,19 +150,13 @@ func (tr *TestRunner) run(
 			srs = rs.StepResumeState[i]
 		}
 		tr.steps = append(tr.steps, &stepState{
-			ctx:       stepCtx,
-			cancel:    stepCancel,
-			stepIndex: i,
-			sb:        sb,
-			inCh:      make(chan *target.Target),
-			outCh:     make(chan test.TestStepResult),
-			ev: storage.NewTestEventEmitter(tr.storageEngineVault, testevent.Header{
-				JobID:         jobID,
-				RunID:         runID,
-				TestName:      t.Name,
-				TestAttempt:   attempt,
-				TestStepLabel: sb.TestStepLabel,
-			}),
+			ctx:         stepCtx,
+			cancel:      stepCancel,
+			stepIndex:   i,
+			sb:          sb,
+			inCh:        make(chan *target.Target),
+			outCh:       make(chan test.TestStepResult),
+			ev:          emitterFactory.New(sb.TestStepLabel),
 			tgtDone:     make(map[*target.Target]bool),
 			resumeState: srs,
 		})
@@ -295,7 +263,6 @@ func (tr *TestRunner) run(
 		}
 		rs := &resumeStateStruct{
 			Version: resumeStateStructVersion,
-			JobID:   jobID, RunID: runID,
 			Targets: tr.targets,
 		}
 		for _, ss := range tr.steps {
@@ -402,7 +369,7 @@ func (tr *TestRunner) injectTarget(ctx xcontext.Context, tgs *targetState, ss *s
 	select {
 	case ss.inCh <- tgs.tgt:
 		// Injected successfully.
-		err = ss.ev.Emit(ctx, testevent.Data{EventName: target.EventTargetIn, Target: tgs.tgt})
+		err = ss.emitEvent(ctx, target.EventTargetIn, tgs.tgt, nil)
 		tr.mu.Lock()
 		defer tr.mu.Unlock()
 		// By the time we get here the target could have been processed and result posted already, hence the check.
@@ -849,17 +816,16 @@ tgtLoop:
 	return runErr
 }
 
-func NewTestRunnerWithTimeouts(storageVault storage.EngineVault, shutdownTimeout time.Duration) *TestRunner {
+func NewTestRunnerWithTimeouts(shutdownTimeout time.Duration) *TestRunner {
 	tr := &TestRunner{
 		shutdownTimeout:    shutdownTimeout,
-		storageEngineVault: storageVault,
 	}
 	tr.cond = sync.NewCond(&tr.mu)
 	return tr
 }
 
-func NewTestRunner(storageVault storage.EngineVault) *TestRunner {
-	return NewTestRunnerWithTimeouts(storageVault, config.TestRunnerShutdownTimeout)
+func NewTestRunner() *TestRunner {
+	return NewTestRunnerWithTimeouts(config.TestRunnerShutdownTimeout)
 }
 
 func (tph targetStepPhase) String() string {
