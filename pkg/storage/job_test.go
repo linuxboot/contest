@@ -33,7 +33,7 @@ func mockJobStorageManagerData() *testJobStorageManagerFixture {
 
 func TestJobStorageConsistency(t *testing.T) {
 	f := mockJobStorageManagerData()
-	vault := NewStorageEngineVault()
+	vault := NewSimpleEngineVault()
 	jsm := NewJobStorageManager(vault)
 
 	var cases = []struct {

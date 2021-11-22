@@ -197,7 +197,7 @@ type TestJobManagerSuite struct {
 	txStorage storage.Storage
 
 	// Place to store storage engines
-	storageEngineVault storage.EngineVault
+	storageEngineVault *storage.SimpleEngineVault
 
 	jm *jobmanager.JobManager
 
@@ -300,7 +300,7 @@ func (suite *TestJobManagerSuite) listJobs(states []job.State, tags []string, se
 
 func (suite *TestJobManagerSuite) SetupTest() {
 
-	suite.storageEngineVault = storage.NewStorageEngineVault()
+	suite.storageEngineVault = storage.NewSimpleEngineVault()
 	require.NotNil(suite.T(), suite.storageEngineVault)
 
 	jsm := storage.NewJobStorageManager(suite.storageEngineVault)
@@ -332,7 +332,7 @@ func (suite *TestJobManagerSuite) SetupTest() {
 	suite.pluginRegistry = pr
 
 	suite.txStorage = testsIntegCommon.InitStorage(suite.storage)
-	require.NoError(suite.T(), suite.storageEngineVault.StoreEngine(suite.txStorage, storage.DefaultEngine))
+	require.NoError(suite.T(), suite.storageEngineVault.StoreEngine(suite.txStorage, storage.SyncEngine))
 	require.NoError(suite.T(), suite.storageEngineVault.StoreEngine(suite.txStorage, storage.AsyncEngine))
 
 	suite.targetLocker = inmemory.New(suite.clock)

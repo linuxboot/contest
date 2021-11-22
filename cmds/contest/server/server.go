@@ -154,7 +154,7 @@ func Main(pluginConfig *PluginConfig, cmd string, args []string, sigs <-chan os.
 	defer cancel()
 
 	// Let's store storage engine in context
-	storageEngineVault := storage.NewStorageEngineVault()
+	storageEngineVault := storage.NewSimpleEngineVault()
 
 	pluginRegistry := pluginregistry.NewPluginRegistry(ctx)
 	if err := registerPlugins(pluginRegistry, pluginConfig); err != nil {
@@ -179,7 +179,7 @@ func Main(pluginConfig *PluginConfig, cmd string, args []string, sigs <-chan os.
 			log.Fatalf("Could not initialize database: %v", err)
 		}
 		storageInstances = append(storageInstances, s)
-		if err := storageEngineVault.StoreEngine(s, storage.DefaultEngine); err != nil {
+		if err := storageEngineVault.StoreEngine(s, storage.SyncEngine); err != nil {
 			log.Fatalf("Could not set storage: %v", err)
 		}
 
@@ -217,7 +217,7 @@ func Main(pluginConfig *PluginConfig, cmd string, args []string, sigs <-chan os.
 		log.Warnf("Using in-memory storage")
 		if ms, err := memory.New(); err == nil {
 			storageInstances = append(storageInstances, ms)
-			if err := storageEngineVault.StoreEngine(ms, storage.DefaultEngine); err != nil {
+			if err := storageEngineVault.StoreEngine(ms, storage.SyncEngine); err != nil {
 				log.Fatalf("Could not set storage: %v", err)
 			}
 			if err := storageEngineVault.StoreEngine(ms, storage.AsyncEngine); err != nil {

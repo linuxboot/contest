@@ -6,8 +6,9 @@
 package storage
 
 import (
-	"github.com/stretchr/testify/require"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 type singleSilentEngineVaultProvider struct {
@@ -33,7 +34,7 @@ func (v *singleSilentEngineVaultProvider) StoreEngine(storageEngine Storage, eng
 func TestStorageEngineVault(t *testing.T) {
 	const engineId = AsyncEngine
 
-	vault := NewStorageEngineVault()
+	vault := NewSimpleEngineVault()
 
 	// Nothing here upon creation
 	engine, err := vault.GetEngine(engineId)
@@ -58,9 +59,9 @@ func TestStorageEngineVault(t *testing.T) {
 }
 
 func TestStorageEngineVaultClearing(t *testing.T) {
-	vault := NewStorageEngineVault()
+	vault := NewSimpleEngineVault()
 
-	types := []EngineType{DefaultEngine, AsyncEngine}
+	types := []EngineType{SyncEngine, AsyncEngine}
 
 	for _, engineType := range types {
 		require.NoError(t, vault.StoreEngine(&nullStorage{}, engineType))
@@ -82,13 +83,13 @@ func TestCustomEngineVaultProvider(t *testing.T) {
 	vault.Init()
 
 	// Now there should be an engine
-	engine, err := vault.GetEngine(DefaultEngine)
+	engine, err := vault.GetEngine(SyncEngine)
 	require.NotNil(t, engine)
 	require.NoError(t, err)
 
 	vault.Clear()
 	// Now there should be no engine, but no error also
-	engine, err = vault.GetEngine(DefaultEngine)
+	engine, err = vault.GetEngine(SyncEngine)
 	require.Nil(t, engine)
 	require.NoError(t, err)
 }

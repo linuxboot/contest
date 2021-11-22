@@ -51,7 +51,7 @@ func (e TestEventEmitter) Emit(ctx xcontext.Context, data testevent.Data) error 
 		panic("engine storage is not set")
 	}
 
-	storage, err := e.emitterVault.GetEngine(DefaultEngine)
+	storage, err := e.emitterVault.GetEngine(SyncEngine)
 	if err != nil {
 		return nil
 	}
@@ -71,7 +71,7 @@ func (e TestEventEmitter) Emit(ctx xcontext.Context, data testevent.Data) error 
 
 // Fetch retrieves events based on QueryFields that are used to build a Query object for TestEvents
 func (ev TestEventFetcher) Fetch(ctx xcontext.Context, queryFields ...testevent.QueryField) ([]testevent.Event, error) {
-	engineType := DefaultEngine
+	engineType := SyncEngine
 	if !isStronglyConsistent(ctx) {
 		engineType = AsyncEngine
 	}
@@ -145,7 +145,7 @@ func (ev FrameworkEventEmitter) Emit(ctx xcontext.Context, event frameworkevent.
 		panic("engine storage is not set")
 	}
 
-	storage, err := ev.emitterVault.GetEngine(DefaultEngine)
+	storage, err := ev.emitterVault.GetEngine(SyncEngine)
 	if err != nil {
 		return err
 	}
@@ -158,7 +158,7 @@ func (ev FrameworkEventEmitter) Emit(ctx xcontext.Context, event frameworkevent.
 
 // Fetch retrieves events based on QueryFields that are used to build a Query object for FrameworkEvents
 func (ev FrameworkEventFetcher) Fetch(ctx xcontext.Context, queryFields ...frameworkevent.QueryField) ([]frameworkevent.Event, error) {
-	engineType := DefaultEngine
+	engineType := SyncEngine
 	if !isStronglyConsistent(ctx) {
 		engineType = AsyncEngine
 	}
