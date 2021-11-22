@@ -32,8 +32,8 @@ func TestWaitForTCPPort(t *testing.T) {
 	if err != nil {
 		t.Fatalf("could not initialize memory storage: '%v'", err)
 	}
-	storageEngineVault := storage.NewStorageEngineVault()
-	if err := storageEngineVault.StoreEngine(m, storage.DefaultEngine); err != nil {
+	storageEngineVault := storage.NewSimpleEngineVault()
+	if err := storageEngineVault.StoreEngine(m, storage.SyncEngine); err != nil {
 		t.Fatalf("Failed to set memory storage: '%v'", err)
 	}
 

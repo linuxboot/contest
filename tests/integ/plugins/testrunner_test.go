@@ -40,7 +40,7 @@ import (
 
 var (
 	ctx                = logrusctx.NewContext(logger.LevelDebug)
-	storageEngineVault = storage.NewStorageEngineVault()
+	storageEngineVault = storage.NewSimpleEngineVault()
 )
 
 var (
@@ -103,7 +103,7 @@ func TestMain(m *testing.M) {
 		panic(fmt.Sprintf("could not initialize in-memory storage layer: %v", err))
 	}
 
-	err = storageEngineVault.StoreEngine(s, storage.DefaultEngine)
+	err = storageEngineVault.StoreEngine(s, storage.SyncEngine)
 	if err != nil {
 		panic(fmt.Sprintf("could not set storage memory layer: %v", err))
 	}

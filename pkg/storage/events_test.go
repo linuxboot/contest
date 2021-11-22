@@ -53,7 +53,7 @@ func mockTestEventEmitterData() *testEventEmitterFixture {
 
 func TestEmitUnrestricted(t *testing.T) {
 	f := mockTestEventEmitterData()
-	vault := NewStorageEngineVault()
+	vault := NewSimpleEngineVault()
 	_, _ = mockStorage(t, vault)
 
 	em := NewTestEventEmitter(vault, f.header)
@@ -64,7 +64,7 @@ func TestEmitUnrestricted(t *testing.T) {
 
 func TestEmitRestricted(t *testing.T) {
 	f := mockTestEventEmitterData()
-	vault := NewStorageEngineVault()
+	vault := NewSimpleEngineVault()
 	_, _ = mockStorage(t, vault)
 
 	em := NewTestEventEmitterWithAllowedEvents(vault, f.header, &f.allowedMap)
@@ -85,7 +85,7 @@ func mockTestEventFetcherData() *testEventFetcherFixture {
 
 func TestTestEventFetcherConsistency(t *testing.T) {
 	f := mockTestEventFetcherData()
-	vault := NewStorageEngineVault()
+	vault := NewSimpleEngineVault()
 	storage, storageAsync := mockStorage(t, vault)
 
 	ef := NewTestEventFetcher(vault)
@@ -111,7 +111,7 @@ func TestTestEventFetcherConsistency(t *testing.T) {
 func TestFrameworkEventFetcherConsistency(t *testing.T) {
 	f := mockTestEventFetcherData()
 
-	vault := NewStorageEngineVault()
+	vault := NewSimpleEngineVault()
 	storage, storageAsync := mockStorage(t, vault)
 
 	ef := NewFrameworkEventFetcher(vault)

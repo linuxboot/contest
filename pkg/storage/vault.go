@@ -10,17 +10,15 @@ package storage
 
 import (
 	"fmt"
-	"sync"
-
 	"github.com/linuxboot/contest/pkg/config"
 )
 
-type EngineType string
+type EngineType uint32
 
 const (
-	AsyncEngine   EngineType = "AsyncEngine"
-	DefaultEngine EngineType = "DefaultEngine"
-	UnknownEngine EngineType = ""
+	UnknownEngine EngineType = iota
+	SyncEngine
+	AsyncEngine
 )
 
 type EngineVault interface {
@@ -29,37 +27,29 @@ type EngineVault interface {
 
 	// GetEngine - fetch the engine of selected type from the emitterVault
 	GetEngine(EngineType) (Storage, error)
-
-	// StoreEngine - put the engine of selected type to the emitterVault, replace it, or delete it if nil given
-	StoreEngine(Storage, EngineType) error
 }
 
 type EngineVaultMap map[EngineType]Storage
 
-type SynchronizedEngineVault struct {
-	sync.RWMutex
+type SimpleEngineVault struct {
 	vault EngineVaultMap
 }
 
-// GetEngine - get storage engine from the vault. Defaults to DefaultEngine.
-func (v *SynchronizedEngineVault) GetEngine(engineType EngineType) (res Storage, err error) {
-	v.RLock()
-	defer v.RUnlock()
-
+// GetEngine - get storage engine from the vault. Defaults to SyncEngine.
+func (v *SimpleEngineVault) GetEngine(engineType EngineType) (Storage, error) {
 	var found bool
-	if res, found = v.vault[engineType]; !found {
+	var err error
+	var engine Storage
+	if engine, found = v.vault[engineType]; !found {
 		err = fmt.Errorf("storage #{engineType} not assigned")
 	}
-	return
+	return engine, err
 }
 
-// StoreEngine - store supplied engine in the emitterVault. As DefaultEngine by default
+// StoreEngine - store supplied engine in the emitterVault. As SyncEngine by default
 // Switching to a new storage engine implies garbage collecting the old one,
 // with possible loss of pending events if not flushed correctly
-func (v *SynchronizedEngineVault) StoreEngine(storageEngine Storage, engineType EngineType) (err error) {
-	v.Lock()
-	defer v.Unlock()
-
+func (v *SimpleEngineVault) StoreEngine(storageEngine Storage, engineType EngineType) (err error) {
 	if storageEngine != nil {
 		var ver uint64
 		if ver, err = storageEngine.Version(); err != nil {
@@ -81,16 +71,13 @@ func (v *SynchronizedEngineVault) StoreEngine(storageEngine Storage, engineType 
 }
 
 // Clear - remove everything from the emitterVault
-func (v *SynchronizedEngineVault) Clear() {
-	v.Lock()
-	defer v.Unlock()
-
+func (v *SimpleEngineVault) Clear() {
 	for k := range v.vault {
 		delete(v.vault, k)
 	}
 }
 
-// NewStorageEngineVault - returns a new instance of SynchronizedEngineVault
-func NewStorageEngineVault() EngineVault {
-	return &SynchronizedEngineVault{vault: make(EngineVaultMap)}
+// NewSimpleEngineVault - returns a new instance of SimpleEngineVault
+func NewSimpleEngineVault() *SimpleEngineVault {
+	return &SimpleEngineVault{vault: make(EngineVaultMap)}
 }
