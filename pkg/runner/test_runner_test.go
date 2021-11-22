@@ -44,7 +44,7 @@ const (
 
 var (
 	evs                storage.ResettableStorage
-	storageEngineVault = storage.NewStorageEngineVault()
+	storageEngineVault = storage.NewSimpleEngineVault()
 )
 
 var (
@@ -56,7 +56,7 @@ func TestMain(m *testing.M) {
 
 	if ms, err := memory.New(); err == nil {
 		evs = ms
-		if err := storageEngineVault.StoreEngine(ms, storage.DefaultEngine); err != nil {
+		if err := storageEngineVault.StoreEngine(ms, storage.SyncEngine); err != nil {
 			panic(err.Error())
 		}
 	} else {

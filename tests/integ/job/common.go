@@ -71,7 +71,7 @@ type JobSuite struct {
 }
 
 func (suite *JobSuite) SetupTest() {
-	suite.storageEngineVault = storage.NewStorageEngineVault()
+	suite.storageEngineVault = storage.NewSimpleEngineVault()
 	suite.txStorage = common.InitStorage(suite.storage)
 }
 

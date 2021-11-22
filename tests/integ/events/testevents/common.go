@@ -101,7 +101,7 @@ type TestEventsSuite struct {
 }
 
 func (suite *TestEventsSuite) SetupTest() {
-	suite.storageEngineVault = storage.NewStorageEngineVault()
+	suite.storageEngineVault = storage.NewSimpleEngineVault()
 	suite.txStorage = common.InitStorage(suite.storage)
 }
 
