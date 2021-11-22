@@ -49,17 +49,18 @@ func (v *SimpleEngineVault) GetEngine(engineType EngineType) (Storage, error) {
 // StoreEngine - store supplied engine in the emitterVault. As SyncEngine by default
 // Switching to a new storage engine implies garbage collecting the old one,
 // with possible loss of pending events if not flushed correctly
-func (v *SimpleEngineVault) StoreEngine(storageEngine Storage, engineType EngineType) (err error) {
+func (v *SimpleEngineVault) StoreEngine(storageEngine Storage, engineType EngineType) error {
+	var err error
 	if storageEngine != nil {
 		var ver uint64
 		if ver, err = storageEngine.Version(); err != nil {
 			err = fmt.Errorf("could not determine storage version: %w", err)
-			return
+			return err
 		}
 
 		if ver < config.MinStorageVersion {
 			err = fmt.Errorf("could not configure storage of type %T (minimum storage version: %d, current storage version: %d)", storageEngine, config.MinStorageVersion, ver)
-			return
+			return err
 		}
 
 		v.vault[engineType] = storageEngine
@@ -67,7 +68,7 @@ func (v *SimpleEngineVault) StoreEngine(storageEngine Storage, engineType Engine
 		delete(v.vault, engineType)
 	}
 
-	return
+	return err
 }
 
 // Clear - remove everything from the emitterVault
