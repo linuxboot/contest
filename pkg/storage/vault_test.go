@@ -52,10 +52,6 @@ func TestStorageEngineVault(t *testing.T) {
 	engine, err = vault.GetEngine(engineId)
 	require.Nil(t, engine)
 	require.Error(t, err)
-
-	// Test clear method
-	vault.Clear()
-
 }
 
 func TestStorageEngineVaultClearing(t *testing.T) {
@@ -70,7 +66,7 @@ func TestStorageEngineVaultClearing(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	vault.Clear()
+	vault = NewSimpleEngineVault()
 	for _, engineType := range types {
 		engine, err := vault.GetEngine(engineType)
 		require.Nil(t, engine)

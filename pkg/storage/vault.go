@@ -22,9 +22,6 @@ const (
 )
 
 type EngineVault interface {
-	// Clear - erase everything from the emitterVault
-	Clear()
-
 	// GetEngine - fetch the engine of selected type from the emitterVault
 	GetEngine(EngineType) (Storage, error)
 }
@@ -69,13 +66,6 @@ func (v *SimpleEngineVault) StoreEngine(storageEngine Storage, engineType Engine
 	}
 
 	return err
-}
-
-// Clear - remove everything from the emitterVault
-func (v *SimpleEngineVault) Clear() {
-	for k := range v.vault {
-		delete(v.vault, k)
-	}
 }
 
 // NewSimpleEngineVault - returns a new instance of SimpleEngineVault

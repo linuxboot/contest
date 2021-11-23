@@ -318,7 +318,6 @@ func Main(pluginConfig *PluginConfig, cmd string, args []string, sigs <-chan os.
 	err = jm.Run(ctx, *flagResumeJobs)
 
 	target.SetLocker(nil)
-	storageEngineVault.Clear()
 
 	log.Infof("Exiting, %v", err)
 

@@ -48,7 +48,7 @@ type TestEventEmitterFetcher struct {
 // Emit emits an event using the selected storage layer
 func (e TestEventEmitter) Emit(ctx xcontext.Context, data testevent.Data) error {
 	if e.emitterVault == nil {
-		panic("engine storage is not set")
+		return fmt.Errorf("storage engine storage is not set")
 	}
 
 	storage, err := e.emitterVault.GetEngine(SyncEngine)
@@ -77,8 +77,9 @@ func (ev TestEventFetcher) Fetch(ctx xcontext.Context, queryFields ...testevent.
 	}
 
 	if ev.fetcherVault == nil {
-		panic("engine storage is not set")
+		return nil, fmt.Errorf("storage engine storage is not set")
 	}
+
 	storage, err := ev.fetcherVault.GetEngine(engineType)
 	if err != nil {
 		return nil, err
@@ -142,7 +143,7 @@ type FrameworkEventEmitterFetcher struct {
 // Emit emits an event using the selected storage engine
 func (ev FrameworkEventEmitter) Emit(ctx xcontext.Context, event frameworkevent.Event) error {
 	if ev.emitterVault == nil {
-		panic("engine storage is not set")
+		return fmt.Errorf("storage engine storage is not set")
 	}
 
 	storage, err := ev.emitterVault.GetEngine(SyncEngine)
@@ -164,8 +165,9 @@ func (ev FrameworkEventFetcher) Fetch(ctx xcontext.Context, queryFields ...frame
 	}
 
 	if ev.fetcherVault == nil {
-		panic("engine storage is not set")
+		return nil, fmt.Errorf("storage engine storage is not set")
 	}
+
 	storage, err := ev.fetcherVault.GetEngine(engineType)
 	if err != nil {
 		return nil, err

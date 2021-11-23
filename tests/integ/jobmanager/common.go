@@ -377,7 +377,6 @@ func (suite *TestJobManagerSuite) stopJobManager() {
 func (suite *TestJobManagerSuite) TearDownTest() {
 	suite.stopJobManager()
 	testsIntegCommon.FinalizeStorage(suite.txStorage)
-	suite.storageEngineVault.Clear()
 	target.SetLocker(nil)
 	slowecho.Clock = nil
 }
