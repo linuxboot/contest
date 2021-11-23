@@ -420,8 +420,18 @@ func (tr *TestRunner) injectTarget(ctx xcontext.Context, tgs *targetState, ss *s
 }
 
 func (tr *TestRunner) awaitTargetResult(ctx xcontext.Context, tgs *targetState, ss *stepState) error {
+	tr.mu.Lock()
+	resCh := tgs.resCh
+	tr.mu.Unlock()
+
+	if resCh == nil {
+		// Channel is closed when job is paused to make sure all results are processed.
+		ctx.Debugf("%s: result channel closed", tgs)
+		return xcontext.ErrPaused
+	}
+
 	select {
-	case res, ok := <-tgs.resCh:
+	case res, ok := <-resCh:
 		if !ok {
 			// Channel is closed when job is paused to make sure all results are processed.
 			ctx.Debugf("%s: result channel closed", tgs)
