@@ -18,7 +18,6 @@ import (
 
 // Event represents an event emitted by the framework
 type Event struct {
-	ID        uint64
 	JobID     types.JobID
 	EventName event.Name
 	Payload   *json.RawMessage

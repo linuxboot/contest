@@ -97,7 +97,7 @@ func (jm *JobManager) status(ev *api.Event) *api.EventResponse {
 				endTime = &ev.EmitTime
 			}
 		}
-		if ev.ID > jobEvents[lastJobEventIdx].ID {
+		if ev.EmitTime.After(jobEvents[lastJobEventIdx].EmitTime) {
 			lastJobEventIdx = idx
 		}
 	}

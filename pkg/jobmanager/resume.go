@@ -49,7 +49,7 @@ func (jm *JobManager) resumeJob(ctx xcontext.Context, jobID types.JobID) error {
 	// get the latest event by id
 	var lastEventIdx int
 	for idx, ev := range results {
-		if ev.ID > results[lastEventIdx].ID {
+		if ev.EmitTime.After(results[lastEventIdx].EmitTime) {
 			lastEventIdx = idx
 		}
 	}
