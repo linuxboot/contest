@@ -59,6 +59,8 @@ type stepState struct {
 	stepIndex int                 // Index of this step in the pipeline.
 	sb        test.TestStepBundle // The test bundle.
 
+	stepRunner *StepRunner
+
 	// Channels used to communicate with the plugin.
 	inCh  chan *target.Target
 	outCh chan test.TestStepResult

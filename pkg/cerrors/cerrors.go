@@ -44,6 +44,16 @@ func (e *ErrTestStepPaniced) Error() string {
 	return fmt.Sprintf("test step %s paniced, trace: %q", e.StepName, e.StackTrace)
 }
 
+// ErrTestStepReturnedNoTarget indicates that a test step returned nil Target
+type ErrTestStepReturnedNoTarget struct {
+	StepName string
+}
+
+// Error returns the error string associated with the error
+func (e *ErrTestStepReturnedNoTarget) Error() string {
+	return fmt.Sprintf("test step %s returned nil result", e.StepName)
+}
+
 // ErrTestStepReturnedDuplicateResult indicates that a test step returned result
 // twice for the same target.
 type ErrTestStepReturnedDuplicateResult struct {
