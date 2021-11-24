@@ -133,8 +133,10 @@ func TestSuccessfulCompletion(t *testing.T) {
 	errCh := make(chan error, 1)
 
 	go func() {
-		tr := runner.NewTestRunner(storageEngineVault)
-		_, _, err := tr.Run(ctx, &test.Test{TestStepsBundles: testSteps}, targets, jobID, runID, 0, nil)
+		tr := runner.NewTestRunner()
+
+		eventsFactory := runner.NewTestStepEventsEmitterFactory(storageEngineVault, jobID, runID, "", 0)
+		_, _, err := tr.Run(ctx, &test.Test{TestStepsBundles: testSteps}, targets, eventsFactory, nil)
 		errCh <- err
 	}()
 

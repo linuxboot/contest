@@ -367,14 +367,31 @@ func (jr *JobRunner) runTest(ctx xcontext.Context,
 	if runErr == nil {
 		ctx.Infof("Run #%d: running test #%d for job '%s' (job ID: %d) on %d targets",
 			runID, testID, j.Name, j.ID, len(targets))
-		testRunner := NewTestRunner(jr.storageEngineVault)
+
 		var testRunnerState json.RawMessage
 		if resumeState != nil {
 			testRunnerState = resumeState.TestRunnerState
 		}
 
-		// TODO: move jobID/runID/testAttempt from testRunner
-		testRunnerState, targetsResults, err := testRunner.Run(ctx, t, targets, j.ID, runID, testAttempt, testRunnerState)
+		runCtx := ctx.WithFields(xcontext.Fields{
+			"job_id":  j.ID,
+			"run_id":  runID,
+			"attempt": testAttempt,
+		})
+		runCtx = xcontext.WithValue(runCtx, types.KeyJobID, j.ID)
+		runCtx = xcontext.WithValue(runCtx, types.KeyRunID, runID)
+
+		testRunner := NewTestRunner()
+		runCtx.Debugf("== test runner starting")
+		testRunnerState, targetsResults, err := testRunner.Run(
+			runCtx,
+			t,
+			targets,
+			NewTestStepEventsEmitterFactory(jr.storageEngineVault, j.ID, runID, t.Name, testAttempt),
+			testRunnerState,
+		)
+		runCtx.Debugf("== test runner finished, err: %v", err)
+
 		succeed = len(targetsResults) == len(targets)
 		for targetID, targetErr := range targetsResults {
 			if targetErr != nil {
@@ -515,6 +532,42 @@ func (jr *JobRunner) emitEvent(ctx xcontext.Context, jobID types.JobID, eventNam
 		return err
 	}
 	return nil
+}
+
+type testStepEventsEmitterFactory struct {
+	vault storage.EngineVault
+
+	jobID       types.JobID
+	runID       types.RunID
+	testName    string
+	testAttempt uint32
+}
+
+func (f *testStepEventsEmitterFactory) New(testStepLabel string) testevent.Emitter {
+	return storage.NewTestEventEmitter(f.vault,
+		testevent.Header{
+			JobID:         f.jobID,
+			RunID:         f.runID,
+			TestName:      f.testName,
+			TestAttempt:   f.testAttempt,
+			TestStepLabel: testStepLabel,
+		},
+	)
+}
+
+func NewTestStepEventsEmitterFactory(vault storage.EngineVault,
+	jobID types.JobID,
+	runID types.RunID,
+	testName string,
+	testAttempt uint32,
+) *testStepEventsEmitterFactory {
+	return &testStepEventsEmitterFactory{
+		vault:       vault,
+		jobID:       jobID,
+		runID:       runID,
+		testName:    testName,
+		testAttempt: testAttempt,
+	}
 }
 
 // NewJobRunner returns a new JobRunner, which holds an empty registry of jobs

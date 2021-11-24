@@ -85,7 +85,9 @@ func (r *collectingReporter) FinalReport(ctx xcontext.Context, parameters interf
 
 type JobRunnerSuite struct {
 	suite.Suite
+
 	pluginRegistry *pluginregistry.PluginRegistry
+	internalStorage *MemoryStorageEngine
 }
 
 func TestTestStepSuite(t *testing.T) {
@@ -93,7 +95,10 @@ func TestTestStepSuite(t *testing.T) {
 }
 
 func (s *JobRunnerSuite) SetupTest() {
-	resetEventStorage()
+	storageEngine, err := NewMemoryStorageEngine()
+	require.NoError(s.T(), err)
+	s.internalStorage = storageEngine
+
 	target.SetLocker(inmemory.New(clock.New()))
 
 	s.pluginRegistry = pluginregistry.NewPluginRegistry(xcontext.Background())
@@ -181,8 +186,8 @@ func (s *JobRunnerSuite) TestSimpleJobStartFinish() {
 		},
 	}
 
-	jsm := storage.NewJobStorageManager(storageEngineVault)
-	jr := NewJobRunner(jsm, storageEngineVault, clock.New(), time.Second)
+	jsm := storage.NewJobStorageManager(s.internalStorage.StorageEngineVault)
+	jr := NewJobRunner(jsm, s.internalStorage.StorageEngineVault, clock.New(), time.Second)
 	require.NotNil(s.T(), jr)
 
 	resumeState, err := jr.Run(ctx, &j, nil)
@@ -196,7 +201,7 @@ func (s *JobRunnerSuite) TestSimpleJobStartFinish() {
 {[1 1 SimpleTest 0 test_step_label][Target{ID: "T1"} TargetIn]}
 {[1 1 SimpleTest 0 test_step_label][Target{ID: "T1"} TargetOut]}
 {[1 1 SimpleTest 0 ][Target{ID: "T1"} TargetReleased]}
-`, getTargetEvents("T1"))
+`, s.internalStorage.GetTargetEvents(testName, "T1"))
 }
 
 func (s *JobRunnerSuite) TestJobWithTestRetry() {
@@ -266,8 +271,8 @@ func (s *JobRunnerSuite) TestJobWithTestRetry() {
 		},
 	}
 
-	jsm := storage.NewJobStorageManager(storageEngineVault)
-	jr := NewJobRunner(jsm, storageEngineVault, clock.New(), time.Second)
+	jsm := storage.NewJobStorageManager(s.internalStorage.StorageEngineVault)
+	jr := NewJobRunner(jsm, s.internalStorage.StorageEngineVault, clock.New(), time.Second)
 	require.NotNil(s.T(), jr)
 
 	resumeState, err := jr.Run(ctx, &j, nil)
@@ -289,7 +294,7 @@ func (s *JobRunnerSuite) TestJobWithTestRetry() {
 {[1 1 SimpleTest 1 echo2_step_label][Target{ID: "T1"} TargetIn]}
 {[1 1 SimpleTest 1 echo2_step_label][Target{ID: "T1"} TargetOut]}
 {[1 1 SimpleTest 1 ][Target{ID: "T1"} TargetReleased]}
-`, getTargetEvents("T1"))
+`, s.internalStorage.GetTargetEvents(testName, "T1"))
 
 	require.Len(s.T(), reporter.runStatuses, 1)
 	require.Len(s.T(), reporter.runStatuses[0].TestStatuses, 1)
