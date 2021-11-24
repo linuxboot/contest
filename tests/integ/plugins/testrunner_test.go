@@ -39,7 +39,8 @@ import (
 )
 
 var (
-	ctx = logrusctx.NewContext(logger.LevelDebug)
+	ctx                = logrusctx.NewContext(logger.LevelDebug)
+	storageEngineVault = storage.NewSimpleEngineVault()
 )
 
 var (
@@ -101,7 +102,8 @@ func TestMain(m *testing.M) {
 	if err != nil {
 		panic(fmt.Sprintf("could not initialize in-memory storage layer: %v", err))
 	}
-	err = storage.SetStorage(s)
+
+	err = storageEngineVault.StoreEngine(s, storage.SyncEngine)
 	if err != nil {
 		panic(fmt.Sprintf("could not set storage memory layer: %v", err))
 	}
@@ -131,7 +133,7 @@ func TestSuccessfulCompletion(t *testing.T) {
 	errCh := make(chan error, 1)
 
 	go func() {
-		tr := runner.NewTestRunner()
+		tr := runner.NewTestRunner(storageEngineVault)
 		_, _, err := tr.Run(ctx, &test.Test{TestStepsBundles: testSteps}, targets, jobID, runID, 0, nil)
 		errCh <- err
 	}()

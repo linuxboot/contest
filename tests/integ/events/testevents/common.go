@@ -3,6 +3,7 @@
 // This source code is licensed under the MIT license found in the
 // LICENSE file in the root directory of this source tree.
 
+//go:build integration || integration_storage
 // +build integration integration_storage
 
 package test
@@ -84,6 +85,7 @@ func assertTestEvents(t *testing.T, ev []testevent.Event, emitTime time.Time) {
 
 type TestEventsSuite struct {
 	suite.Suite
+
 	// storage is the storage engine initially configured by the upper level TestSuite,
 	// which either configures a memory or a rdbms storage backend.
 	storage storage.Storage
@@ -93,9 +95,13 @@ type TestEventsSuite struct {
 	// of the job txStorage is finalized: it's either committed or rolled back, depending
 	// what the backend supports
 	txStorage storage.Storage
+
+	// Place to store storage engines
+	storageEngineVault storage.EngineVault
 }
 
 func (suite *TestEventsSuite) SetupTest() {
+	suite.storageEngineVault = storage.NewSimpleEngineVault()
 	suite.txStorage = common.InitStorage(suite.storage)
 }
 
@@ -204,4 +210,12 @@ func (suite *TestEventsSuite) TestRetrieveSingleTestEventsByNameAndJobID() {
 	require.NoError(suite.T(), err)
 	assert.Equal(suite.T(), 1, len(results))
 	assertTestEvents(suite.T(), results, emitTime)
+}
+
+func (suite TestEventsSuite) GetStorageEngineVault() storage.EngineVault {
+	return suite.storageEngineVault
+}
+
+func NewTestEventSuite(storageEngineVault storage.EngineVault) TestEventsSuite {
+	return TestEventsSuite{storageEngineVault: storageEngineVault}
 }

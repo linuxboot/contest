@@ -197,6 +197,9 @@ type TestJobManagerSuite struct {
 	// what the backend supports
 	txStorage storage.Storage
 
+	// Place to store storage engines
+	storageEngineVault *storage.SimpleEngineVault
+
 	jm *jobmanager.JobManager
 
 	pluginRegistry *pluginregistry.PluginRegistry
@@ -298,9 +301,12 @@ func (suite *TestJobManagerSuite) listJobs(states []job.State, tags []string, se
 
 func (suite *TestJobManagerSuite) SetupTest() {
 
-	jsm := storage.NewJobStorageManager()
-	eventManager := storage.NewFrameworkEventEmitterFetcher()
-	testEventManager := storage.NewTestEventFetcher()
+	suite.storageEngineVault = storage.NewSimpleEngineVault()
+	require.NotNil(suite.T(), suite.storageEngineVault)
+
+	jsm := storage.NewJobStorageManager(suite.storageEngineVault)
+	eventManager := storage.NewFrameworkEventEmitterFetcher(suite.storageEngineVault)
+	testEventManager := storage.NewTestEventFetcher(suite.storageEngineVault)
 
 	// TODO(rojer): Use mock clock to speed up the tests.
 	// suite.clock = clock.NewMock()
@@ -327,8 +333,8 @@ func (suite *TestJobManagerSuite) SetupTest() {
 	suite.pluginRegistry = pr
 
 	suite.txStorage = testsIntegCommon.InitStorage(suite.storage)
-	require.NoError(suite.T(), storage.SetStorage(suite.txStorage))
-	require.NoError(suite.T(), storage.SetAsyncStorage(suite.txStorage))
+	require.NoError(suite.T(), suite.storageEngineVault.StoreEngine(suite.txStorage, storage.SyncEngine))
+	require.NoError(suite.T(), suite.storageEngineVault.StoreEngine(suite.txStorage, storage.AsyncEngine))
 
 	suite.targetLocker = inmemory.New(suite.clock)
 	target.SetLocker(suite.targetLocker)
@@ -343,8 +349,9 @@ func (suite *TestJobManagerSuite) initJobManager(instanceTag string) {
 	if instanceTag != "" {
 		opts = append(opts, jobmanager.OptionInstanceTag(instanceTag))
 	}
-	jm, err := jobmanager.New(suite.listener, suite.pluginRegistry, opts...)
+	jm, err := jobmanager.New(suite.listener, suite.pluginRegistry, suite.storageEngineVault, opts...)
 	require.NoError(suite.T(), err)
+
 	suite.jm = jm
 	suite.jmCtx, suite.jmCancel = xcontext.WithCancel(logrusctx.NewContext(logger.LevelDebug, logging.DefaultOptions()...))
 	suite.jmCtx, suite.jmPause = xcontext.WithNotify(suite.jmCtx, xcontext.ErrPaused)
@@ -370,8 +377,6 @@ func (suite *TestJobManagerSuite) stopJobManager() {
 func (suite *TestJobManagerSuite) TearDownTest() {
 	suite.stopJobManager()
 	testsIntegCommon.FinalizeStorage(suite.txStorage)
-	storage.SetStorage(nil)
-	storage.SetAsyncStorage(nil)
 	target.SetLocker(nil)
 	slowecho.Clock = nil
 }

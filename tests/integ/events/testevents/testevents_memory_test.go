@@ -19,14 +19,16 @@ import (
 
 func TestTestEventsSuiteMemoryStorage(t *testing.T) {
 
-	testSuite := TestEventsSuite{}
+	vault := storage.NewSimpleEngineVault()
+	testSuite := NewTestEventSuite(vault)
 	// Run the TestSuite with memory storage layer
 	storagelayer, err := memory.New()
 	if err != nil {
 		panic(fmt.Sprintf("could not initialize in-memory storage layer: %v", err))
 	}
 	testSuite.storage = storagelayer
-	err = storage.SetStorage(storagelayer)
+
+	err = vault.StoreEngine(storagelayer, storage.SyncEngine)
 	require.NoError(t, err)
 
 	suite.Run(t, &testSuite)

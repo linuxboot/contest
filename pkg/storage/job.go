@@ -28,45 +28,72 @@ type JobStorage interface {
 
 // JobStorageManager implements JobStorage interface
 type JobStorageManager struct {
+	vault EngineVault
 }
 
 // StoreJobRequest submits a job request to the storage layer
 func (jsm JobStorageManager) StoreJobRequest(ctx xcontext.Context, request *job.Request) (types.JobID, error) {
+	storage, err := jsm.vault.GetEngine(SyncEngine)
+	if err != nil {
+		return 0, err
+	}
+
 	return storage.StoreJobRequest(ctx, request)
 }
 
 // GetJobRequest fetches a job request from the storage layer
 func (jsm JobStorageManager) GetJobRequest(ctx xcontext.Context, jobID types.JobID) (*job.Request, error) {
-	if isStronglyConsistent(ctx) {
-		return storage.GetJobRequest(ctx, jobID)
+	engineType := SyncEngine
+	if !isStronglyConsistent(ctx) {
+		engineType = AsyncEngine
 	}
-	return storageAsync.GetJobRequest(ctx, jobID)
+	storage, err := jsm.vault.GetEngine(engineType)
+	if err != nil {
+		return nil, err
+	}
+
+	return storage.GetJobRequest(ctx, jobID)
 }
 
 // StoreReport submits a job run or final report to the storage layer
 func (jsm JobStorageManager) StoreReport(ctx xcontext.Context, report *job.Report) error {
+	storage, err := jsm.vault.GetEngine(SyncEngine)
+	if err != nil {
+		return err
+	}
+
 	return storage.StoreReport(ctx, report)
 }
 
 // GetJobReport fetches a job report from the storage layer
 func (jsm JobStorageManager) GetJobReport(ctx xcontext.Context, jobID types.JobID) (*job.JobReport, error) {
-	if isStronglyConsistent(ctx) {
-		return storage.GetJobReport(ctx, jobID)
+	engineType := SyncEngine
+	if !isStronglyConsistent(ctx) {
+		engineType = AsyncEngine
+	}
+	storage, err := jsm.vault.GetEngine(engineType)
+	if err != nil {
+		return nil, err
 	}
 
-	return storageAsync.GetJobReport(ctx, jobID)
+	return storage.GetJobReport(ctx, jobID)
 }
 
 // ListJobs returns list of job IDs matching the query
 func (jsm JobStorageManager) ListJobs(ctx xcontext.Context, query *JobQuery) ([]types.JobID, error) {
-	if isStronglyConsistent(ctx) {
-		return storage.ListJobs(ctx, query)
+	engineType := SyncEngine
+	if !isStronglyConsistent(ctx) {
+		engineType = AsyncEngine
+	}
+	storage, err := jsm.vault.GetEngine(engineType)
+	if err != nil {
+		return nil, err
 	}
 
-	return storageAsync.ListJobs(ctx, query)
+	return storage.ListJobs(ctx, query)
 }
 
 // NewJobStorageManager creates a new JobStorageManager object
-func NewJobStorageManager() JobStorageManager {
-	return JobStorageManager{}
+func NewJobStorageManager(vault EngineVault) JobStorageManager {
+	return JobStorageManager{vault: vault}
 }

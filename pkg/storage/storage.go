@@ -6,16 +6,8 @@
 package storage
 
 import (
-	"fmt"
-
-	"github.com/linuxboot/contest/pkg/config"
 	"github.com/linuxboot/contest/pkg/xcontext"
 )
-
-// storage defines the storage engine used by ConTest. It can be overridden
-// via the exported function SetStorage.
-var storage Storage
-var storageAsync Storage
 
 // ConsistencyModel hints at whether queries should go to the primary database
 // or any available replica (in which case, the guarantee is eventual consistency)
@@ -53,48 +45,6 @@ type TransactionalStorage interface {
 type ResettableStorage interface {
 	Storage
 	Reset() error
-}
-
-// SetStorage sets the desired storage engine for events. Switching to a new
-// storage engine implies garbage collecting the old one, with possible loss of
-// pending events if not flushed correctly
-func SetStorage(storageEngine Storage) error {
-	if storageEngine != nil {
-		v, err := storageEngine.Version()
-		if err != nil {
-			return fmt.Errorf("could not determine storage version: %w", err)
-		}
-		if v < config.MinStorageVersion {
-			return fmt.Errorf("could not configure storage of type %T (minimum storage version: %d, current storage version: %d)", storageEngine, config.MinStorageVersion, v)
-		}
-	}
-	storage = storageEngine
-	return nil
-}
-
-// GetStorage returns the primary storage for events.
-func GetStorage() (Storage, error) {
-	if storage == nil {
-		return nil, fmt.Errorf("no storage engine assigned")
-	}
-	return storage, nil
-}
-
-// SetAsyncStorage sets the desired storage engine for read-only events. Switching to a new
-// storage engine implies garbage collecting the old one, with possible loss of
-// pending events if not flushed correctly
-func SetAsyncStorage(storageEngine Storage) error {
-	if storageEngine != nil {
-		v, err := storageEngine.Version()
-		if err != nil {
-			return fmt.Errorf("could not determine storage version: %w", err)
-		}
-		if v < config.MinStorageVersion {
-			return fmt.Errorf("could not configure storage of type %T (minimum storage version: %d, current storage version: %d)", storageEngine, config.MinStorageVersion, v)
-		}
-	}
-	storageAsync = storageEngine
-	return nil
 }
 
 func isStronglyConsistent(ctx xcontext.Context) bool {

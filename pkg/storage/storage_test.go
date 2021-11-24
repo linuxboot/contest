@@ -51,6 +51,13 @@ func (n *nullStorage) ListJobs(ctx xcontext.Context, query *JobQuery) ([]types.J
 	return nil, nil
 }
 
+func (n *nullStorage) GetEngineVault() EngineVault {
+	return nil
+}
+
+func (n *nullStorage) SetEngineVault(_ EngineVault) {
+}
+
 // events interface
 func (n *nullStorage) StoreTestEvent(ctx xcontext.Context, event testevent.Event) error {
 	n.eventRequestCount++
@@ -76,21 +83,20 @@ func (n *nullStorage) Version() (uint64, error) {
 	return 0, nil
 }
 
-func mockStorage(t *testing.T) (*nullStorage, *nullStorage) {
+func mockStorage(t *testing.T, vault *SimpleEngineVault) (*nullStorage, *nullStorage) {
 	storage := &nullStorage{}
 	storageAsync := &nullStorage{}
 
-	// TODO: the fact that storage is global state is a problem here
-	// also removes the option of running tests in parallel
-	require.NoError(t, SetStorage(storage))
-	require.NoError(t, SetAsyncStorage(storageAsync))
+	// TODO: Add the option of running tests in parallel
+	require.NoError(t, vault.StoreEngine(storage, SyncEngine))
+	require.NoError(t, vault.StoreEngine(storageAsync, AsyncEngine))
 	return storage, storageAsync
 }
 
 func TestSetStorage(t *testing.T) {
-	require.NoError(t, SetStorage(&nullStorage{}))
+	require.NoError(t, NewSimpleEngineVault().StoreEngine(&nullStorage{}, SyncEngine))
 }
 
 func TestSetAsyncStorage(t *testing.T) {
-	require.NoError(t, SetAsyncStorage(&nullStorage{}))
+	require.NoError(t, NewSimpleEngineVault().StoreEngine(&nullStorage{}, AsyncEngine))
 }

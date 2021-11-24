@@ -65,9 +65,13 @@ type JobSuite struct {
 	// txStorage storage is initialized from storage at the beginning of each test. If
 	// the backend supports transactions, txStorage runs within a transaction.
 	txStorage storage.Storage
+
+	// Place to store storage engines
+	storageEngineVault storage.EngineVault
 }
 
 func (suite *JobSuite) SetupTest() {
+	suite.storageEngineVault = storage.NewSimpleEngineVault()
 	suite.txStorage = common.InitStorage(suite.storage)
 }
 

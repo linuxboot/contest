@@ -39,6 +39,9 @@ type JobRunner struct {
 	// jobStorage is used to store job reports
 	jobStorage storage.JobStorage
 
+	// Vault to fetch storage-engines from
+	storageEngineVault storage.EngineVault
+
 	// frameworkEventManager is used by the JobRunner to emit framework events
 	frameworkEventManager frameworkevent.EmitterFetcher
 
@@ -127,7 +130,7 @@ func (jr *JobRunner) Run(ctx xcontext.Context, j *job.Job, resumeState *job.Paus
 		}, xcontext.ErrPaused
 	}
 
-	ev := storage.NewTestEventFetcher()
+	ev := storage.NewTestEventFetcher(jr.storageEngineVault)
 	for ; runID <= types.RunID(j.Runs) || j.Runs == 0; runID++ {
 		runCtx := xcontext.WithValue(ctx, types.KeyRunID, runID)
 		runCtx = runCtx.WithField("run_id", runID)
@@ -346,7 +349,7 @@ func (jr *JobRunner) runTest(ctx xcontext.Context,
 	}
 
 	header := testevent.Header{JobID: j.ID, RunID: runID, TestName: t.Name, TestAttempt: testAttempt}
-	testEventEmitter := storage.NewTestEventEmitter(header)
+	testEventEmitter := storage.NewTestEventEmitter(jr.storageEngineVault, header)
 
 	// Emit events tracking targets acquisition
 	if acquired {
@@ -364,7 +367,7 @@ func (jr *JobRunner) runTest(ctx xcontext.Context,
 	if runErr == nil {
 		ctx.Infof("Run #%d: running test #%d for job '%s' (job ID: %d) on %d targets",
 			runID, testID, j.Name, j.ID, len(targets))
-		testRunner := NewTestRunner()
+		testRunner := NewTestRunner(jr.storageEngineVault)
 		var testRunnerState json.RawMessage
 		if resumeState != nil {
 			testRunnerState = resumeState.TestRunnerState
@@ -515,12 +518,13 @@ func (jr *JobRunner) emitEvent(ctx xcontext.Context, jobID types.JobID, eventNam
 }
 
 // NewJobRunner returns a new JobRunner, which holds an empty registry of jobs
-func NewJobRunner(js storage.JobStorage, clk clock.Clock, lockDuration time.Duration) *JobRunner {
+func NewJobRunner(js storage.JobStorage, storageVault storage.EngineVault, clk clock.Clock, lockDuration time.Duration) *JobRunner {
 	jr := &JobRunner{
 		jobsMap:               make(map[types.JobID]*jobInfo),
 		jobStorage:            js,
-		frameworkEventManager: storage.NewFrameworkEventEmitterFetcher(),
-		testEvManager:         storage.NewTestEventFetcher(),
+		storageEngineVault:    storageVault,
+		frameworkEventManager: storage.NewFrameworkEventEmitterFetcher(storageVault),
+		testEvManager:         storage.NewTestEventFetcher(storageVault),
 		targetLockDuration:    lockDuration,
 		clock:                 clk,
 		stopLockRefresh:       make(chan struct{}),
