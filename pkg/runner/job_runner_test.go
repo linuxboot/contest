@@ -86,7 +86,7 @@ func (r *collectingReporter) FinalReport(ctx xcontext.Context, parameters interf
 type JobRunnerSuite struct {
 	suite.Suite
 
-	pluginRegistry *pluginregistry.PluginRegistry
+	pluginRegistry  *pluginregistry.PluginRegistry
 	internalStorage *MemoryStorageEngine
 }
 
@@ -309,4 +309,59 @@ func (s *JobRunnerSuite) TestJobWithTestRetry() {
 			require.Equal(s.T(), uint32(1), ev.Header.TestAttempt)
 		}
 	}
+}
+
+func (s *JobRunnerSuite) TestResumeStateBadJobId() {
+	acquireParameters := targetlist.AcquireParameters{
+		Targets: []*target.Target{
+			{
+				ID: "T1",
+			},
+		},
+	}
+
+	j := job.Job{
+		ID:                          1,
+		Runs:                        1,
+		TargetManagerAcquireTimeout: 10 * time.Second,
+		TargetManagerReleaseTimeout: 10 * time.Second,
+		RunReporterBundles: []*job.ReporterBundle{
+			{
+				Reporter: &collectingReporter{},
+			},
+		},
+		Tests: []*test.Test{
+			{
+				Name: testName,
+				RetryParameters: test.RetryParameters{
+					NumRetries:    1,
+					RetryInterval: xjson.Duration(time.Millisecond), // make a small interval to test waiting branch
+				},
+				TargetManagerBundle: &target.TargetManagerBundle{
+					AcquireParameters: acquireParameters,
+					TargetManager:     targetlist.New(),
+				},
+				TestStepsBundles: []test.TestStepBundle{
+					s.newStep("echo1_step_label", echo.Name, map[string][]test.Param{
+						"text": {*test.NewParam("hello")},
+					}),
+				},
+			},
+		},
+	}
+
+	jsm := storage.NewJobStorageManager(s.internalStorage.StorageEngineVault)
+	jr := NewJobRunner(jsm, s.internalStorage.StorageEngineVault, clock.New(), time.Second)
+	require.NotNil(s.T(), jr)
+
+	inputResumeState := job.PauseEventPayload{
+		Version: job.CurrentPauseEventPayloadVersion,
+		JobID:   j.ID + 1,
+		RunID:   1,
+		TestID:  1,
+	}
+
+	resumeState, err := jr.Run(ctx, &j, &inputResumeState)
+	require.Error(s.T(), err)
+	require.Nil(s.T(), resumeState)
 }
