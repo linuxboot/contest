@@ -509,12 +509,6 @@ func (tr *TestRunner) runStepIfNeeded(ss *stepState) {
 	})
 }
 
-func (ss *stepState) setErr(mu sync.Locker, err error) {
-	mu.Lock()
-	defer mu.Unlock()
-	ss.setErrLocked(err)
-}
-
 // setErrLocked sets step runner error unless already set.
 func (ss *stepState) setErrLocked(err error) {
 	if err == nil || ss.runErr != nil {
