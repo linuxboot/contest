@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"runtime/debug"
 	"sync"
+	"sync/atomic"
 
 	"github.com/linuxboot/contest/pkg/cerrors"
 	"github.com/linuxboot/contest/pkg/event/testevent"
@@ -18,16 +19,17 @@ type OnTargetResult func(res error)
 type OnStepRunnerStopped func(err error)
 
 type StepRunner struct {
-	ctx xcontext.Context
-	cancel context.CancelFunc
-	mu  sync.Mutex
+	ctx          xcontext.Context
+	cancel       context.CancelFunc
+	mu           sync.Mutex
 	stopCallback OnStepRunnerStopped
 
-	stepIn chan *target.Target
-	addedTargets map[string]OnTargetResult
+	stepIn            chan *target.Target
+	addedTargets      map[string]OnTargetResult
+	runningLoopActive bool
 
-	stepStopped  chan struct{}
-	resultErr    error
+	stepStopped       chan struct{}
+	resultErr         error
 	resultResumeState json.RawMessage
 }
 
@@ -126,10 +128,12 @@ func (sr *StepRunner) readingLoop(stepOut chan test.TestStepResult, testStepLabe
 			if !ok {
 				sr.ctx.Debugf("Output channel closed")
 
-				if sr.IsRunning() {
+				sr.mu.Lock()
+				if sr.runningLoopActive {
 					// This means that plugin closed its channels before leaving.
-					sr.setErr(&cerrors.ErrTestStepClosedChannels{StepName: testStepLabel})
+					sr.setErrLocked(&cerrors.ErrTestStepClosedChannels{StepName: testStepLabel})
 				}
+				sr.mu.Unlock()
 				return
 			}
 
@@ -153,7 +157,7 @@ func (sr *StepRunner) readingLoop(stepOut chan test.TestStepResult, testStepLabe
 			}
 			invokePanicSafe(callback, res.Err)
 
-		case <- sr.ctx.Done():
+		case <-sr.ctx.Done():
 			sr.ctx.Debugf("canceled readingLoop")
 			return
 		}
@@ -165,6 +169,10 @@ func (sr *StepRunner) runningLoop(
 	bundle test.TestStepBundle, ev testevent.Emitter, resumeState json.RawMessage,
 ) {
 	defer func() {
+		sr.mu.Lock()
+		sr.runningLoopActive = false
+		sr.mu.Unlock()
+
 		if recoverOccurred := safeCloseOutCh(stepOut); recoverOccurred {
 			sr.setErr(&cerrors.ErrTestStepClosedChannels{StepName: bundle.TestStepLabel})
 		}
@@ -177,22 +185,18 @@ func (sr *StepRunner) runningLoop(
 				StepName:   bundle.TestStepLabel,
 				StackTrace: fmt.Sprintf("%s / %s", r, debug.Stack()),
 			})
-			close(sr.stepStopped)
-			sr.stepStopped = nil
 			sr.mu.Unlock()
 		}
 	}()
 
 	inChannels := test.TestStepChannels{In: stepIn, Out: stepOut}
 	resultResumeState, err := bundle.TestStep.Run(sr.ctx, inChannels, bundle.Parameters, ev, resumeState)
-	sr.ctx.Debugf("%s: step runner finished %v, rs %s", bundle.TestStepLabel, err, string(resultResumeState))
+	sr.ctx.Debugf("Step runner finished '%v', rs %s", err, string(resultResumeState))
 
 	sr.mu.Lock()
 	sr.setErrLocked(err)
 	sr.resultResumeState = resultResumeState
-	close(sr.stepStopped)
-	sr.stepStopped = nil
-	sr.notifyStoppedLocked(nil)
+	sr.notifyStoppedLocked(err)
 	sr.mu.Unlock()
 }
 
@@ -252,19 +256,34 @@ func NewStepRunner(
 
 	srCrx, cancel := xcontext.WithCancel(ctx)
 	sr := &StepRunner{
-		ctx:          srCrx,
-		cancel:       cancel,
-		stepIn:       stepIn,
-		addedTargets: make(map[string]OnTargetResult),
-		stepStopped:  make(chan struct{}),
-		stopCallback: stoppedCallback,
+		ctx:               srCrx,
+		cancel:            cancel,
+		stepIn:            stepIn,
+		addedTargets:      make(map[string]OnTargetResult),
+		runningLoopActive: true,
+		stepStopped:       make(chan struct{}),
+		stopCallback:      stoppedCallback,
+	}
+
+	var activeLoopsCount int32 = 2
+	onFinished := func() {
+		if atomic.AddInt32(&activeLoopsCount, -1) != 0 {
+			return
+		}
+		sr.mu.Lock()
+		defer sr.mu.Unlock()
+
+		close(sr.stepStopped)
+		sr.stepStopped = nil
 	}
 
 	go func() {
+		defer onFinished()
 		sr.runningLoop(stepIn, stepOut, bundle, ev, resumeState)
 	}()
 
 	go func() {
+		defer onFinished()
 		sr.readingLoop(stepOut, bundle.TestStepLabel)
 	}()
 	return sr
