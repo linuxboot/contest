@@ -9,6 +9,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"sync"
 	"time"
 
@@ -138,19 +139,41 @@ func (tr *TestRunner) Run(
 	// Set up the pipeline
 	for i, sb := range t.TestStepsBundles {
 		stepCtx, stepCancel := xcontext.WithCancel(stepsCtx)
+		stepCtx = stepCtx.WithField("step_index", strconv.Itoa(i))
+		stepCtx = stepCtx.WithField("step_label", sb.TestStepLabel)
+
 		var srs json.RawMessage
 		if i < len(rs.StepResumeState) && string(rs.StepResumeState[i]) != "null" {
 			srs = rs.StepResumeState[i]
 		}
-		tr.steps = append(tr.steps, &stepState{
+		ss := &stepState{
 			ctx:         stepCtx,
 			cancel:      stepCancel,
 			stepIndex:   i,
 			sb:          sb,
 			ev:          emitterFactory.New(sb.TestStepLabel),
 			resumeState: srs,
-		})
+		}
 		// Step handlers will be started from target handlers as targets reach them.
+		ss.stepRunner = NewStepRunner(
+			ss.ctx,
+			func(tgt *target.Target, res error) {
+				if err := tr.reportTargetResult(ss, tgt, res); err != nil {
+					ctx.Errorf("Reporting target result failed: %v", err)
+					tr.mu.Lock()
+					ss.setErrLocked(err)
+					tr.mu.Unlock()
+				}
+				tr.cond.Signal()
+			},
+			func(err error) {
+				tr.mu.Lock()
+				defer tr.mu.Unlock()
+				ss.setErrLocked(err)
+				tr.cond.Signal()
+			},
+		)
+		tr.steps = append(tr.steps, ss)
 	}
 
 	// Set up the targets
@@ -231,13 +254,13 @@ func (tr *TestRunner) Run(
 		if stepErr != nil && stepErr != xcontext.ErrPaused {
 			resumeOk = false
 		}
-		ctx.Debugf("  %d %s %v %t", i, tgs, stepErr, resumeOk)
+		ctx.Debugf("  %d %s %v %t", i, tgs.String(), stepErr, resumeOk)
 	}
 	ctx.Debugf("- %d in flight, ok to resume? %t", numInFlightTargets, resumeOk)
 	ctx.Debugf("step states:")
 	for i, ss := range tr.steps {
 		ctx.Debugf("  %d %s %t %t %v %s",
-			i, ss, ss.stepRunner != nil, ss.stepRunner != nil && ss.stepRunner.IsRunning(), ss.runErr, ss.resumeState)
+			i, ss, ss.stepRunner.Started(), ss.stepRunner.Running(), ss.runErr, ss.resumeState)
 	}
 
 	// Is there a useful error to report?
@@ -287,14 +310,10 @@ func (tr *TestRunner) waitStepRunners(ctx xcontext.Context) error {
 
 	var neverReturnedErr *cerrors.ErrTestStepsNeverReturned
 	for _, ss := range tr.steps {
-		tr.mu.Lock()
-		stepRunner := ss.stepRunner
-		tr.mu.Unlock()
-
-		if stepRunner == nil {
+		if !ss.stepRunner.Started() {
 			continue
 		}
-		resumeState, err := stepRunner.WaitResults(shutdownCtx)
+		resumeState, err := ss.stepRunner.WaitResults(shutdownCtx)
 		if err == context.DeadlineExceeded {
 			err = &cerrors.ErrTestStepsNeverReturned{StepNames: []string{ss.sb.TestStepLabel}}
 			if neverReturnedErr == nil {
@@ -331,15 +350,7 @@ func (tr *TestRunner) injectTarget(ctx xcontext.Context, tgs *targetState, ss *s
 	ctx.Debugf("%s: injecting into %s", tgs, ss)
 
 	tgt := tgs.tgt
-	err := ss.stepRunner.AddTarget(tgt, func(res error) {
-		if err := tr.reportTargetResult(ss, tgt, res); err != nil {
-			ctx.Errorf("Reporting target result failed: %v", err)
-			tr.mu.Lock()
-			defer tr.mu.Unlock()
-			ss.setErrLocked(err)
-		}
-		tr.cond.Signal()
-	})
+	err := ss.stepRunner.AddTarget(tgt)
 	if err == nil {
 		if err = ss.emitEvent(ctx, target.EventTargetIn, tgs.tgt, nil); err != nil {
 			err = fmt.Errorf("failed to report target injection: %w", err)
@@ -493,20 +504,7 @@ loop:
 
 // runStepIfNeeded starts the step runner goroutine if not already running.
 func (tr *TestRunner) runStepIfNeeded(ss *stepState) {
-	tr.mu.Lock()
-	defer tr.mu.Unlock()
-
-	if ss.stepRunner != nil {
-		return
-	}
-	ctx := xcontext.WithValue(ss.ctx, "step_index", ss.stepIndex)
-	ctx = xcontext.WithValue(ctx, "step_label", ss.sb.TestStepLabel)
-	ss.stepRunner = NewStepRunner(ctx, ss.sb, ss.ev, ss.resumeState, func(err error) {
-		tr.mu.Lock()
-		defer tr.mu.Unlock()
-		ss.setErrLocked(err)
-		tr.cond.Signal()
-	})
+	ss.stepRunner.Run(ss.sb, ss.ev, ss.resumeState)
 }
 
 // setErrLocked sets step runner error unless already set.
@@ -624,11 +622,11 @@ func (tr *TestRunner) runMonitor(ctx xcontext.Context, minStep int) error {
 stepLoop:
 	for step := minStep; step < len(tr.steps); pass++ {
 		ss := tr.steps[step]
-		ctx.Debugf("monitor pass %d: current step %s", pass, ss)
+		ctx.Debugf("monitor pass %d: current step %s", pass, ss.String())
 		// Check if all the targets have either made it past the injection phase or terminated.
 		ok := true
 		for _, tgs := range tr.targets {
-			ctx.Debugf("monitor pass %d: %s: %s", pass, ss, tgs)
+			ctx.Debugf("monitor pass %d: %s: %s", pass, ss, tgs.String())
 			if !tgs.handlerRunning { // Not running anymore
 				continue
 			}
@@ -648,9 +646,7 @@ stepLoop:
 		}
 		// All targets ok, close the step's input channel.
 		ctx.Debugf("monitor pass %d: %s: no more targets, closing input channel", pass, ss)
-		if ss.stepRunner != nil {
-			ss.stepRunner.Stop()
-		}
+		ss.stepRunner.Stop()
 		step++
 	}
 	// Wait for all the targets to finish.
@@ -671,7 +667,7 @@ tgtLoop:
 						// It's been paused, this is fine.
 						continue
 					}
-					if ss.stepRunner != nil && !ss.stepRunner.IsRunning() {
+					if ss.stepRunner.Started() && !ss.stepRunner.Running() {
 						// Target has been injected but step runner has exited without a valid reason, this target has been lost.
 						runErr = &cerrors.ErrTestStepLostTargets{
 							StepName: ss.sb.TestStepLabel,
@@ -741,5 +737,5 @@ func (tgs *targetState) String() string {
 	}
 	finished := !tgs.handlerRunning
 	return fmt.Sprintf("[%s %d %s %t %s]",
-		tgs.tgt, tgs.CurStep, tgs.CurPhase, finished, resText)
+		tgs.tgt, tgs.CurStep, tgs.CurPhase.String(), finished, resText)
 }
