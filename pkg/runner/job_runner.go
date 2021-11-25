@@ -69,6 +69,10 @@ type JobRunner struct {
 // * []job.Report:   all the final reports
 // * error:          an error, if any
 func (jr *JobRunner) Run(ctx xcontext.Context, j *job.Job, resumeState *job.PauseEventPayload) (*job.PauseEventPayload, error) {
+	if resumeState != nil && resumeState.JobID != j.ID {
+		return nil, fmt.Errorf("wrong resume state, job id %d (want %d)", resumeState.JobID, j.ID)
+	}
+
 	var (
 		runID           types.RunID = 1
 		testID                      = 1
