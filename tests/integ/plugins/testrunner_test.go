@@ -46,7 +46,7 @@ var (
 var (
 	pluginRegistry *pluginregistry.PluginRegistry
 	targets        []*target.Target
-	successTimeout = 5 * time.Second
+	successTimeout = 20 * time.Second
 )
 
 var testSteps = map[string]test.TestStepFactory{
