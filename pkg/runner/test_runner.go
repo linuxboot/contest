@@ -254,7 +254,7 @@ func (tr *TestRunner) Run(
 		if stepErr != nil && stepErr != xcontext.ErrPaused {
 			resumeOk = false
 		}
-		ctx.Debugf("  %d %s %v %t", i, tgs.String(), stepErr, resumeOk)
+		ctx.Debugf("  %d %s %v %t", i, tgs, stepErr, resumeOk)
 	}
 	ctx.Debugf("- %d in flight, ok to resume? %t", numInFlightTargets, resumeOk)
 	ctx.Debugf("step states:")
@@ -635,11 +635,11 @@ func (tr *TestRunner) runMonitor(ctx xcontext.Context, minStep int) error {
 stepLoop:
 	for step := minStep; step < len(tr.steps); pass++ {
 		ss := tr.steps[step]
-		ctx.Debugf("monitor pass %d: current step %s", pass, ss.String())
+		ctx.Debugf("monitor pass %d: current step %s", pass, ss)
 		// Check if all the targets have either made it past the injection phase or terminated.
 		ok := true
 		for _, tgs := range tr.targets {
-			ctx.Debugf("monitor pass %d: %s: %s", pass, ss, tgs.String())
+			ctx.Debugf("monitor pass %d: %s: %s", pass, ss, tgs)
 			if !tgs.handlerRunning { // Not running anymore
 				continue
 			}
@@ -750,5 +750,5 @@ func (tgs *targetState) String() string {
 	}
 	finished := !tgs.handlerRunning
 	return fmt.Sprintf("[%s %d %s %t %s]",
-		tgs.tgt, tgs.CurStep, tgs.CurPhase.String(), finished, resText)
+		tgs.tgt, tgs.CurStep, tgs.CurPhase, finished, resText)
 }

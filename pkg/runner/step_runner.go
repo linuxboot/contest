@@ -19,17 +19,19 @@ type OnTargetResult func(tgt *target.Target, res error)
 type OnStepRunnerStopped func(err error)
 
 type StepRunner struct {
-	ctx            xcontext.Context
-	cancel         context.CancelFunc
-	mu             sync.Mutex
+	ctx    xcontext.Context
+	cancel context.CancelFunc
+	mu     sync.Mutex
+
 	targetCallback OnTargetResult
 	stopCallback   OnStepRunnerStopped
 
-	stepIn            chan *target.Target
-	stopOnce          sync.Once
-	reportedTargets   map[string]struct{}
+	stepIn          chan *target.Target
+	reportedTargets map[string]struct{}
+
 	started           uint32
 	runningLoopActive bool
+	stopOnce          sync.Once
 	finishedCh        chan struct{}
 
 	resultErr         error
@@ -37,7 +39,6 @@ type StepRunner struct {
 }
 
 func (sr *StepRunner) AddTarget(tgt *target.Target) error {
-	// check if running
 	select {
 	case sr.stepIn <- tgt:
 	case <-sr.ctx.Until(xcontext.ErrPaused):
