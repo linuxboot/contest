@@ -379,13 +379,7 @@ func (tr *TestRunner) awaitTargetResult(ctx xcontext.Context, tgs *targetState, 
 		return xcontext.ErrPaused
 	}
 
-	select {
-	case res, ok := <-resCh:
-		if !ok {
-			// Channel is closed when job is paused to make sure all results are processed.
-			ctx.Debugf("%s: result channel closed", tgs)
-			return xcontext.ErrPaused
-		}
+	processResult := func(res error) error {
 		ctx.Debugf("%s: result recd for %s", tgs, ss)
 		var err error
 		if res == nil {
@@ -404,12 +398,29 @@ func (tr *TestRunner) awaitTargetResult(ctx xcontext.Context, tgs *targetState, 
 		tr.mu.Unlock()
 		tr.cond.Signal()
 		return err
+	}
+
+	select {
+	case res, ok := <-resCh:
+		if !ok {
+			// Channel is closed when job is paused to make sure all results are processed.
+			ctx.Debugf("%s: result channel closed", tgs)
+			return xcontext.ErrPaused
+		}
+		return processResult(res)
 		// Check for cancellation.
 		// Notably we are not checking for the pause condition here:
 		// when paused, we want to let all the injected targets to finish
 		// and collect all the results they produce. If that doesn't happen,
 		// step runner will close resCh on its way out and unblock us.
 	case <-ctx.Done():
+		// we might have a race-condition here when both events happen
+		// in this case we should prioritise result processing
+		select {
+		case res := <-resCh:
+			return processResult(res)
+		default:
+		}
 		tr.mu.Lock()
 		ctx.Debugf("%s: canceled 2", tgs)
 		tr.mu.Unlock()
