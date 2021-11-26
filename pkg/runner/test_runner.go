@@ -588,12 +588,9 @@ func (tr *TestRunner) reportTargetResult(ss *stepState, tgt *target.Target, res 
 	if err != nil {
 		return err
 	}
-	select {
-	case resCh <- res:
-		break
-	case <-ss.ctx.Done():
-		break
-	}
+
+	// As it has buffer size 1 and we process a single result for each target at a time
+	resCh <- res
 	return nil
 }
 
