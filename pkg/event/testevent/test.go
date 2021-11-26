@@ -37,9 +37,11 @@ type Data struct {
 
 // Event models an event object that can be emitted by a TestStep
 type Event struct {
-	EmitTime time.Time
-	Header   *Header
-	Data     *Data
+	// SequenceID represents an ordering parameter between events of the same job
+	SequenceID uint64
+	EmitTime   time.Time
+	Header     *Header
+	Data       *Data
 }
 
 // New creates a new Event with zero value header and data

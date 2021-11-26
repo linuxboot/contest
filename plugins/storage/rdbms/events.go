@@ -279,11 +279,10 @@ func (r *RDBMS) GetTestEvents(ctx xcontext.Context, eventQuery *testevent.Query)
 	for rows.Next() {
 		data := testevent.Data{}
 		header := testevent.Header{}
-		event := testevent.New(&header, &data)
+		ev := testevent.New(&header, &data)
 
-		var eventID int
 		err := rows.Scan(
-			&eventID,
+			&ev.SequenceID,
 			&header.JobID,
 			&header.RunID,
 			&header.TestName,
@@ -292,7 +291,7 @@ func (r *RDBMS) GetTestEvents(ctx xcontext.Context, eventQuery *testevent.Query)
 			&data.EventName,
 			&targetID,
 			&payload,
-			&event.EmitTime,
+			&ev.EmitTime,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("could not read results from db: %v", err)
@@ -308,7 +307,7 @@ func (r *RDBMS) GetTestEvents(ctx xcontext.Context, eventQuery *testevent.Query)
 
 		}
 
-		results = append(results, event)
+		results = append(results, ev)
 	}
 	return results, nil
 }
@@ -426,7 +425,7 @@ func (r *RDBMS) GetFrameworkEvent(ctx xcontext.Context, eventQuery *frameworkeve
 
 	for rows.Next() {
 		event := frameworkevent.New()
-		err := rows.Scan(&event.ID, &event.JobID, &event.EventName, &event.Payload, &event.EmitTime)
+		err := rows.Scan(&event.SequenceID, &event.JobID, &event.EventName, &event.Payload, &event.EmitTime)
 		if err != nil {
 			return nil, fmt.Errorf("could not read results from db: %v", err)
 		}

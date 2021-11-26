@@ -62,6 +62,7 @@ func emptyTestEventQuery(eventQuery *testevent.Query) bool {
 func (m *Memory) StoreTestEvent(_ xcontext.Context, event testevent.Event) error {
 	m.lock.Lock()
 	defer m.lock.Unlock()
+	event.SequenceID = uint64(len(m.testEvents)) + 1
 	m.testEvents = append(m.testEvents, event)
 	return nil
 }
@@ -296,6 +297,7 @@ jobLoop:
 func (m *Memory) StoreFrameworkEvent(_ xcontext.Context, event frameworkevent.Event) error {
 	m.lock.Lock()
 	defer m.lock.Unlock()
+	event.SequenceID = uint64(len(m.frameworkEvents)) + 1
 	m.frameworkEvents = append(m.frameworkEvents, event)
 	return nil
 }

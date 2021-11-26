@@ -6,6 +6,7 @@
 package memory
 
 import (
+	"sort"
 	"testing"
 	"time"
 
@@ -41,25 +42,46 @@ func TestMemory_GetTestEvents(t *testing.T) {
 		Header: &testevent.Header{
 			JobID:         1,
 			RunID:         5,
-			TestName:      "3",
-			TestStepLabel: "4",
+			TestName:      "test_name",
+			TestStepLabel: "test_label_1",
 		},
 		Data: &testevent.Data{},
 	}
 	err = stor.StoreTestEvent(ctx, ev1)
 	require.NoError(t, err)
 
+	ev2 := testevent.Event{
+		EmitTime: time.Now(),
+		Header: &testevent.Header{
+			JobID:         1,
+			RunID:         5,
+			TestName:      "test_name",
+			TestStepLabel: "test_label_2",
+		},
+		Data: &testevent.Data{},
+	}
+	err = stor.StoreTestEvent(ctx, ev2)
+	require.NoError(t, err)
+
 	query, err := testevent.BuildQuery(
-		testevent.QueryRunID(2),
-		testevent.QueryTestName("3"),
+		testevent.QueryRunID(5),
+		testevent.QueryTestName("test_name"),
 	)
 	require.NoError(t, err)
 
 	evs, err := stor.GetTestEvents(ctx, query)
 	require.NoError(t, err)
 
-	require.Len(t, evs, 1)
-	ev := evs[0]
+	require.Len(t, evs, 2)
+	sort.Slice(evs, func(i, j int) bool {
+		return evs[i].SequenceID < evs[j].SequenceID
+	})
 
-	require.Equal(t, ev0, ev)
+	requireEqualExpectSequenceID := func(t *testing.T, lev testevent.Event, rev testevent.Event) {
+		lev.SequenceID = 0
+		rev.SequenceID = 0
+		require.Equal(t, lev, rev)
+	}
+	requireEqualExpectSequenceID(t, ev1, evs[0])
+	requireEqualExpectSequenceID(t, ev2, evs[1])
 }
