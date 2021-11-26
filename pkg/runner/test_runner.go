@@ -515,7 +515,12 @@ loop:
 
 // runStepIfNeeded starts the step runner goroutine if not already running.
 func (tr *TestRunner) runStepIfNeeded(ss *stepState) {
-	ss.stepRunner.Run(ss.sb, ss.ev, ss.resumeState)
+	tr.mu.Lock()
+	resumeState := ss.resumeState
+	ss.resumeState = nil
+	tr.mu.Unlock()
+
+	ss.stepRunner.Run(ss.sb, ss.ev, resumeState)
 }
 
 // setErrLocked sets step runner error unless already set.
