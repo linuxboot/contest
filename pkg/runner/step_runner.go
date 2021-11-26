@@ -30,29 +30,13 @@ type StepRunner struct {
 	reportedTargets   map[string]struct{}
 	started           uint32
 	runningLoopActive bool
-	finished          chan struct{}
+	finishedCh        chan struct{}
+
 	resultErr         error
 	resultResumeState json.RawMessage
 }
 
 func (sr *StepRunner) AddTarget(tgt *target.Target) error {
-	err := func(tgt *target.Target) error {
-		sr.mu.Lock()
-		defer sr.mu.Unlock()
-
-		if sr.ctx.Err() != nil {
-			return sr.ctx.Err()
-		}
-
-		if sr.stepIn == nil {
-			return fmt.Errorf("step runner is stopped")
-		}
-		return nil
-	}(tgt)
-	if err != nil {
-		return err
-	}
-
 	// check if running
 	select {
 	case sr.stepIn <- tgt:
@@ -81,8 +65,8 @@ func (sr *StepRunner) Run(
 		sr.mu.Lock()
 		defer sr.mu.Unlock()
 
-		close(sr.finished)
-		sr.finished = nil
+		close(sr.finishedCh)
+		sr.finishedCh = nil
 
 		// if an error occurred, this callback was invoked early
 		sr.notifyStoppedLocked(nil)
@@ -111,25 +95,25 @@ func (sr *StepRunner) Running() bool {
 	sr.mu.Lock()
 	defer sr.mu.Unlock()
 
-	return sr.Started() && sr.finished != nil
+	return sr.Started() && sr.finishedCh != nil
 }
 
 func (sr *StepRunner) WaitResults(ctx context.Context) (json.RawMessage, error) {
 	sr.mu.Lock()
 	resultErr := sr.resultErr
 	resultResumeState := sr.resultResumeState
-	stepStopped := sr.finished
+	stepFinished := sr.finishedCh
 	sr.mu.Unlock()
 
 	if resultErr != nil {
 		return resultResumeState, resultErr
 	}
 
-	if stepStopped != nil {
+	if stepFinished != nil {
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
-		case <-stepStopped:
+		case <-stepFinished:
 		}
 	}
 
@@ -298,7 +282,7 @@ func NewStepRunner(
 		stopCallback:      stoppedCallback,
 		reportedTargets:   make(map[string]struct{}),
 		runningLoopActive: true,
-		finished:          make(chan struct{}),
+		finishedCh:        make(chan struct{}),
 	}
 	return sr
 }
