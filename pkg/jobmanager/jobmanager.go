@@ -200,8 +200,13 @@ loop:
 	handlerWg.Wait()
 	// Wait for jobs to complete or for cancellation signal.
 	doneCh := ctx.Done()
+	pausedCh := ctx.Until(xcontext.ErrPaused)
 	for !jm.checkIdle(ctx) {
 		select {
+		case <-pausedCh:
+			ctx.Infof("Paused")
+			jm.PauseAll(ctx)
+			pausedCh = nil
 		case <-doneCh:
 			ctx.Infof("Canceled")
 			jm.CancelAll(ctx)
