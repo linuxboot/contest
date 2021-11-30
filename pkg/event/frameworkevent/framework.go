@@ -18,11 +18,12 @@ import (
 
 // Event represents an event emitted by the framework
 type Event struct {
-	ID        uint64
-	JobID     types.JobID
-	EventName event.Name
-	Payload   *json.RawMessage
-	EmitTime  time.Time
+	// SequenceID represents an ordering parameter between events of the same job
+	SequenceID uint64
+	JobID      types.JobID
+	EventName  event.Name
+	Payload    *json.RawMessage
+	EmitTime   time.Time
 }
 
 // New creates a new FrameworkEvent
