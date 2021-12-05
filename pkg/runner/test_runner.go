@@ -333,7 +333,7 @@ func (tr *TestRunner) injectTarget(ctx xcontext.Context, tgs *targetState, ss *s
 	ctx.Debugf("%s: injecting into %s", tgs, ss)
 
 	tgt := tgs.tgt
-	err := ss.stepRunner.AddTarget(tgt)
+	err := ss.stepRunner.AddTarget(ctx, tgt)
 	if err == nil {
 		if err = ss.emitEvent(ctx, target.EventTargetIn, tgs.tgt, nil); err != nil {
 			err = fmt.Errorf("failed to report target injection: %w", err)
@@ -591,11 +591,7 @@ func (tr *TestRunner) reportTargetResult(ctx xcontext.Context, ss *stepState, tg
 	}
 
 	// As it has buffer size 1 and we process a single result for each target at a time
-	select {
-	case resCh <- res:
-	default:
-		panic("WOW")
-	}
+	resCh <- res
 	return nil
 }
 
