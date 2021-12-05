@@ -50,16 +50,28 @@ func (sr *StepRunner) AddTarget(tgt *target.Target) error {
 }
 
 func (sr *StepRunner) Run(
+	ctx xcontext.Context,
 	bundle test.TestStepBundle,
 	ev testevent.Emitter,
 	resumeState json.RawMessage,
-) {
+	targetCallback OnTargetResult,
+	stopCallback OnStepRunnerStopped,
+) error {
+	if targetCallback == nil {
+		return fmt.Errorf("target callback should not be nil")
+	}
 	if !atomic.CompareAndSwapUint32(&sr.started, 0, 1) {
-		return
+		return &cerrors.ErrAlreadyDone{}
 	}
 
+	srCtx, cancel := xcontext.WithCancel(ctx)
+	sr.ctx = srCtx
+	sr.cancel = cancel
+	sr.targetCallback = targetCallback
+	sr.stopCallback = stopCallback
+
 	var activeLoopsCount int32 = 2
-	onFinished := func() {
+	finish := func() {
 		if atomic.AddInt32(&activeLoopsCount, -1) != 0 {
 			return
 		}
@@ -71,21 +83,22 @@ func (sr *StepRunner) Run(
 
 		// if an error occurred, this callback was invoked early
 		sr.notifyStoppedLocked(nil)
-		sr.ctx.Debugf("StepRunner finished")
+		srCtx.Debugf("StepRunner finished")
 	}
 
 	stepOut := make(chan test.TestStepResult)
 	go func() {
-		defer onFinished()
+		defer finish()
 		sr.runningLoop(stepOut, bundle, ev, resumeState)
-		sr.ctx.Debugf("Running loop finished")
+		srCtx.Debugf("Running loop finished")
 	}()
 
 	go func() {
-		defer onFinished()
+		defer finish()
 		sr.readingLoop(stepOut, bundle.TestStepLabel)
-		sr.ctx.Debugf("Reading loop finished")
+		srCtx.Debugf("Reading loop finished")
 	}()
+	return nil
 }
 
 func (sr *StepRunner) Started() bool {
@@ -103,18 +116,18 @@ func (sr *StepRunner) WaitResults(ctx context.Context) (json.RawMessage, error) 
 	sr.mu.Lock()
 	resultErr := sr.resultErr
 	resultResumeState := sr.resultResumeState
-	stepFinished := sr.finishedCh
+	finishedCh := sr.finishedCh
 	sr.mu.Unlock()
 
 	if resultErr != nil {
 		return resultResumeState, resultErr
 	}
 
-	if stepFinished != nil {
+	if finishedCh != nil {
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
-		case <-stepFinished:
+		case <-finishedCh:
 		}
 	}
 
@@ -127,17 +140,7 @@ func (sr *StepRunner) WaitResults(ctx context.Context) (json.RawMessage, error) 
 func (sr *StepRunner) Stop() {
 	sr.stopOnce.Do(func() {
 		close(sr.stepIn)
-		sr.ctx.Debugf("Input channel was closed")
 	})
-}
-
-func (sr *StepRunner) targetCallbackPanicSafe(tgt *target.Target, res error) {
-	defer func() {
-		if r := recover(); r != nil {
-			sr.ctx.Errorf("Callback panic, stack: %s", debug.Stack())
-		}
-	}()
-	sr.targetCallback(tgt, res)
 }
 
 func (sr *StepRunner) readingLoop(stepOut chan test.TestStepResult, testStepLabel string) {
@@ -171,7 +174,7 @@ func (sr *StepRunner) readingLoop(stepOut chan test.TestStepResult, testStepLabe
 				sr.setErr(&cerrors.ErrTestStepReturnedDuplicateResult{StepName: testStepLabel, Target: res.Target.ID})
 				return
 			}
-			sr.targetCallbackPanicSafe(res.Target, res.Err)
+			sr.targetCallback(res.Target, res.Err)
 
 		case <-sr.ctx.Done():
 			sr.ctx.Debugf("canceled readingLoop")
@@ -195,23 +198,25 @@ func (sr *StepRunner) runningLoop(
 		sr.ctx.Debugf("output channel closed")
 	}()
 
-	defer func() {
-		if r := recover(); r != nil {
-			sr.mu.Lock()
-			sr.setErrLocked(&cerrors.ErrTestStepPaniced{
-				StepName:   bundle.TestStepLabel,
-				StackTrace: fmt.Sprintf("%s / %s", r, debug.Stack()),
-			})
-			sr.mu.Unlock()
-		}
-	}()
-
 	sr.mu.Lock()
 	sr.runningLoopActive = true
 	sr.mu.Unlock()
 
-	inChannels := test.TestStepChannels{In: sr.stepIn, Out: stepOut}
-	resultResumeState, err := bundle.TestStep.Run(sr.ctx, inChannels, bundle.Parameters, ev, resumeState)
+	resultResumeState, err := func() (json.RawMessage, error) {
+		defer func() {
+			if r := recover(); r != nil {
+				sr.mu.Lock()
+				sr.setErrLocked(&cerrors.ErrTestStepPaniced{
+					StepName:   bundle.TestStepLabel,
+					StackTrace: fmt.Sprintf("%s / %s", r, debug.Stack()),
+				})
+				sr.mu.Unlock()
+			}
+		}()
+
+		inChannels := test.TestStepChannels{In: sr.stepIn, Out: stepOut}
+		return bundle.TestStep.Run(sr.ctx, inChannels, bundle.Parameters, ev, resumeState)
+	}()
 	sr.ctx.Debugf("TestStep finished '%v', rs %s", err, string(resultResumeState))
 
 	sr.mu.Lock()
@@ -245,9 +250,6 @@ func (sr *StepRunner) notifyStoppedLocked(err error) {
 	sr.stopCallback = nil
 
 	go func() {
-		if r := recover(); r != nil {
-			sr.ctx.Errorf("Stop callback panic, stack: %s", debug.Stack())
-		}
 		stopCallback(err)
 	}()
 }
@@ -264,26 +266,11 @@ func safeCloseOutCh(ch chan test.TestStepResult) (recoverOccurred bool) {
 }
 
 // NewStepRunner creates a new StepRunner object
-func NewStepRunner(
-	ctx xcontext.Context,
-	targetCallback OnTargetResult,
-	stoppedCallback OnStepRunnerStopped,
-) *StepRunner {
-	if targetCallback == nil {
-		panic("target callback should not be nil")
-	}
-	stepIn := make(chan *target.Target)
-
-	srCrx, cancel := xcontext.WithCancel(ctx)
-	sr := &StepRunner{
-		ctx:               srCrx,
-		cancel:            cancel,
-		stepIn:            stepIn,
-		targetCallback:    targetCallback,
-		stopCallback:      stoppedCallback,
+func NewStepRunner() *StepRunner {
+	return &StepRunner{
+		stepIn:            make(chan *target.Target),
 		reportedTargets:   make(map[string]struct{}),
 		runningLoopActive: true,
 		finishedCh:        make(chan struct{}),
 	}
-	return sr
 }
