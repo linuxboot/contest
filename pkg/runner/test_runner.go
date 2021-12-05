@@ -452,10 +452,9 @@ loop:
 		}
 		tr.mu.Unlock()
 		// Make sure we have a step runner active. If not, start one.
-		tr.runStepIfNeeded(ss)
+		err := tr.runStepIfNeeded(ss)
 		// Inject the target.
-		var err error
-		if inject {
+		if err == nil && inject {
 			err = tr.injectTarget(ctx, tgs, ss)
 		}
 		// Await result. It will be communicated to us by the step runner
@@ -496,7 +495,7 @@ loop:
 }
 
 // runStepIfNeeded starts the step runner goroutine if not already running.
-func (tr *TestRunner) runStepIfNeeded(ss *stepState) {
+func (tr *TestRunner) runStepIfNeeded(ss *stepState) error {
 	tr.mu.Lock()
 	resumeState := ss.resumeState
 	ss.resumeState = nil
@@ -519,9 +518,10 @@ func (tr *TestRunner) runStepIfNeeded(ss *stepState) {
 			tr.monitorCond.Signal()
 		},
 	)
-	if err != nil && !errors.Is(err, &cerrors.ErrAlreadyDone{}) {
-		ss.setErrLocked(err)
+	if errors.Is(err, &cerrors.ErrAlreadyDone{}) {
+		return nil
 	}
+	return err
 }
 
 // setErrLocked sets step runner error unless already set.
