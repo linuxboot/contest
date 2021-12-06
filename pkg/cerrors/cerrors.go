@@ -10,6 +10,7 @@ import (
 	"strings"
 )
 
+// ErrAlreadyDone indicates that action already happened
 type ErrAlreadyDone struct {
 }
 
