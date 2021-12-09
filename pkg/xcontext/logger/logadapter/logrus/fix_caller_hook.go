@@ -40,7 +40,7 @@ func (fixCallerHook) Fire(entry *logrus.Entry) error {
 		return nil
 	}
 
-	if !strings.HasPrefix(entry.Caller.Function, "github.com/linuxboot/contest/pkg/xcontext") {
+	if !strings.Contains(entry.Caller.Function, "github.com/linuxboot/contest/pkg/xcontext") {
 		// if the value is already correct, then there's nothing to do.
 		return nil
 	}
@@ -51,7 +51,7 @@ func (fixCallerHook) Fire(entry *logrus.Entry) error {
 	frames := runtime.CallersFrames(programCounters[0:n])
 	for {
 		frame, more := frames.Next()
-		if !strings.HasPrefix(frame.Function, "github.com/linuxboot/contest/pkg/xcontext") &&
+		if !strings.Contains(frame.Function, "github.com/linuxboot/contest/pkg/xcontext") &&
 			!strings.Contains(strings.ToLower(frame.Function), "github.com/sirupsen/logrus") {
 			entry.Caller = &frame
 			return nil
