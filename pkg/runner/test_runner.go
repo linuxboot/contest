@@ -297,16 +297,16 @@ func (tr *TestRunner) waitStepRunners(ctx xcontext.Context) error {
 		if !ss.stepRunner.Started() {
 			continue
 		}
-		resumeState, err := ss.stepRunner.WaitResults(shutdownCtx)
-		if err == context.DeadlineExceeded {
-			err = &cerrors.ErrTestStepsNeverReturned{StepNames: []string{ss.sb.TestStepLabel}}
+		result, err := ss.stepRunner.WaitResults(shutdownCtx)
+		if err != nil {
+			result.Err = &cerrors.ErrTestStepsNeverReturned{StepNames: []string{ss.sb.TestStepLabel}}
 			stepsNeverReturned = append(stepsNeverReturned, ss.sb.TestStepLabel)
 			// Cancel this step's context, this will help release the reader.
 			ss.cancel()
 		}
 		tr.mu.Lock()
-		ss.resumeState = resumeState
-		ss.setErrLocked(err)
+		ss.resumeState = result.ResumeState
+		ss.setErrLocked(result.Err)
 		tr.mu.Unlock()
 	}
 
@@ -554,44 +554,38 @@ func (ss *stepState) emitEvent(ctx xcontext.Context, name event.Name, tgt *targe
 
 // reportTargetResult reports result of executing a step to the appropriate target handler.
 func (tr *TestRunner) reportTargetResult(ctx xcontext.Context, ss *stepState, tgt *target.Target, res error) error {
-	resCh, err := func() (chan error, error) {
-		tr.mu.Lock()
-		defer tr.mu.Unlock()
-		tgs := tr.targets[tgt.ID]
-		if tgs == nil {
-			return nil, &cerrors.ErrTestStepReturnedUnexpectedResult{
-				StepName: ss.sb.TestStepLabel,
-				Target:   tgt.ID,
-			}
+	tr.mu.Lock()
+	defer tr.mu.Unlock()
+	tgs := tr.targets[tgt.ID]
+	if tgs == nil {
+		return &cerrors.ErrTestStepReturnedUnexpectedResult{
+			StepName: ss.sb.TestStepLabel,
+			Target:   tgt.ID,
 		}
-		// Begin is also allowed here because it may happen that we get a result before target handler updates phase.
-		if tgs.CurStep != ss.stepIndex ||
-			(tgs.CurPhase != targetStepPhaseBegin && tgs.CurPhase != targetStepPhaseRun) {
-			return nil, &cerrors.ErrTestStepReturnedUnexpectedResult{
-				StepName: ss.sb.TestStepLabel,
-				Target:   tgt.ID,
-			}
-		}
-		if tgs.resCh == nil {
-			// If canceled or paused, target handler may have left early. We don't care though.
-			select {
-			case <-ctx.Done():
-				return nil, xcontext.ErrCanceled
-			default:
-				// This should not happen, must be an internal error.
-				return nil, fmt.Errorf("%s: target handler %s is not there, dropping result on the floor", ss, tgs)
-			}
-		}
-		tgs.CurPhase = targetStepPhaseResultPending
-		ctx.Debugf("%s: result for %s: %v", ss, tgs, res)
-		return tgs.resCh, nil
-	}()
-	if err != nil {
-		return err
 	}
+	// Begin is also allowed here because it may happen that we get a result before target handler updates phase.
+	if tgs.CurStep != ss.stepIndex ||
+		(tgs.CurPhase != targetStepPhaseBegin && tgs.CurPhase != targetStepPhaseRun) {
+		return &cerrors.ErrTestStepReturnedUnexpectedResult{
+			StepName: ss.sb.TestStepLabel,
+			Target:   tgt.ID,
+		}
+	}
+	if tgs.resCh == nil {
+		// If canceled or paused, target handler may have left early. We don't care though.
+		select {
+		case <-ctx.Done():
+			return xcontext.ErrCanceled
+		default:
+			// This should not happen, must be an internal error.
+			return fmt.Errorf("%s: target handler %s is not there, dropping result on the floor", ss, tgs)
+		}
+	}
+	tgs.CurPhase = targetStepPhaseResultPending
+	ctx.Debugf("%s: result for %s: %v", ss, tgs, res)
 
 	// As it has buffer size 1 and we process a single result for each target at a time
-	resCh <- res
+	tgs.resCh <- res
 	return nil
 }
 

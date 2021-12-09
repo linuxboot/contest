@@ -18,13 +18,18 @@ import (
 type OnTargetResult func(tgt *target.Target, res error)
 type OnStepRunnerStopped func(err error)
 
+type StepResult struct {
+	Err         error
+	ResumeState json.RawMessage
+}
+
 type StepRunner struct {
 	mu sync.Mutex
 
 	stepIn          chan *target.Target
 	reportedTargets map[string]struct{}
 
-	started           uint32
+	started           bool
 	runningLoopActive bool
 	stopOnce          sync.Once
 	finishedCh        chan struct{}
@@ -56,8 +61,18 @@ func (sr *StepRunner) Run(
 	if targetCallback == nil {
 		return fmt.Errorf("target callback should not be nil")
 	}
-	if !atomic.CompareAndSwapUint32(&sr.started, 0, 1) {
-		return &cerrors.ErrAlreadyDone{}
+
+	err := func() error {
+		sr.mu.Lock()
+		defer sr.mu.Unlock()
+		if sr.started {
+			return &cerrors.ErrAlreadyDone{}
+		}
+		sr.started = true
+		return nil
+	}()
+	if err != nil {
+		return err
 	}
 
 	srCtx, _ := xcontext.WithCancel(ctx)
@@ -95,38 +110,51 @@ func (sr *StepRunner) Run(
 }
 
 func (sr *StepRunner) Started() bool {
-	return atomic.LoadUint32(&sr.started) == 1
+	sr.mu.Lock()
+	defer sr.mu.Unlock()
+
+	return sr.started
 }
 
 func (sr *StepRunner) Running() bool {
 	sr.mu.Lock()
 	defer sr.mu.Unlock()
 
-	return sr.Started() && sr.finishedCh != nil
+	return sr.started && sr.finishedCh != nil
 }
 
-func (sr *StepRunner) WaitResults(ctx context.Context) (json.RawMessage, error) {
+// WaitResults returns TestStep.Run() output
+// It returns an error if and only if waiting was terminated by input ctx argument and returns ctx.Err()
+func (sr *StepRunner) WaitResults(ctx context.Context) (stepResult StepResult, err error) {
 	sr.mu.Lock()
 	resultErr := sr.resultErr
 	resultResumeState := sr.resultResumeState
 	finishedCh := sr.finishedCh
 	sr.mu.Unlock()
 
+	// StepRunner either finished with error or behaved incorrectly
+	// it makes no sense to wait while it finishes, return what we have
 	if resultErr != nil {
-		return resultResumeState, resultErr
+		return StepResult{
+			Err:         resultErr,
+			ResumeState: resultResumeState,
+		}, nil
 	}
 
 	if finishedCh != nil {
 		select {
 		case <-ctx.Done():
-			return nil, ctx.Err()
+			return StepResult{}, ctx.Err()
 		case <-finishedCh:
 		}
 	}
 
 	sr.mu.Lock()
 	defer sr.mu.Unlock()
-	return sr.resultResumeState, sr.resultErr
+	return StepResult{
+		Err:         resultErr,
+		ResumeState: resultResumeState,
+	}, nil
 }
 
 // Stop triggers TestStep to stop running by closing input channel
