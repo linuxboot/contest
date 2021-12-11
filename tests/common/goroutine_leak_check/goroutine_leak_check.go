@@ -48,6 +48,7 @@ func CheckLeakedGoRoutines(funcWhitelist ...string) error {
 }
 
 func checkLeakedGoRoutines(funcWhitelist ...string) (string, error) {
+	runtime.GC() // this should invoke all finalizers
 	// Allow some time for dying routines to exit.
 	time.Sleep(20 * time.Millisecond)
 	// Get goroutine stacks
