@@ -341,7 +341,7 @@ func (s *TestRunnerSuite) TestNoReturnStepWithCorrectTargetForwarding() {
 	tr := NewTestRunnerWithTimeouts(200 * time.Millisecond)
 	ctx, cancel := xcontext.WithCancel(ctx)
 	defer cancel()
-	_, _, err := s.runWithTimeout(ctx, tr, nil, 1, 2*time.Hour,
+	_, _, err := s.runWithTimeout(ctx, tr, nil, 1, 2*time.Second,
 		[]*target.Target{tgt("T1")},
 		[]test.TestStepBundle{
 			s.newStep("Step 1", noreturn.Name, nil),

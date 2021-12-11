@@ -8,7 +8,6 @@ package runner
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"strconv"
 	"sync"
@@ -61,8 +60,9 @@ type stepState struct {
 	stepIndex int                 // Index of this step in the pipeline.
 	sb        test.TestStepBundle // The test bundle.
 
-	ev         testevent.Emitter
-	stepRunner *StepRunner
+	ev                 testevent.Emitter
+	stepRunner         *StepRunner
+	readingLoopRunning bool
 
 	resumeState json.RawMessage // Resume state passed to and returned by the Run method.
 	runErr      error           // Runner error, returned from Run() or an error condition detected by the reader.
@@ -243,8 +243,8 @@ func (tr *TestRunner) Run(
 	ctx.Debugf("- %d in flight, ok to resume? %t", numInFlightTargets, resumeOk)
 	ctx.Debugf("step states:")
 	for i, ss := range tr.steps {
-		ctx.Debugf("  %d %s %t %t %v %s",
-			i, ss, ss.stepRunner.Started(), ss.stepRunner.Running(), ss.runErr, ss.resumeState)
+		ctx.Debugf("  %d %s %t %t %t %v %s",
+			i, ss, ss.stepRunner.Started(), ss.stepRunner.Running(), ss.readingLoopRunning, ss.runErr, ss.resumeState)
 	}
 
 	// Is there a useful error to report?
@@ -303,6 +303,16 @@ func (tr *TestRunner) waitStepRunners(ctx xcontext.Context) error {
 			stepsNeverReturned = append(stepsNeverReturned, ss.sb.TestStepLabel)
 			// Cancel this step's context, this will help release the reader.
 			ss.cancel()
+		} else {
+			// reading loop can still be running, wait for it to finish
+			tr.mu.Lock()
+			for {
+				if !ss.readingLoopRunning {
+					break
+				}
+				tr.monitorCond.Wait()
+			}
+			tr.mu.Unlock()
 		}
 		tr.mu.Lock()
 		ss.resumeState = result.ResumeState
@@ -497,31 +507,56 @@ loop:
 // runStepIfNeeded starts the step runner goroutine if not already running.
 func (tr *TestRunner) runStepIfNeeded(ss *stepState) error {
 	tr.mu.Lock()
-	resumeState := ss.resumeState
-	ss.resumeState = nil
-	tr.mu.Unlock()
+	defer tr.mu.Unlock()
 
-	err := ss.stepRunner.Run(ss.ctx, ss.sb, ss.ev, resumeState,
-		func(tgt *target.Target, res error) {
-			if err := tr.reportTargetResult(ss.ctx, ss, tgt, res); err != nil {
-				ss.ctx.Errorf("Reporting target result failed: %v", err)
-				tr.mu.Lock()
-				ss.setErrLocked(err)
-				tr.mu.Unlock()
-			}
-			tr.monitorCond.Signal()
-		},
-		func(err error) {
-			tr.mu.Lock()
-			defer tr.mu.Unlock()
-			ss.setErrLocked(err)
-			tr.monitorCond.Signal()
-		},
-	)
-	if errors.Is(err, &cerrors.ErrAlreadyDone{}) {
+	if ss.stepRunner.Started() {
 		return nil
 	}
-	return err
+
+	resumeState := ss.resumeState
+	ss.resumeState = nil
+
+	resultCh, err := ss.stepRunner.Run(ss.ctx, ss.sb, ss.ev, resumeState)
+	if err != nil {
+		return fmt.Errorf("failed to stert a step runner for '%s': %v", ss.sb.TestStepLabel, err)
+	}
+
+	ss.readingLoopRunning = true
+	go func() {
+		defer func() {
+			tr.mu.Lock()
+			defer tr.mu.Unlock()
+
+			ss.readingLoopRunning = false
+			tr.monitorCond.Signal()
+		}()
+		for {
+			select {
+			case stepResult, ok := <-resultCh:
+				if !ok {
+					ss.ctx.Debugf("step runner results channel was closed")
+					return
+				}
+				if stepResult.Target == nil {
+					tr.mu.Lock()
+					ss.setErrLocked(stepResult.Err)
+					tr.mu.Unlock()
+				} else {
+					if err := tr.reportTargetResult(ss.ctx, ss, stepResult.Target, stepResult.Err); err != nil {
+						ss.ctx.Errorf("Reporting target result failed: %v", err)
+						tr.mu.Lock()
+						ss.setErrLocked(err)
+						tr.mu.Unlock()
+					}
+				}
+				tr.monitorCond.Signal()
+			case <-ss.ctx.Done():
+				ss.ctx.Debugf("step context was cancelled")
+				return
+			}
+		}
+	}()
+	return nil
 }
 
 // setErrLocked sets step runner error unless already set.
@@ -554,38 +589,48 @@ func (ss *stepState) emitEvent(ctx xcontext.Context, name event.Name, tgt *targe
 
 // reportTargetResult reports result of executing a step to the appropriate target handler.
 func (tr *TestRunner) reportTargetResult(ctx xcontext.Context, ss *stepState, tgt *target.Target, res error) error {
-	tr.mu.Lock()
-	defer tr.mu.Unlock()
-	tgs := tr.targets[tgt.ID]
-	if tgs == nil {
-		return &cerrors.ErrTestStepReturnedUnexpectedResult{
-			StepName: ss.sb.TestStepLabel,
-			Target:   tgt.ID,
+	resCh, err := func() (chan error, error) {
+		tr.mu.Lock()
+		defer tr.mu.Unlock()
+		tgs := tr.targets[tgt.ID]
+		if tgs == nil {
+			return nil, &cerrors.ErrTestStepReturnedUnexpectedResult{
+				StepName: ss.sb.TestStepLabel,
+				Target:   tgt.ID,
+			}
 		}
-	}
-	// Begin is also allowed here because it may happen that we get a result before target handler updates phase.
-	if tgs.CurStep != ss.stepIndex ||
-		(tgs.CurPhase != targetStepPhaseBegin && tgs.CurPhase != targetStepPhaseRun) {
-		return &cerrors.ErrTestStepReturnedUnexpectedResult{
-			StepName: ss.sb.TestStepLabel,
-			Target:   tgt.ID,
+		// Begin is also allowed here because it may happen that we get a result before target handler updates phase.
+		if tgs.CurStep != ss.stepIndex ||
+			(tgs.CurPhase != targetStepPhaseBegin && tgs.CurPhase != targetStepPhaseRun) {
+			return nil, &cerrors.ErrTestStepReturnedUnexpectedResult{
+				StepName: ss.sb.TestStepLabel,
+				Target:   tgt.ID,
+			}
 		}
-	}
-	if tgs.resCh == nil {
-		// If canceled or paused, target handler may have left early. We don't care though.
-		select {
-		case <-ctx.Done():
-			return xcontext.ErrCanceled
-		default:
-			// This should not happen, must be an internal error.
-			return fmt.Errorf("%s: target handler %s is not there, dropping result on the floor", ss, tgs)
+		if tgs.resCh == nil {
+			// If canceled or paused, target handler may have left early. We don't care though.
+			select {
+			case <-ctx.Done():
+				return nil, xcontext.ErrCanceled
+			default:
+				// This should not happen, must be an internal error.
+				return nil, fmt.Errorf("%s: target handler %s is not there, dropping result on the floor", ss, tgs)
+			}
 		}
+		tgs.CurPhase = targetStepPhaseResultPending
+		ctx.Debugf("%s: result for %s: %v", ss, tgs, res)
+		return tgs.resCh, nil
+	}()
+	if err != nil {
+		return err
 	}
-	tgs.CurPhase = targetStepPhaseResultPending
-	ctx.Debugf("%s: result for %s: %v", ss, tgs, res)
 
-	// As it has buffer size 1 and we process a single result for each target at a time
-	tgs.resCh <- res
+	select {
+	case resCh <- res:
+		break
+	case <-ss.ctx.Done():
+		break
+	}
 	return nil
 }
 
@@ -675,7 +720,7 @@ tgtLoop:
 						// It's been paused, this is fine.
 						continue
 					}
-					if ss.stepRunner.Started() && !ss.stepRunner.Running() {
+					if ss.stepRunner.Started() && !ss.readingLoopRunning {
 						// Target has been injected but step runner has exited without a valid reason, this target has been lost.
 						runErr = &cerrors.ErrTestStepLostTargets{
 							StepName: ss.sb.TestStepLabel,
