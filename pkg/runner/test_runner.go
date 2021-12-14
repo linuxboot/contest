@@ -538,6 +538,7 @@ func (tr *TestRunner) runStepIfNeeded(ss *stepState) error {
 					return
 				}
 				if stepResult.Target == nil {
+					ss.ctx.Errorf("step runner results an err: %v", err)
 					tr.mu.Lock()
 					ss.setErrLocked(stepResult.Err)
 					tr.mu.Unlock()
@@ -564,7 +565,7 @@ func (ss *stepState) setErrLocked(err error) {
 	if err == nil || ss.runErr != nil {
 		return
 	}
-	ss.ctx.Errorf("err: %v", err)
+	ss.ctx.Errorf("setErrLocked: %v", err)
 	ss.runErr = err
 }
 
