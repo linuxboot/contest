@@ -17,12 +17,10 @@ import (
 	"github.com/linuxboot/contest/pkg/event"
 	"github.com/linuxboot/contest/pkg/event/testevent"
 	"github.com/linuxboot/contest/pkg/job"
-	"github.com/linuxboot/contest/pkg/pluginregistry"
 	"github.com/linuxboot/contest/pkg/storage"
 	"github.com/linuxboot/contest/pkg/target"
 	"github.com/linuxboot/contest/pkg/test"
 	"github.com/linuxboot/contest/pkg/xcontext"
-	"github.com/linuxboot/contest/plugins/targetlocker/inmemory"
 	"github.com/linuxboot/contest/plugins/targetmanagers/targetlist"
 	"github.com/linuxboot/contest/plugins/teststeps"
 	"github.com/linuxboot/contest/plugins/teststeps/echo"
@@ -84,10 +82,7 @@ func (r *collectingReporter) FinalReport(ctx xcontext.Context, parameters interf
 }
 
 type JobRunnerSuite struct {
-	suite.Suite
-
-	pluginRegistry  *pluginregistry.PluginRegistry
-	internalStorage *MemoryStorageEngine
+	BaseTestSuite
 }
 
 func TestTestStepSuite(t *testing.T) {
@@ -95,13 +90,8 @@ func TestTestStepSuite(t *testing.T) {
 }
 
 func (s *JobRunnerSuite) SetupTest() {
-	storageEngine, err := NewMemoryStorageEngine()
-	require.NoError(s.T(), err)
-	s.internalStorage = storageEngine
+	s.BaseTestSuite.SetupTest()
 
-	target.SetLocker(inmemory.New(clock.New()))
-
-	s.pluginRegistry = pluginregistry.NewPluginRegistry(xcontext.Background())
 	for _, e := range []struct {
 		name    string
 		factory test.TestStepFactory
@@ -113,40 +103,11 @@ func (s *JobRunnerSuite) SetupTest() {
 	}
 }
 
-func (s *JobRunnerSuite) TearDownTest() {
-	target.SetLocker(nil)
-}
-
-func (s *JobRunnerSuite) registerStateFullStep(
-	runFunction func(
-		ctx xcontext.Context, ch test.TestStepChannels, params test.TestStepParameters,
-		ev testevent.Emitter, resumeState json.RawMessage) (json.RawMessage, error),
-	validateFunction func(ctx xcontext.Context, params test.TestStepParameters) error) error {
-
-	return s.pluginRegistry.RegisterTestStep(stateFullStepName, func() test.TestStep {
-		return &stateFullStep{
-			runFunction:      runFunction,
-			validateFunction: validateFunction,
-		}
-	}, nil)
-}
-
-func (s *JobRunnerSuite) newStep(label, name string, params test.TestStepParameters) test.TestStepBundle {
-	td := test.TestStepDescriptor{
-		Name:       name,
-		Label:      label,
-		Parameters: params,
-	}
-	sb, err := s.pluginRegistry.NewTestStepBundle(ctx, td)
-	require.NoError(s.T(), err)
-	return *sb
-}
-
 func (s *JobRunnerSuite) TestSimpleJobStartFinish() {
 	var mu sync.Mutex
 	var resultTargets []*target.Target
 
-	require.NoError(s.T(), s.registerStateFullStep(
+	require.NoError(s.T(), s.RegisterStateFullStep(
 		func(ctx xcontext.Context, ch test.TestStepChannels, params test.TestStepParameters, ev testevent.Emitter, resumeState json.RawMessage) (json.RawMessage, error) {
 			return teststeps.ForEachTarget(stateFullStepName, ctx, ch, func(ctx xcontext.Context, target *target.Target) error {
 				assert.NotNil(s.T(), target)
@@ -180,7 +141,7 @@ func (s *JobRunnerSuite) TestSimpleJobStartFinish() {
 					TargetManager:     targetlist.New(),
 				},
 				TestStepsBundles: []test.TestStepBundle{
-					s.newStep("test_step_label", stateFullStepName, nil),
+					s.NewStep("test_step_label", stateFullStepName, nil),
 				},
 			},
 		},
@@ -209,7 +170,7 @@ func (s *JobRunnerSuite) TestJobWithTestRetry() {
 	var resultTargets []*target.Target
 	var callsCount int
 
-	require.NoError(s.T(), s.registerStateFullStep(
+	require.NoError(s.T(), s.RegisterStateFullStep(
 		func(ctx xcontext.Context, ch test.TestStepChannels, params test.TestStepParameters, ev testevent.Emitter, resumeState json.RawMessage) (json.RawMessage, error) {
 			return teststeps.ForEachTarget(stateFullStepName, ctx, ch, func(ctx xcontext.Context, target *target.Target) error {
 				assert.NotNil(s.T(), target)
@@ -259,11 +220,11 @@ func (s *JobRunnerSuite) TestJobWithTestRetry() {
 					TargetManager:     targetlist.New(),
 				},
 				TestStepsBundles: []test.TestStepBundle{
-					s.newStep("echo1_step_label", echo.Name, map[string][]test.Param{
+					s.NewStep("echo1_step_label", echo.Name, map[string][]test.Param{
 						"text": {*test.NewParam("hello")},
 					}),
-					s.newStep("test_step_label", stateFullStepName, nil),
-					s.newStep("echo2_step_label", echo.Name, map[string][]test.Param{
+					s.NewStep("test_step_label", stateFullStepName, nil),
+					s.NewStep("echo2_step_label", echo.Name, map[string][]test.Param{
 						"text": {*test.NewParam("world")},
 					}),
 				},
@@ -342,7 +303,7 @@ func (s *JobRunnerSuite) TestResumeStateBadJobId() {
 					TargetManager:     targetlist.New(),
 				},
 				TestStepsBundles: []test.TestStepBundle{
-					s.newStep("echo1_step_label", echo.Name, map[string][]test.Param{
+					s.NewStep("echo1_step_label", echo.Name, map[string][]test.Param{
 						"text": {*test.NewParam("hello")},
 					}),
 				},
