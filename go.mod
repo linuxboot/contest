@@ -23,7 +23,7 @@ require (
 	github.com/sirupsen/logrus v1.8.1
 	github.com/spf13/pflag v1.0.6-0.20200504143853-81378bbcd8a1
 	github.com/stretchr/testify v1.7.0
-	github.com/u-root/u-root v7.0.0+incompatible
+	github.com/u-root/u-root v0.8.0
 	github.com/x-cray/logrus-prefixed-formatter v0.5.2 // indirect
 	github.com/xaionaro-go/metrics v0.0.0-20210425194006-68050b337673
 	github.com/xaionaro-go/unsafetools v0.0.0-20210220092901-4686db630395
@@ -31,8 +31,6 @@ require (
 	go.uber.org/multierr v1.6.0 // indirect
 	go.uber.org/zap v1.16.0
 	golang.org/x/crypto v0.0.0-20210322153248-0c34fe9e7dc2
-	golang.org/x/sys v0.0.0-20210320140829-1e4c9ba3b0c4 // indirect
-	golang.org/x/term v0.0.0-20210317153231-de623e64d2a6 // indirect
 	gopkg.in/yaml.v2 v2.3.0
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b
 )
