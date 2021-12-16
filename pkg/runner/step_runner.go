@@ -86,7 +86,7 @@ func (sr *StepRunner) Run(
 		sr.mu.Unlock()
 
 		// if an error occurred we already sent notification
-		sr.notifyStopped(nil)
+		sr.notifyStopped(ctx, nil)
 		close(sr.resultsChan)
 		ctx.Debugf("StepRunner finished")
 	}
@@ -274,13 +274,16 @@ func (sr *StepRunner) setErrLocked(ctx xcontext.Context, err error) {
 
 	// notifyStopped is a blocking operation: should release the lock
 	sr.mu.Unlock()
-	sr.notifyStopped(err)
+	sr.notifyStopped(ctx, err)
 	sr.mu.Lock()
 }
 
-func (sr *StepRunner) notifyStopped(err error) {
+func (sr *StepRunner) notifyStopped(ctx xcontext.Context, err error) {
 	sr.notifyStoppedOnce.Do(func() {
-		sr.resultsChan <- StepRunnerEvent{Err: err}
+		select {
+		case sr.resultsChan <- StepRunnerEvent{Err: err}:
+		case <-ctx.Done():
+		}
 	})
 }
 
