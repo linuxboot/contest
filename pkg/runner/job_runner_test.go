@@ -99,7 +99,7 @@ func (s *JobRunnerSuite) SetupTest() {
 	}{
 		{echo.Name, echo.New, echo.Events},
 	} {
-		require.NoError(s.T(), s.pluginRegistry.RegisterTestStep(e.name, e.factory, e.events))
+		require.NoError(s.T(), s.PluginRegistry.RegisterTestStep(e.name, e.factory, e.events))
 	}
 }
 
@@ -147,11 +147,11 @@ func (s *JobRunnerSuite) TestSimpleJobStartFinish() {
 		},
 	}
 
-	jsm := storage.NewJobStorageManager(s.internalStorage.StorageEngineVault)
-	jr := NewJobRunner(jsm, s.internalStorage.StorageEngineVault, clock.New(), time.Second)
+	jsm := storage.NewJobStorageManager(s.MemoryStorage.StorageEngineVault)
+	jr := NewJobRunner(jsm, s.MemoryStorage.StorageEngineVault, clock.New(), time.Second)
 	require.NotNil(s.T(), jr)
 
-	resumeState, err := jr.Run(ctx, &j, nil)
+	resumeState, err := jr.Run(s.Ctx, &j, nil)
 	require.NoError(s.T(), err)
 	require.Nil(s.T(), resumeState)
 
@@ -162,7 +162,7 @@ func (s *JobRunnerSuite) TestSimpleJobStartFinish() {
 {[1 1 SimpleTest 0 test_step_label][Target{ID: "T1"} TargetIn]}
 {[1 1 SimpleTest 0 test_step_label][Target{ID: "T1"} TargetOut]}
 {[1 1 SimpleTest 0 ][Target{ID: "T1"} TargetReleased]}
-`, s.internalStorage.GetTargetEvents(testName, "T1"))
+`, s.MemoryStorage.GetTargetEvents(s.Ctx, testName, "T1"))
 }
 
 func (s *JobRunnerSuite) TestJobWithTestRetry() {
@@ -232,11 +232,11 @@ func (s *JobRunnerSuite) TestJobWithTestRetry() {
 		},
 	}
 
-	jsm := storage.NewJobStorageManager(s.internalStorage.StorageEngineVault)
-	jr := NewJobRunner(jsm, s.internalStorage.StorageEngineVault, clock.New(), time.Second)
+	jsm := storage.NewJobStorageManager(s.MemoryStorage.StorageEngineVault)
+	jr := NewJobRunner(jsm, s.MemoryStorage.StorageEngineVault, clock.New(), time.Second)
 	require.NotNil(s.T(), jr)
 
-	resumeState, err := jr.Run(ctx, &j, nil)
+	resumeState, err := jr.Run(s.Ctx, &j, nil)
 	require.NoError(s.T(), err)
 	require.Nil(s.T(), resumeState)
 
@@ -255,7 +255,7 @@ func (s *JobRunnerSuite) TestJobWithTestRetry() {
 {[1 1 SimpleTest 1 echo2_step_label][Target{ID: "T1"} TargetIn]}
 {[1 1 SimpleTest 1 echo2_step_label][Target{ID: "T1"} TargetOut]}
 {[1 1 SimpleTest 1 ][Target{ID: "T1"} TargetReleased]}
-`, s.internalStorage.GetTargetEvents(testName, "T1"))
+`, s.MemoryStorage.GetTargetEvents(s.Ctx, testName, "T1"))
 
 	require.Len(s.T(), reporter.runStatuses, 1)
 	require.Len(s.T(), reporter.runStatuses[0].TestStatuses, 1)
@@ -311,8 +311,8 @@ func (s *JobRunnerSuite) TestResumeStateBadJobId() {
 		},
 	}
 
-	jsm := storage.NewJobStorageManager(s.internalStorage.StorageEngineVault)
-	jr := NewJobRunner(jsm, s.internalStorage.StorageEngineVault, clock.New(), time.Second)
+	jsm := storage.NewJobStorageManager(s.MemoryStorage.StorageEngineVault)
+	jr := NewJobRunner(jsm, s.MemoryStorage.StorageEngineVault, clock.New(), time.Second)
 	require.NotNil(s.T(), jr)
 
 	inputResumeState := job.PauseEventPayload{
@@ -322,7 +322,7 @@ func (s *JobRunnerSuite) TestResumeStateBadJobId() {
 		TestID:  1,
 	}
 
-	resumeState, err := jr.Run(ctx, &j, &inputResumeState)
+	resumeState, err := jr.Run(s.Ctx, &j, &inputResumeState)
 	require.Error(s.T(), err)
 	require.Nil(s.T(), resumeState)
 }

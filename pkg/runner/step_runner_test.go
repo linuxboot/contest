@@ -56,21 +56,21 @@ func (s *StepRunnerSuite) TestRunningStep() {
 	stepRunner := NewStepRunner()
 	require.NotNil(s.T(), stepRunner)
 
-	emitterFactory := NewTestStepEventsEmitterFactory(s.internalStorage.StorageEngineVault, 1, 1, testName, 0)
+	emitterFactory := NewTestStepEventsEmitterFactory(s.MemoryStorage.StorageEngineVault, 1, 1, testName, 0)
 	emitter := emitterFactory.New("test_step_label")
 
 	inputResumeState := json.RawMessage("{\"some_input\": 42}")
-	resultChan, err := stepRunner.Run(ctx, s.NewStep("test_step_label", stateFullStepName, nil), emitter, inputResumeState)
+	resultChan, err := stepRunner.Run(s.Ctx, s.NewStep("test_step_label", stateFullStepName, nil), emitter, inputResumeState)
 	require.NoError(s.T(), err)
 	require.NotNil(s.T(), resultChan)
 
-	require.NoError(s.T(), stepRunner.AddTarget(ctx, tgt("TSucc")))
+	require.NoError(s.T(), stepRunner.AddTarget(s.Ctx, tgt("TSucc")))
 	ev, ok := <-resultChan
 	require.True(s.T(), ok)
 	require.Equal(s.T(), tgt("TSucc"), ev.Target)
 	require.NoError(s.T(), ev.Err)
 
-	require.NoError(s.T(), stepRunner.AddTarget(ctx, tgt("TFail")))
+	require.NoError(s.T(), stepRunner.AddTarget(s.Ctx, tgt("TFail")))
 	ev, ok = <-resultChan
 	require.True(s.T(), ok)
 	require.Equal(s.T(), tgt("TFail"), ev.Target)
@@ -86,7 +86,7 @@ func (s *StepRunnerSuite) TestRunningStep() {
 	ev, ok = <-resultChan
 	require.False(s.T(), ok)
 
-	closedCtx, cancel := xcontext.WithCancel(ctx)
+	closedCtx, cancel := xcontext.WithCancel(s.Ctx)
 	cancel()
 
 	// if step runner has results, it should return them even if input context is closed
