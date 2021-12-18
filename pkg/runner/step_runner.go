@@ -31,14 +31,15 @@ type StepRunner struct {
 	mu sync.Mutex
 
 	input             chan *target.Target
-	stopOnce          sync.Once
+	stopped           bool
 	resultsChan       chan<- StepRunnerEvent
+	notifiedStopped   bool
 	runningLoopActive bool
 	finishedCh        chan struct{}
 
+	cancel            xcontext.CancelFunc
 	resultErr         error
 	resultResumeState json.RawMessage
-	notifyStoppedOnce sync.Once
 }
 
 func (sr *StepRunner) AddTarget(ctx xcontext.Context, tgt *target.Target) error {
@@ -46,8 +47,17 @@ func (sr *StepRunner) AddTarget(ctx xcontext.Context, tgt *target.Target) error 
 		return fmt.Errorf("target should not be nil")
 	}
 
+	sr.mu.Lock()
+	finishedCh := sr.finishedCh
+	sr.mu.Unlock()
+	if finishedCh == nil {
+		return fmt.Errorf("not running")
+	}
+
 	select {
 	case sr.input <- tgt:
+	case <-finishedCh:
+		return fmt.Errorf("not running")
 	case <-ctx.Until(xcontext.ErrPaused):
 		return xcontext.ErrPaused
 	case <-ctx.Done():
@@ -65,67 +75,99 @@ func (sr *StepRunner) Run(
 	sr.mu.Lock()
 	defer sr.mu.Unlock()
 
-	if sr.resultsChan != nil {
+	if sr.finishedCh != nil {
 		return nil, &cerrors.ErrAlreadyDone{}
+	}
+
+	var activeLoopsCount int32 = 3
+	finish := func() {
+		if atomic.AddInt32(&activeLoopsCount, -1) != 0 {
+			return
+		}
+
+		// First close finishedCh channel to make step results available
+		// After this happens, one should be immediately able to Run step again
+		// Then close resultChan to notify client about it
+		sr.mu.Lock()
+		resultsChan := sr.resultsChan
+		notifiedStopped := sr.notifiedStopped
+		sr.cancel()
+		close(sr.finishedCh)
+		sr.finishedCh = nil
+		resultErr := sr.resultErr
+		sr.mu.Unlock()
+
+		if !notifiedStopped {
+			select {
+			case resultsChan <- StepRunnerEvent{Err: resultErr}:
+			case <-ctx.Done():
+			}
+		}
+		close(resultsChan)
+		ctx.Debugf("StepRunner finished")
 	}
 
 	finishedCh := make(chan struct{})
 	sr.finishedCh = finishedCh
 	resultsChan := make(chan StepRunnerEvent, 1)
 	sr.resultsChan = resultsChan
+	sr.stopped = false
+	sr.notifiedStopped = false
 
-	var activeLoopsCount int32 = 2
-	finish := func() {
-		if atomic.AddInt32(&activeLoopsCount, -1) != 0 {
-			return
-		}
+	runCtx, cancel := xcontext.WithCancel(ctx)
+	sr.cancel = cancel
 
-		sr.mu.Lock()
-		close(sr.finishedCh)
-		sr.finishedCh = nil
-		sr.mu.Unlock()
-
-		// if an error occurred we already sent notification
-		sr.notifyStopped(ctx, nil)
-		close(sr.resultsChan)
-		ctx.Debugf("StepRunner finished")
-	}
-
-	stepIn := sr.input
+	stepIn := make(chan *target.Target)
 	stepOut := make(chan test.TestStepResult)
 	go func() {
 		defer finish()
-		sr.runningLoop(ctx, stepIn, stepOut, bundle, ev, resumeState)
-		ctx.Debugf("Running loop finished")
+		sr.runningLoop(runCtx, stepIn, stepOut, bundle, ev, resumeState)
+		runCtx.Debugf("Running loop finished")
 	}()
 
 	go func() {
 		defer finish()
-		sr.readingLoop(ctx, stepOut, bundle.TestStepLabel)
-		ctx.Debugf("Reading loop finished")
+		sr.readingLoop(runCtx, stepOut, bundle.TestStepLabel)
+		runCtx.Debugf("Reading loop finished")
+	}()
+
+	go func() {
+		defer finish()
+		sr.inputRedirectionLoop(runCtx, stepIn, ev)
+		runCtx.Debugf("redirection loop finished")
 	}()
 
 	return resultsChan, nil
 }
 
+// Started returns true if StepRunner has ever been started
 func (sr *StepRunner) Started() bool {
 	sr.mu.Lock()
 	defer sr.mu.Unlock()
 
+	return sr.startedLocked()
+}
+
+func (sr *StepRunner) startedLocked() bool {
 	return sr.resultsChan != nil
 }
 
+// Running returns true if StepRunner is currently running
 func (sr *StepRunner) Running() bool {
 	sr.mu.Lock()
 	defer sr.mu.Unlock()
 
-	return sr.resultsChan != nil && sr.finishedCh != nil
+	return sr.startedLocked() && sr.finishedCh != nil
 }
 
 // WaitResults returns TestStep.Run() output
 // It returns an error if and only if waiting was terminated by input ctx argument and returns ctx.Err()
 func (sr *StepRunner) WaitResults(ctx context.Context) (stepResult StepResult, err error) {
 	sr.mu.Lock()
+	if !sr.startedLocked() {
+		sr.mu.Unlock()
+		return StepResult{}, fmt.Errorf("was never run")
+	}
 	resultErr := sr.resultErr
 	resultResumeState := sr.resultResumeState
 	finishedCh := sr.finishedCh
@@ -158,9 +200,52 @@ func (sr *StepRunner) WaitResults(ctx context.Context) (stepResult StepResult, e
 
 // Stop triggers TestStep to stop running by closing input channel
 func (sr *StepRunner) Stop() {
-	sr.stopOnce.Do(func() {
-		close(sr.input)
-	})
+	sr.mu.Lock()
+	stopped := sr.stopped
+	finishedCh := sr.finishedCh
+	sr.stopped = true
+	sr.mu.Unlock()
+
+	if finishedCh == nil || stopped {
+		return
+	}
+
+	select {
+	case sr.input <- nil:
+	case <-finishedCh:
+	}
+}
+
+func (sr *StepRunner) inputRedirectionLoop(
+	ctx xcontext.Context,
+	stepIn chan<- *target.Target,
+	ev testevent.Emitter,
+) {
+	defer func() {
+		ctx.Debugf("close step's input channel")
+		close(stepIn)
+	}()
+
+	for {
+		select {
+		case tgt := <-sr.input:
+			// nil target means that we should close step's input channel
+			if tgt == nil {
+				return
+			}
+
+			select {
+			case stepIn <- tgt:
+				if err := ev.Emit(ctx, testevent.Data{EventName: target.EventTargetIn, Target: tgt}); err != nil {
+					sr.setErr(ctx, fmt.Errorf("failed to report target injection: %w", err))
+				}
+			case <-ctx.Done():
+				return
+			}
+		case <-ctx.Done():
+			return
+		}
+	}
 }
 
 func (sr *StepRunner) readingLoop(
@@ -276,15 +361,24 @@ func (sr *StepRunner) setErrLocked(ctx xcontext.Context, err error) {
 	sr.mu.Unlock()
 	sr.notifyStopped(ctx, err)
 	sr.mu.Lock()
+
+	sr.cancel()
 }
 
 func (sr *StepRunner) notifyStopped(ctx xcontext.Context, err error) {
-	sr.notifyStoppedOnce.Do(func() {
-		select {
-		case sr.resultsChan <- StepRunnerEvent{Err: err}:
-		case <-ctx.Done():
-		}
-	})
+	sr.mu.Lock()
+	resultsChan := sr.resultsChan
+	if sr.notifiedStopped {
+		sr.mu.Unlock()
+		return
+	}
+	sr.notifiedStopped = true
+	sr.mu.Unlock()
+
+	select {
+	case resultsChan <- StepRunnerEvent{Err: err}:
+	case <-ctx.Done():
+	}
 }
 
 func safeCloseOutCh(ch chan test.TestStepResult) (recoverOccurred bool) {

@@ -3,6 +3,8 @@ package runner
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/linuxboot/contest/pkg/event"
+	"github.com/linuxboot/contest/plugins/teststeps/echo"
 	"sync"
 	"testing"
 
@@ -21,6 +23,20 @@ func TestStepRunnerSuite(t *testing.T) {
 
 type StepRunnerSuite struct {
 	BaseTestSuite
+}
+
+func (s *StepRunnerSuite) SetupTest() {
+	s.BaseTestSuite.SetupTest()
+
+	for _, e := range []struct {
+		name    string
+		factory test.TestStepFactory
+		events  []event.Name
+	}{
+		{echo.Name, echo.New, echo.Events},
+	} {
+		require.NoError(s.T(), s.PluginRegistry.RegisterTestStep(e.name, e.factory, e.events))
+	}
 }
 
 func (s *StepRunnerSuite) TestRunningStep() {
@@ -75,7 +91,8 @@ func (s *StepRunnerSuite) TestRunningStep() {
 	require.True(s.T(), ok)
 	require.Equal(s.T(), tgt("TFail"), ev.Target)
 	require.Error(s.T(), ev.Err)
-
+	require.True(s.T(), stepRunner.Started())
+	require.True(s.T(), stepRunner.Running())
 	stepRunner.Stop()
 
 	ev, ok = <-resultChan
@@ -97,4 +114,52 @@ func (s *StepRunnerSuite) TestRunningStep() {
 	require.NoError(s.T(), res.Err)
 
 	require.Equal(s.T(), inputResumeState, obtainedResumeState)
+}
+
+func (s *StepRunnerSuite) TestRunningStepTwice() {
+	stepRunner := NewStepRunner()
+	require.NotNil(s.T(), stepRunner)
+
+	emitterFactory := NewTestStepEventsEmitterFactory(s.MemoryStorage.StorageEngineVault, 1, 1, testName, 0)
+	emitter := emitterFactory.New("test_step_label")
+
+	checkResultChan := func(resultChan <-chan StepRunnerEvent, targetsIDs ...string) {
+		for _, targetID := range targetsIDs {
+			ev := <-resultChan
+			require.Equal(s.T(), targetID, ev.Target.ID)
+			require.NoError(s.T(), ev.Err)
+		}
+
+		ev := <-resultChan
+		require.Nil(s.T(), ev.Target)
+		require.NoError(s.T(), ev.Err)
+
+		ev, ok := <-resultChan
+		require.False(s.T(), ok)
+	}
+
+	params := test.TestStepParameters{
+		"text": []test.Param{*test.NewParam("Hello world")},
+	}
+	resultChan, err := stepRunner.Run(s.Ctx, s.NewStep("test_step_label", echo.Name, params), emitter, nil)
+	require.NoError(s.T(), err)
+	require.NotNil(s.T(), resultChan)
+
+	require.NoError(s.T(), stepRunner.AddTarget(s.Ctx, tgt("SomeTarget")))
+	require.True(s.T(), stepRunner.Started())
+	require.True(s.T(), stepRunner.Running())
+	stepRunner.Stop()
+	checkResultChan(resultChan, "SomeTarget")
+
+	require.True(s.T(), stepRunner.Started())
+	require.False(s.T(), stepRunner.Running())
+
+	resultChan, err = stepRunner.Run(s.Ctx, s.NewStep("test_step_label", echo.Name, params), emitter, nil)
+	require.NoError(s.T(), err)
+	require.NotNil(s.T(), resultChan)
+
+	require.NoError(s.T(), stepRunner.AddTarget(s.Ctx, tgt("SomeTarget2")))
+	require.NoError(s.T(), stepRunner.AddTarget(s.Ctx, tgt("SomeTarget3")))
+	stepRunner.Stop()
+	checkResultChan(resultChan, "SomeTarget2", "SomeTarget3")
 }

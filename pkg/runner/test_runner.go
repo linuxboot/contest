@@ -345,10 +345,6 @@ func (tr *TestRunner) injectTarget(ctx xcontext.Context, tgs *targetState, ss *s
 	tgt := tgs.tgt
 	err := ss.stepRunner.AddTarget(ctx, tgt)
 	if err == nil {
-		if err = ss.emitEvent(ctx, target.EventTargetIn, tgs.tgt, nil); err != nil {
-			err = fmt.Errorf("failed to report target injection: %w", err)
-		}
-
 		tr.mu.Lock()
 		// By the time we get here the target could have been processed and result posted already, hence the check.
 		if tgs.CurPhase == targetStepPhaseBegin {
