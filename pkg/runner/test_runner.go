@@ -61,6 +61,7 @@ type stepState struct {
 
 	ev                 testevent.Emitter
 	stepRunner         *StepRunner
+	addTarget          AddTargetToStep
 	readingLoopRunning bool
 
 	resumeState        json.RawMessage // Resume state passed to and returned by the Run method.
@@ -137,6 +138,33 @@ func (tr *TestRunner) Run(
 		tr.targets = rs.Targets
 	}
 
+	// Set up the targets
+	if tr.targets == nil {
+		tr.targets = make(map[string]*targetState)
+	}
+
+	// Initialize remaining fields of the target structures,
+	// build the map and kick off target processing.
+	minStep := len(tr.steps)
+	for _, tgt := range targets {
+		tgs := tr.targets[tgt.ID]
+		if tgs == nil {
+			tgs = &targetState{
+				CurPhase: targetStepPhaseInit,
+			}
+		}
+		tgs.tgt = tgt
+		// Buffer of 1 is needed so that the step reader does not block when submitting result back
+		// to the target handler. Target handler may not yet be ready to receive the result,
+		// i.e. reporting TargetIn event which may involve network I/O.
+		tgs.resCh = make(chan error, 1)
+		tr.targets[tgt.ID] = tgs
+
+		if tgs.CurStep < minStep {
+			minStep = tgs.CurStep
+		}
+	}
+
 	// Set up the pipeline
 	for i, sb := range t.TestStepsBundles {
 		stepCtx, stepCancel := xcontext.WithCancel(stepsCtx)
@@ -169,36 +197,13 @@ func (tr *TestRunner) Run(
 		tr.steps = append(tr.steps, ss)
 	}
 
-	// Set up the targets
-	if tr.targets == nil {
-		tr.targets = make(map[string]*targetState)
-	}
-	// Initialize remaining fields of the target structures,
-	// build the map and kick off target processing.
-
-	minStep := len(tr.steps)
-	for _, tgt := range targets {
-		tr.mu.Lock()
-		tgs := tr.targets[tgt.ID]
-		if tgs == nil {
-			tgs = &targetState{
-				CurPhase: targetStepPhaseInit,
-			}
-		}
-		tgs.tgt = tgt
-		// Buffer of 1 is needed so that the step reader does not block when submitting result back
-		// to the target handler. Target handler may not yet be ready to receive the result,
-		// i.e. reporting TargetIn event which may involve network I/O.
-		tgs.resCh = make(chan error, 1)
+	for _, tgs := range tr.targets {
 		tgs.handlerRunning = true
-		tr.targets[tgt.ID] = tgs
-		if tgs.CurStep < minStep {
-			minStep = tgs.CurStep
-		}
-		tr.mu.Unlock()
 		tr.targetsWg.Add(1)
+
+		state := tgs
 		go func() {
-			tr.targetHandler(targetsCtx, tgs)
+			tr.targetHandler(targetsCtx, state)
 			tr.targetsWg.Done()
 		}()
 	}
@@ -352,7 +357,7 @@ func (tr *TestRunner) injectTarget(ctx xcontext.Context, tgs *targetState, ss *s
 	ctx.Debugf("%s: injecting into %s", tgs, ss)
 
 	tgt := tgs.tgt
-	err := ss.stepRunner.AddTarget(ctx, tgt)
+	err := ss.addTarget(tgt)
 	if err == nil {
 		tr.mu.Lock()
 		// By the time we get here the target could have been processed and result posted already, hence the check.
@@ -512,10 +517,11 @@ func (tr *TestRunner) runStepIfNeeded(ss *stepState) error {
 	resumeState := ss.resumeState
 	ss.resumeState = nil
 
-	resultCh, err := ss.stepRunner.Run(ss.ctx, ss.sb, ss.ev, resumeState, ss.resumeStateTargets)
+	resultCh, addTarget, err := ss.stepRunner.Run(ss.ctx, ss.sb, ss.ev, resumeState, ss.resumeStateTargets)
 	if err != nil {
 		return fmt.Errorf("failed to stert a step runner for '%s': %v", ss.sb.TestStepLabel, err)
 	}
+	ss.addTarget = addTarget
 
 	ss.readingLoopRunning = true
 	go func() {

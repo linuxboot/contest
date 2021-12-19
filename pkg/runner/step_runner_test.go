@@ -65,7 +65,7 @@ func (s *StepRunnerSuite) TestRunningStep() {
 	emitter := emitterFactory.New("test_step_label")
 
 	inputResumeState := json.RawMessage("{\"some_input\": 42}")
-	resultChan, err := stepRunner.Run(ctx,
+	resultChan, addTarget, err := stepRunner.Run(ctx,
 		s.NewStep(ctx, "test_step_label", stateFullStepName, nil),
 		emitter,
 		inputResumeState,
@@ -74,13 +74,13 @@ func (s *StepRunnerSuite) TestRunningStep() {
 	require.NoError(s.T(), err)
 	require.NotNil(s.T(), resultChan)
 
-	require.NoError(s.T(), stepRunner.AddTarget(ctx, tgt("TSucc")))
+	require.NoError(s.T(), addTarget(tgt("TSucc")))
 	ev, ok := <-resultChan
 	require.True(s.T(), ok)
 	require.Equal(s.T(), tgt("TSucc"), ev.Target)
 	require.NoError(s.T(), ev.Err)
 
-	require.NoError(s.T(), stepRunner.AddTarget(ctx, tgt("TFail")))
+	require.NoError(s.T(), addTarget(tgt("TFail")))
 	ev, ok = <-resultChan
 	require.True(s.T(), ok)
 	require.Equal(s.T(), tgt("TFail"), ev.Target)

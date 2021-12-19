@@ -16,6 +16,8 @@ import (
 	"github.com/linuxboot/contest/pkg/xcontext"
 )
 
+type AddTargetToStep func(tgt *target.Target) error
+
 type StepRunnerEvent struct {
 	// Target if set represents the target for which event was generated
 	Target *target.Target
@@ -31,32 +33,28 @@ type StepResult struct {
 type StepRunner struct {
 	mu sync.Mutex
 
-	input             chan *target.Target
-	stopOnce          sync.Once
+	input         chan *target.Target
+	inputWg       sync.WaitGroup
+	activeTargets map[string]int
+
+	stopped           chan struct{}
+	finishedCh        chan struct{}
 	resultsChan       chan<- StepRunnerEvent
 	runningLoopActive bool
-	finishedCh        chan struct{}
 
 	resultErr         error
 	resultResumeState json.RawMessage
 	notifyStoppedOnce sync.Once
 }
 
-func (sr *StepRunner) AddTarget(ctx xcontext.Context, tgt *target.Target) error {
-	if tgt == nil {
-		return fmt.Errorf("target should not be nil")
+// NewStepRunner creates a new StepRunner object
+func NewStepRunner() *StepRunner {
+	return &StepRunner{
+		input:         make(chan *target.Target),
+		activeTargets: make(map[string]int),
+		stopped:       make(chan struct{}),
+		finishedCh:    make(chan struct{}),
 	}
-
-	select {
-	case sr.input <- tgt:
-	case <-sr.finishedCh:
-		return fmt.Errorf("step runner is already stopped")
-	case <-ctx.Until(xcontext.ErrPaused):
-		return xcontext.ErrPaused
-	case <-ctx.Done():
-		return ctx.Err()
-	}
-	return nil
 }
 
 func (sr *StepRunner) Run(
@@ -65,16 +63,19 @@ func (sr *StepRunner) Run(
 	ev testevent.Emitter,
 	resumeState json.RawMessage,
 	resumeStateTargets []target.Target,
-) (<-chan StepRunnerEvent, error) {
+) (<-chan StepRunnerEvent, AddTargetToStep, error) {
 	sr.mu.Lock()
 	defer sr.mu.Unlock()
 
 	if sr.resultsChan != nil {
-		return nil, &cerrors.ErrAlreadyDone{}
+		return nil, nil, &cerrors.ErrAlreadyDone{}
 	}
-
 	resultsChan := make(chan StepRunnerEvent, 1)
 	sr.resultsChan = resultsChan
+
+	for _, resumeTarget := range resumeStateTargets {
+		sr.activeTargets[resumeTarget.ID]++
+	}
 
 	var activeLoopsCount int32 = 2
 	finish := func() {
@@ -90,23 +91,76 @@ func (sr *StepRunner) Run(
 		sr.notifyStopped(ctx, nil)
 		close(sr.resultsChan)
 		ctx.Debugf("StepRunner finished")
+
+		sr.Stop()
 	}
 
-	stepIn := make(chan *target.Target)
 	stepOut := make(chan test.TestStepResult)
 	go func() {
 		defer finish()
-		sr.runningLoop(ctx, stepIn, stepOut, bundle, ev, resumeState)
+		sr.runningLoop(ctx, sr.input, stepOut, bundle, ev, resumeState)
 		ctx.Debugf("Running loop finished")
 	}()
 
 	go func() {
 		defer finish()
-		sr.ioLoop(ctx, stepIn, stepOut, ev, bundle.TestStepLabel, resumeStateTargets)
+		sr.outputLoop(ctx, stepOut, ev, bundle.TestStepLabel)
 		ctx.Debugf("Reading loop finished")
 	}()
 
-	return resultsChan, nil
+	return resultsChan, func(tgt *target.Target) error {
+		return sr.addTarget(ctx, bundle, ev, tgt)
+	}, nil
+}
+
+func (sr *StepRunner) addTarget(
+	ctx xcontext.Context,
+	bundle test.TestStepBundle,
+	ev testevent.Emitter,
+	tgt *target.Target,
+) error {
+	if tgt == nil {
+		return fmt.Errorf("target should not be nil")
+	}
+
+	err := func() error {
+		sr.mu.Lock()
+		stopped := sr.stopped
+		if stopped == nil {
+			sr.mu.Unlock()
+			return fmt.Errorf("step runner was stopped")
+		}
+		sr.inputWg.Add(1)
+
+		sr.activeTargets[tgt.ID]++
+		sr.mu.Unlock()
+
+		defer sr.inputWg.Done()
+		select {
+		case sr.input <- tgt:
+			if err := emitEvent(ctx, ev, target.EventTargetIn, tgt, nil); err != nil {
+				sr.setErrLocked(ctx, fmt.Errorf("failed to report target injection: %w", err))
+			}
+			return nil
+		case <-stopped:
+			return fmt.Errorf("step runner was stopped")
+		case <-ctx.Until(xcontext.ErrPaused):
+			return xcontext.ErrPaused
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}()
+
+	if err != nil {
+		sr.mu.Lock()
+		sr.activeTargets[tgt.ID]--
+		if sr.activeTargets[tgt.ID] < 0 {
+			sr.setErrLocked(ctx,
+				&cerrors.ErrTestStepReturnedDuplicateResult{StepName: bundle.TestStepLabel, Target: tgt.ID})
+		}
+		sr.mu.Unlock()
+	}
+	return nil
 }
 
 func (sr *StepRunner) Started() bool {
@@ -117,7 +171,7 @@ func (sr *StepRunner) Started() bool {
 }
 
 // WaitResults returns TestStep.Run() output
-// It returns an error if and only if waiting was terminated by input ctx argument and returns ctx.Err()
+// It returns an error if and only if waiting was terminated by inputQueue ctx argument and returns ctx.Err()
 func (sr *StepRunner) WaitResults(ctx context.Context) (stepResult StepResult, err error) {
 	sr.mu.Lock()
 	resultErr := sr.resultErr
@@ -152,73 +206,34 @@ func (sr *StepRunner) WaitResults(ctx context.Context) (stepResult StepResult, e
 	}, nil
 }
 
-// Stop triggers TestStep to stop running by closing input channel
+// Stop triggers TestStep to stop running
 func (sr *StepRunner) Stop() {
-	sr.stopOnce.Do(func() {
-		close(sr.input)
-	})
+	alreadyStopped := func() bool {
+		sr.mu.Lock()
+		defer sr.mu.Unlock()
+		if sr.stopped == nil {
+			return true
+		}
+		close(sr.stopped)
+		sr.stopped = nil
+		return false
+	}()
+	if alreadyStopped {
+		return
+	}
+
+	sr.inputWg.Wait()
+	close(sr.input)
 }
 
-func (sr *StepRunner) ioLoop(
+func (sr *StepRunner) outputLoop(
 	ctx xcontext.Context,
-	stepIn chan<- *target.Target,
 	stepOut chan test.TestStepResult,
 	ev testevent.Emitter,
 	testStepLabel string,
-	resumeStateTargets []target.Target,
 ) {
-	defer func() {
-		if stepIn != nil {
-			close(stepIn)
-		}
-	}()
-
-	targetsInfo := make(map[string]int)
-	for _, resumeTarget := range resumeStateTargets {
-		targetsInfo[resumeTarget.ID]++
-	}
-
-	input := sr.input
-	var stepInTmp chan<- *target.Target
-	var inputTargets []*target.Target
-	var curInputTarget *target.Target
-
-	closeStepIn := func() {
-		stepInTmp = nil
-		curInputTarget = nil
-		if input == nil {
-			ctx.Debugf("Close step input channel")
-			close(stepIn)
-			stepIn = nil
-			inputTargets = nil
-		}
-	}
-
 	for {
 		select {
-		case tgt, ok := <-input:
-			if !ok {
-				input = nil
-				if len(inputTargets) == 0 {
-					closeStepIn()
-				}
-			} else {
-				stepInTmp = stepIn
-				inputTargets = append(inputTargets, tgt)
-				curInputTarget = inputTargets[len(inputTargets)-1]
-			}
-		case stepInTmp <- curInputTarget:
-			targetsInfo[curInputTarget.ID]++
-			if err := emitEvent(ctx, ev, target.EventTargetIn, curInputTarget, nil); err != nil {
-				sr.setErrLocked(ctx, fmt.Errorf("failed to report target injection: %w", err))
-			}
-
-			inputTargets = inputTargets[:len(inputTargets)-1]
-			if len(inputTargets) > 0 {
-				curInputTarget = inputTargets[len(inputTargets)-1]
-			} else {
-				closeStepIn()
-			}
 		case res, ok := <-stepOut:
 			if !ok {
 				ctx.Debugf("Output channel closed")
@@ -238,21 +253,28 @@ func (sr *StepRunner) ioLoop(
 			}
 			ctx.Infof("Obtained '%v' for target '%s'", res, res.Target.ID)
 
-			cnt, found := targetsInfo[res.Target.ID]
-			if !found {
-				sr.setErr(ctx, &cerrors.ErrTestStepReturnedUnexpectedResult{
-					StepName: testStepLabel,
-					Target:   res.Target.ID,
-				})
-				return
-			}
-			if cnt <= 0 {
-				sr.setErr(ctx, &cerrors.ErrTestStepReturnedDuplicateResult{StepName: testStepLabel, Target: res.Target.ID})
-				return
-			}
-			targetsInfo[res.Target.ID] = cnt - 1
+			err := func() error {
+				sr.mu.Lock()
+				defer sr.mu.Unlock()
 
-			var err error
+				cnt, found := sr.activeTargets[res.Target.ID]
+				if !found {
+					return &cerrors.ErrTestStepReturnedUnexpectedResult{
+						StepName: testStepLabel,
+						Target:   res.Target.ID,
+					}
+				}
+				if cnt <= 0 {
+					return &cerrors.ErrTestStepReturnedDuplicateResult{StepName: testStepLabel, Target: res.Target.ID}
+				}
+				sr.activeTargets[res.Target.ID] = cnt - 1
+				return nil
+			}()
+			if err != nil {
+				sr.setErr(ctx, err)
+				return
+			}
+
 			if res.Err == nil {
 				err = emitEvent(ctx, ev, target.EventTargetOut, res.Target, nil)
 			} else {
@@ -273,7 +295,7 @@ func (sr *StepRunner) ioLoop(
 				)
 			}
 		case <-ctx.Done():
-			ctx.Debugf("reading loop detected context canceled")
+			ctx.Debugf("IO loop detected context canceled")
 			return
 		}
 	}
@@ -380,12 +402,4 @@ func emitEvent(ctx xcontext.Context, ev testevent.Emitter, name event.Name, tgt 
 		Payload:   payloadJSON,
 	}
 	return ev.Emit(ctx, errEv)
-}
-
-// NewStepRunner creates a new StepRunner object
-func NewStepRunner() *StepRunner {
-	return &StepRunner{
-		input:      make(chan *target.Target, 1),
-		finishedCh: make(chan struct{}),
-	}
 }
