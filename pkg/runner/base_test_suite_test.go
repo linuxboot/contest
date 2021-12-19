@@ -1,7 +1,6 @@
 package runner
 
 import (
-	"context"
 	"encoding/json"
 
 	"github.com/benbjohnson/clock"
@@ -11,8 +10,6 @@ import (
 	"github.com/linuxboot/contest/pkg/target"
 	"github.com/linuxboot/contest/pkg/test"
 	"github.com/linuxboot/contest/pkg/xcontext"
-	"github.com/linuxboot/contest/pkg/xcontext/bundles/logrusctx"
-	"github.com/linuxboot/contest/pkg/xcontext/logger"
 	"github.com/linuxboot/contest/plugins/storage/memory"
 	"github.com/linuxboot/contest/plugins/targetlocker/inmemory"
 	"github.com/linuxboot/contest/tests/common"
@@ -21,7 +18,6 @@ import (
 )
 
 type MemoryStorageEngine struct {
-	Ctx                xcontext.Context
 	Storage            storage.ResettableStorage
 	StorageEngineVault *storage.SimpleEngineVault
 }
@@ -44,38 +40,32 @@ func NewMemoryStorageEngine() (*MemoryStorageEngine, error) {
 }
 
 func (mse *MemoryStorageEngine) GetStepEvents(ctx xcontext.Context, testName string, stepLabel string) string {
-	return common.GetTestEventsAsString(mse.Ctx, mse.Storage, testName, nil, &stepLabel)
+	return common.GetTestEventsAsString(ctx, mse.Storage, testName, nil, &stepLabel)
 }
 
 func (mse *MemoryStorageEngine) GetTargetEvents(ctx xcontext.Context, testName string, targetID string) string {
-	return common.GetTestEventsAsString(mse.Ctx, mse.Storage, testName, &targetID, nil)
+	return common.GetTestEventsAsString(ctx, mse.Storage, testName, &targetID, nil)
 }
 
 type BaseTestSuite struct {
 	suite.Suite
-
-	Ctx    xcontext.Context
-	Cancel context.CancelFunc
 
 	PluginRegistry *pluginregistry.PluginRegistry
 	MemoryStorage  *MemoryStorageEngine
 }
 
 func (s *BaseTestSuite) SetupTest() {
-	s.Ctx, s.Cancel = xcontext.WithCancel(logrusctx.NewContext(logger.LevelDebug))
-
 	storageEngine, err := NewMemoryStorageEngine()
 	require.NoError(s.T(), err)
 	s.MemoryStorage = storageEngine
 
 	target.SetLocker(inmemory.New(clock.New()))
 
-	s.PluginRegistry = pluginregistry.NewPluginRegistry(s.Ctx)
+	s.PluginRegistry = pluginregistry.NewPluginRegistry(xcontext.Background())
 }
 
 func (s *BaseTestSuite) TearDownTest() {
 	target.SetLocker(nil)
-	s.Cancel()
 }
 
 func (s *BaseTestSuite) RegisterStateFullStep(
@@ -92,13 +82,13 @@ func (s *BaseTestSuite) RegisterStateFullStep(
 	}, nil)
 }
 
-func (s *BaseTestSuite) NewStep(label, name string, params test.TestStepParameters) test.TestStepBundle {
+func (s *BaseTestSuite) NewStep(ctx xcontext.Context, label, name string, params test.TestStepParameters) test.TestStepBundle {
 	td := test.TestStepDescriptor{
 		Name:       name,
 		Label:      label,
 		Parameters: params,
 	}
-	sb, err := s.PluginRegistry.NewTestStepBundle(s.Ctx, td)
+	sb, err := s.PluginRegistry.NewTestStepBundle(ctx, td)
 	require.NoError(s.T(), err)
 	return *sb
 }

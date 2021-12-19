@@ -3,7 +3,6 @@ package runner
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/linuxboot/contest/pkg/types"
 	"sync"
 	"testing"
 	"time"
@@ -20,7 +19,10 @@ import (
 	"github.com/linuxboot/contest/pkg/storage"
 	"github.com/linuxboot/contest/pkg/target"
 	"github.com/linuxboot/contest/pkg/test"
+	"github.com/linuxboot/contest/pkg/types"
 	"github.com/linuxboot/contest/pkg/xcontext"
+	"github.com/linuxboot/contest/pkg/xcontext/bundles/logrusctx"
+	"github.com/linuxboot/contest/pkg/xcontext/logger"
 	"github.com/linuxboot/contest/plugins/targetmanagers/targetlist"
 	"github.com/linuxboot/contest/plugins/teststeps"
 	"github.com/linuxboot/contest/plugins/teststeps/echo"
@@ -104,6 +106,9 @@ func (s *JobRunnerSuite) SetupTest() {
 }
 
 func (s *JobRunnerSuite) TestSimpleJobStartFinish() {
+	ctx, cancel := xcontext.WithCancel(logrusctx.NewContext(logger.LevelDebug))
+	defer cancel()
+
 	var mu sync.Mutex
 	var resultTargets []*target.Target
 
@@ -141,7 +146,7 @@ func (s *JobRunnerSuite) TestSimpleJobStartFinish() {
 					TargetManager:     targetlist.New(),
 				},
 				TestStepsBundles: []test.TestStepBundle{
-					s.NewStep("test_step_label", stateFullStepName, nil),
+					s.NewStep(ctx, "test_step_label", stateFullStepName, nil),
 				},
 			},
 		},
@@ -151,7 +156,7 @@ func (s *JobRunnerSuite) TestSimpleJobStartFinish() {
 	jr := NewJobRunner(jsm, s.MemoryStorage.StorageEngineVault, clock.New(), time.Second)
 	require.NotNil(s.T(), jr)
 
-	resumeState, err := jr.Run(s.Ctx, &j, nil)
+	resumeState, err := jr.Run(ctx, &j, nil)
 	require.NoError(s.T(), err)
 	require.Nil(s.T(), resumeState)
 
@@ -162,10 +167,13 @@ func (s *JobRunnerSuite) TestSimpleJobStartFinish() {
 {[1 1 SimpleTest 0 test_step_label][Target{ID: "T1"} TargetIn]}
 {[1 1 SimpleTest 0 test_step_label][Target{ID: "T1"} TargetOut]}
 {[1 1 SimpleTest 0 ][Target{ID: "T1"} TargetReleased]}
-`, s.MemoryStorage.GetTargetEvents(s.Ctx, testName, "T1"))
+`, s.MemoryStorage.GetTargetEvents(ctx, testName, "T1"))
 }
 
 func (s *JobRunnerSuite) TestJobWithTestRetry() {
+	ctx, cancel := xcontext.WithCancel(logrusctx.NewContext(logger.LevelDebug))
+	defer cancel()
+
 	var mu sync.Mutex
 	var resultTargets []*target.Target
 	var callsCount int
@@ -220,11 +228,11 @@ func (s *JobRunnerSuite) TestJobWithTestRetry() {
 					TargetManager:     targetlist.New(),
 				},
 				TestStepsBundles: []test.TestStepBundle{
-					s.NewStep("echo1_step_label", echo.Name, map[string][]test.Param{
+					s.NewStep(ctx, "echo1_step_label", echo.Name, map[string][]test.Param{
 						"text": {*test.NewParam("hello")},
 					}),
-					s.NewStep("test_step_label", stateFullStepName, nil),
-					s.NewStep("echo2_step_label", echo.Name, map[string][]test.Param{
+					s.NewStep(ctx, "test_step_label", stateFullStepName, nil),
+					s.NewStep(ctx, "echo2_step_label", echo.Name, map[string][]test.Param{
 						"text": {*test.NewParam("world")},
 					}),
 				},
@@ -236,7 +244,7 @@ func (s *JobRunnerSuite) TestJobWithTestRetry() {
 	jr := NewJobRunner(jsm, s.MemoryStorage.StorageEngineVault, clock.New(), time.Second)
 	require.NotNil(s.T(), jr)
 
-	resumeState, err := jr.Run(s.Ctx, &j, nil)
+	resumeState, err := jr.Run(ctx, &j, nil)
 	require.NoError(s.T(), err)
 	require.Nil(s.T(), resumeState)
 
@@ -255,7 +263,7 @@ func (s *JobRunnerSuite) TestJobWithTestRetry() {
 {[1 1 SimpleTest 1 echo2_step_label][Target{ID: "T1"} TargetIn]}
 {[1 1 SimpleTest 1 echo2_step_label][Target{ID: "T1"} TargetOut]}
 {[1 1 SimpleTest 1 ][Target{ID: "T1"} TargetReleased]}
-`, s.MemoryStorage.GetTargetEvents(s.Ctx, testName, "T1"))
+`, s.MemoryStorage.GetTargetEvents(ctx, testName, "T1"))
 
 	require.Len(s.T(), reporter.runStatuses, 1)
 	require.Len(s.T(), reporter.runStatuses[0].TestStatuses, 1)
@@ -273,6 +281,9 @@ func (s *JobRunnerSuite) TestJobWithTestRetry() {
 }
 
 func (s *JobRunnerSuite) TestResumeStateBadJobId() {
+	ctx, cancel := xcontext.WithCancel(logrusctx.NewContext(logger.LevelDebug))
+	defer cancel()
+
 	acquireParameters := targetlist.AcquireParameters{
 		Targets: []*target.Target{
 			{
@@ -303,7 +314,7 @@ func (s *JobRunnerSuite) TestResumeStateBadJobId() {
 					TargetManager:     targetlist.New(),
 				},
 				TestStepsBundles: []test.TestStepBundle{
-					s.NewStep("echo1_step_label", echo.Name, map[string][]test.Param{
+					s.NewStep(ctx, "echo1_step_label", echo.Name, map[string][]test.Param{
 						"text": {*test.NewParam("hello")},
 					}),
 				},
@@ -322,7 +333,7 @@ func (s *JobRunnerSuite) TestResumeStateBadJobId() {
 		TestID:  1,
 	}
 
-	resumeState, err := jr.Run(s.Ctx, &j, &inputResumeState)
+	resumeState, err := jr.Run(ctx, &j, &inputResumeState)
 	require.Error(s.T(), err)
 	require.Nil(s.T(), resumeState)
 }

@@ -10,6 +10,8 @@ import (
 	"github.com/linuxboot/contest/pkg/target"
 	"github.com/linuxboot/contest/pkg/test"
 	"github.com/linuxboot/contest/pkg/xcontext"
+	"github.com/linuxboot/contest/pkg/xcontext/bundles/logrusctx"
+	"github.com/linuxboot/contest/pkg/xcontext/logger"
 	"github.com/linuxboot/contest/plugins/teststeps"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -24,6 +26,9 @@ type StepRunnerSuite struct {
 }
 
 func (s *StepRunnerSuite) TestRunningStep() {
+	ctx, cancel := xcontext.WithCancel(logrusctx.NewContext(logger.LevelDebug))
+	defer cancel()
+
 	targetsReaction := map[string]error{
 		"TSucc": nil,
 		"TFail": fmt.Errorf("oops"),
@@ -60,17 +65,17 @@ func (s *StepRunnerSuite) TestRunningStep() {
 	emitter := emitterFactory.New("test_step_label")
 
 	inputResumeState := json.RawMessage("{\"some_input\": 42}")
-	resultChan, err := stepRunner.Run(s.Ctx, s.NewStep("test_step_label", stateFullStepName, nil), emitter, inputResumeState)
+	resultChan, err := stepRunner.Run(ctx, s.NewStep(ctx, "test_step_label", stateFullStepName, nil), emitter, inputResumeState)
 	require.NoError(s.T(), err)
 	require.NotNil(s.T(), resultChan)
 
-	require.NoError(s.T(), stepRunner.AddTarget(s.Ctx, tgt("TSucc")))
+	require.NoError(s.T(), stepRunner.AddTarget(ctx, tgt("TSucc")))
 	ev, ok := <-resultChan
 	require.True(s.T(), ok)
 	require.Equal(s.T(), tgt("TSucc"), ev.Target)
 	require.NoError(s.T(), ev.Err)
 
-	require.NoError(s.T(), stepRunner.AddTarget(s.Ctx, tgt("TFail")))
+	require.NoError(s.T(), stepRunner.AddTarget(ctx, tgt("TFail")))
 	ev, ok = <-resultChan
 	require.True(s.T(), ok)
 	require.Equal(s.T(), tgt("TFail"), ev.Target)
@@ -86,8 +91,8 @@ func (s *StepRunnerSuite) TestRunningStep() {
 	ev, ok = <-resultChan
 	require.False(s.T(), ok)
 
-	closedCtx, cancel := xcontext.WithCancel(s.Ctx)
-	cancel()
+	closedCtx, closedCtxCancel := xcontext.WithCancel(ctx)
+	closedCtxCancel()
 
 	// if step runner has results, it should return them even if input context is closed
 	res, err := stepRunner.WaitResults(closedCtx)
