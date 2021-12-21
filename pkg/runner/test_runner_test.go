@@ -137,7 +137,7 @@ func (s *TestRunnerSuite) Test1Step1Success() {
 	defer cancel()
 
 	tr := newTestRunner()
-	_, targetsResults, err := s.runWithTimeout(ctx, tr, nil, 1, 2*time.Second,
+	_, targetsResults, err := s.runWithTimeout(ctx, tr, nil, 1, 2*time.Hour,
 		[]*target.Target{tgt("T1")},
 		[]test.TestStepBundle{
 			s.newTestStep(ctx, "Step 1", 0, "", ""),

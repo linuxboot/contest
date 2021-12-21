@@ -3,6 +3,7 @@ package runner
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"runtime/debug"
 	"sync"
@@ -15,6 +16,8 @@ import (
 	"github.com/linuxboot/contest/pkg/test"
 	"github.com/linuxboot/contest/pkg/xcontext"
 )
+
+var StepRunnerAlreadyStopped = errors.New("step runner is already stopped")
 
 type StepRunnerEvent struct {
 	// Target if set represents the target for which event was generated
@@ -32,7 +35,7 @@ type StepRunner struct {
 	mu sync.Mutex
 
 	input             chan *target.Target
-	stopOnce          sync.Once
+	stopCh            chan struct{}
 	resultsChan       chan<- StepRunnerEvent
 	runningLoopActive bool
 	finishedCh        chan struct{}
@@ -47,10 +50,32 @@ func (sr *StepRunner) AddTarget(ctx xcontext.Context, tgt *target.Target) error 
 		return fmt.Errorf("target should not be nil")
 	}
 
+	getStoppedError := func() error {
+		sr.mu.Lock()
+		defer sr.mu.Unlock()
+
+		// if StepRunner finished because of internal error, return this error
+		// otherwise return StepRunnerAlreadyStopped
+		if sr.resultErr != nil {
+			return sr.resultErr
+		}
+		return StepRunnerAlreadyStopped
+	}
+
+	sr.mu.Lock()
+	stopCh := sr.stopCh
+	sr.mu.Unlock()
+
+	if stopCh == nil {
+		return getStoppedError()
+	}
+
 	select {
 	case sr.input <- tgt:
+	case <-stopCh:
+		return getStoppedError()
 	case <-sr.finishedCh:
-		return fmt.Errorf("step runner is already stopped")
+		return getStoppedError()
 	case <-ctx.Until(xcontext.ErrPaused):
 		return xcontext.ErrPaused
 	case <-ctx.Done():
@@ -154,9 +179,13 @@ func (sr *StepRunner) WaitResults(ctx context.Context) (stepResult StepResult, e
 
 // Stop triggers TestStep to stop running by closing input channel
 func (sr *StepRunner) Stop() {
-	sr.stopOnce.Do(func() {
-		close(sr.input)
-	})
+	sr.mu.Lock()
+	defer sr.mu.Unlock()
+
+	if sr.stopCh != nil {
+		close(sr.stopCh)
+		sr.stopCh = nil
+	}
 }
 
 func (sr *StepRunner) ioLoop(
@@ -168,6 +197,7 @@ func (sr *StepRunner) ioLoop(
 	resumeStateTargets []target.Target,
 ) {
 	defer func() {
+		ctx.Debugf("ioLoop stopped")
 		if stepIn != nil {
 			close(stepIn)
 		}
@@ -183,30 +213,23 @@ func (sr *StepRunner) ioLoop(
 	var inputTargets []*target.Target
 	var curInputTarget *target.Target
 
-	closeStepIn := func() {
-		stepInTmp = nil
-		curInputTarget = nil
-		if input == nil {
-			ctx.Debugf("Close step input channel")
-			close(stepIn)
-			stepIn = nil
-			inputTargets = nil
-		}
+	sr.mu.Lock()
+	stopCh := sr.stopCh
+	sr.mu.Unlock()
+
+	if stopCh == nil {
+		close(stepIn)
+		stepIn = nil
+		input = nil
 	}
 
 	for {
 		select {
-		case tgt, ok := <-input:
-			if !ok {
-				input = nil
-				if len(inputTargets) == 0 {
-					closeStepIn()
-				}
-			} else {
-				stepInTmp = stepIn
-				inputTargets = append(inputTargets, tgt)
-				curInputTarget = inputTargets[len(inputTargets)-1]
-			}
+		case tgt := <-input:
+			stepInTmp = stepIn
+			inputTargets = append(inputTargets, tgt)
+			curInputTarget = inputTargets[len(inputTargets)-1]
+
 		case stepInTmp <- curInputTarget:
 			targetsInfo[curInputTarget.ID]++
 			if err := emitEvent(ctx, ev, target.EventTargetIn, curInputTarget, nil); err != nil {
@@ -217,7 +240,13 @@ func (sr *StepRunner) ioLoop(
 			if len(inputTargets) > 0 {
 				curInputTarget = inputTargets[len(inputTargets)-1]
 			} else {
-				closeStepIn()
+				stepInTmp = nil
+				curInputTarget = nil
+				if input == nil {
+					ctx.Debugf("Close step input channel")
+					close(stepIn)
+					stepIn = nil
+				}
 			}
 		case res, ok := <-stepOut:
 			if !ok {
@@ -267,13 +296,20 @@ func (sr *StepRunner) ioLoop(
 			case sr.resultsChan <- StepRunnerEvent{Target: res.Target, Err: res.Err}:
 			case <-ctx.Done():
 				ctx.Debugf(
-					"reading loop detected context canceled, target '%s' with result: '%v' was not reported",
+					"io loop: context canceled, target '%s' with result: '%v' was not reported",
 					res.Target.ID,
 					res.Err,
 				)
 			}
+		case <-stopCh:
+			input = nil
+			stopCh = nil
+			if len(inputTargets) == 0 {
+				close(stepIn)
+				stepIn = nil
+			}
 		case <-ctx.Done():
-			ctx.Debugf("reading loop detected context canceled")
+			ctx.Debugf("io loop: context canceled")
 			return
 		}
 	}
@@ -385,7 +421,8 @@ func emitEvent(ctx xcontext.Context, ev testevent.Emitter, name event.Name, tgt 
 // NewStepRunner creates a new StepRunner object
 func NewStepRunner() *StepRunner {
 	return &StepRunner{
-		input:      make(chan *target.Target, 1),
+		input:      make(chan *target.Target),
+		stopCh:     make(chan struct{}),
 		finishedCh: make(chan struct{}),
 	}
 }
