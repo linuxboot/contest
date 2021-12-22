@@ -258,6 +258,20 @@ func (sr *StepRunner) ioLoop(
 					sr.setErrLocked(ctx, &cerrors.ErrTestStepClosedChannels{StepName: testStepLabel})
 				}
 				sr.mu.Unlock()
+
+				var lostTargets []string
+				for targetID, activeCount := range targetsInfo {
+					if activeCount > 0 {
+						ctx.Debugf("target '%s' was lost", targetID)
+						lostTargets = append(lostTargets, targetID)
+					}
+				}
+				if len(lostTargets) > 0 {
+					sr.setErr(ctx, &cerrors.ErrTestStepLostTargets{
+						StepName: testStepLabel,
+						Targets:  lostTargets,
+					})
+				}
 				return
 			}
 

@@ -689,14 +689,6 @@ tgtLoop:
 						// It's been paused, this is fine.
 						continue
 					}
-					if ss.stepRunner.Started() && !ss.readingLoopRunning {
-						// Target has been injected but step runner has exited without a valid reason, this target has been lost.
-						runErr = &cerrors.ErrTestStepLostTargets{
-							StepName: ss.sb.TestStepLabel,
-							Targets:  []string{tgs.tgt.ID},
-						}
-						break tgtLoop
-					}
 				}
 				done = false
 				break
