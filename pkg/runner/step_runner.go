@@ -283,6 +283,7 @@ func (sr *StepRunner) outputLoop(
 			if err != nil {
 				ctx.Errorf("failed to emit event: %s", err)
 				sr.setErr(ctx, err)
+				return
 			}
 
 			select {

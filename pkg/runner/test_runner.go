@@ -176,6 +176,7 @@ func (tr *TestRunner) Run(
 			srs = rs.StepResumeState[i]
 		}
 
+		// Collect "processed" targets in resume state for a StepRunner
 		var resumeStateTargets []target.Target
 		for _, tgt := range tr.targets {
 			if tgt.CurStep == i && tgt.CurPhase == targetStepPhaseRun {
@@ -201,6 +202,8 @@ func (tr *TestRunner) Run(
 		tgs.handlerRunning = true
 		tr.targetsWg.Add(1)
 
+		// goroutine captures variable by reference -> to avoid race condition we assign the value
+		// of the loop variable to an intermediate variable
 		state := tgs
 		go func() {
 			tr.targetHandler(targetsCtx, state)
@@ -381,7 +384,7 @@ func (tr *TestRunner) awaitTargetResult(ctx xcontext.Context, tgs *targetState, 
 		return xcontext.ErrPaused
 	}
 
-	processTargetResult := func(res error) error {
+	processTargetResult := func(res error) {
 		ctx.Debugf("%s: result recd for %s", tgs, ss)
 		tr.mu.Lock()
 		if res != nil {
@@ -390,7 +393,6 @@ func (tr *TestRunner) awaitTargetResult(ctx xcontext.Context, tgs *targetState, 
 		tgs.CurPhase = targetStepPhaseEnd
 		tr.mu.Unlock()
 		tr.monitorCond.Signal()
-		return nil
 	}
 
 	select {
@@ -400,7 +402,8 @@ func (tr *TestRunner) awaitTargetResult(ctx xcontext.Context, tgs *targetState, 
 			ctx.Debugf("%s: result channel closed", tgs)
 			return xcontext.ErrPaused
 		}
-		return processTargetResult(res)
+		processTargetResult(res)
+		return nil
 		// Check for cancellation.
 		// Notably we are not checking for the pause condition here:
 		// when paused, we want to let all the injected targets to finish
@@ -411,7 +414,8 @@ func (tr *TestRunner) awaitTargetResult(ctx xcontext.Context, tgs *targetState, 
 		// in this case we should prioritise result processing
 		select {
 		case res := <-resCh:
-			return processTargetResult(res)
+			processTargetResult(res)
+			return nil
 		default:
 		}
 		tr.mu.Lock()
