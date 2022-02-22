@@ -35,7 +35,7 @@ type StepRunner struct {
 
 	input         chan *target.Target
 	inputWg       sync.WaitGroup
-	activeTargets map[string]int
+	activeTargets map[string]*stepTargetInfo
 
 	stopped           chan struct{}
 	finishedCh        chan struct{}
@@ -47,11 +47,23 @@ type StepRunner struct {
 	notifyStoppedOnce sync.Once
 }
 
+type stepTargetInfo struct {
+	targetInEmitted bool
+}
+
+func (sti *stepTargetInfo) acquireTargetInEmission() bool {
+	if sti.targetInEmitted {
+		return false
+	}
+	sti.targetInEmitted = true
+	return true
+}
+
 // NewStepRunner creates a new StepRunner object
 func NewStepRunner() *StepRunner {
 	return &StepRunner{
 		input:         make(chan *target.Target),
-		activeTargets: make(map[string]int),
+		activeTargets: make(map[string]*stepTargetInfo),
 		stopped:       make(chan struct{}),
 		finishedCh:    make(chan struct{}),
 	}
@@ -74,7 +86,9 @@ func (sr *StepRunner) Run(
 	sr.resultsChan = resultsChan
 
 	for _, resumeTarget := range resumeStateTargets {
-		sr.activeTargets[resumeTarget.ID]++
+		sr.activeTargets[resumeTarget.ID] = &stepTargetInfo{
+			targetInEmitted: true,
+		}
 	}
 
 	var activeLoopsCount int32 = 2
@@ -124,23 +138,41 @@ func (sr *StepRunner) addTarget(
 	}
 
 	err := func() error {
-		sr.mu.Lock()
-		stopped := sr.stopped
-		if stopped == nil {
-			sr.mu.Unlock()
-			return fmt.Errorf("step runner was stopped")
-		}
-		sr.inputWg.Add(1)
+		stopped, targetInfo, err := func() (<-chan struct{}, *stepTargetInfo, error) {
+			sr.mu.Lock()
+			defer sr.mu.Unlock()
 
-		sr.activeTargets[tgt.ID]++
-		sr.mu.Unlock()
+			stopped := sr.stopped
+			if stopped == nil {
+				return nil, nil, fmt.Errorf("step runner was stopped")
+			}
+
+			if _, found := sr.activeTargets[tgt.ID]; found {
+				return nil, nil, fmt.Errorf("target is already processed")
+			}
+			targetInfo := &stepTargetInfo{}
+			sr.activeTargets[tgt.ID] = targetInfo
+			sr.inputWg.Add(1)
+			return stopped, targetInfo, nil
+		}()
+
+		if err != nil {
+			return err
+		}
 
 		defer sr.inputWg.Done()
 		select {
 		case sr.input <- tgt:
-			if err := emitEvent(ctx, ev, target.EventTargetIn, tgt, nil); err != nil {
-				sr.setErrLocked(ctx, fmt.Errorf("failed to report target injection: %w", err))
+			// we should always emit TargetIn before TargetOut or TargetError
+			// we have a race condition that outputLoop may receive result for this target first
+			// in that case we will emit TargetIn in outputLoop and should not emit it here
+			sr.mu.Lock()
+			if targetInfo.acquireTargetInEmission() {
+				if err := emitEvent(ctx, ev, target.EventTargetIn, tgt, nil); err != nil {
+					sr.setErrLocked(ctx, fmt.Errorf("failed to report target injection: %w", err))
+				}
 			}
+			sr.mu.Unlock()
 			return nil
 		case <-stopped:
 			return fmt.Errorf("step runner was stopped")
@@ -153,11 +185,11 @@ func (sr *StepRunner) addTarget(
 
 	if err != nil {
 		sr.mu.Lock()
-		sr.activeTargets[tgt.ID]--
-		if sr.activeTargets[tgt.ID] < 0 {
+		if sr.activeTargets[tgt.ID] == nil {
 			sr.setErrLocked(ctx,
 				&cerrors.ErrTestStepReturnedDuplicateResult{StepName: bundle.TestStepLabel, Target: tgt.ID})
 		}
+		sr.activeTargets[tgt.ID] = nil
 		sr.mu.Unlock()
 	}
 	return nil
@@ -253,26 +285,35 @@ func (sr *StepRunner) outputLoop(
 			}
 			ctx.Infof("Obtained '%v' for target '%s'", res, res.Target.ID)
 
-			err := func() error {
+			shouldEmitTargetIn, err := func() (bool, error) {
 				sr.mu.Lock()
 				defer sr.mu.Unlock()
 
-				cnt, found := sr.activeTargets[res.Target.ID]
+				info, found := sr.activeTargets[res.Target.ID]
 				if !found {
-					return &cerrors.ErrTestStepReturnedUnexpectedResult{
+					return false, &cerrors.ErrTestStepReturnedUnexpectedResult{
 						StepName: testStepLabel,
 						Target:   res.Target.ID,
 					}
 				}
-				if cnt <= 0 {
-					return &cerrors.ErrTestStepReturnedDuplicateResult{StepName: testStepLabel, Target: res.Target.ID}
+				if info == nil {
+					return false, &cerrors.ErrTestStepReturnedDuplicateResult{StepName: testStepLabel, Target: res.Target.ID}
 				}
-				sr.activeTargets[res.Target.ID] = cnt - 1
-				return nil
+				sr.activeTargets[res.Target.ID] = nil
+
+				shouldEmitTargetIn := info.acquireTargetInEmission()
+				return shouldEmitTargetIn, nil
 			}()
 			if err != nil {
 				sr.setErr(ctx, err)
 				return
+			}
+
+			if shouldEmitTargetIn {
+				if err := emitEvent(ctx, ev, target.EventTargetIn, res.Target, nil); err != nil {
+					sr.setErr(ctx, fmt.Errorf("failed to report target injection: %w", err))
+					return
+				}
 			}
 
 			if res.Err == nil {
