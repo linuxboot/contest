@@ -152,6 +152,9 @@ func (sr *StepRunner) addTarget(
 	stopped := sr.stopped
 	sr.mu.Unlock()
 	if stopped == nil {
+		if err := sr.getErr(); err != nil {
+			return err
+		}
 		return fmt.Errorf("step runner was stopped")
 	}
 
@@ -203,6 +206,9 @@ func (sr *StepRunner) addTarget(
 				&cerrors.ErrTestStepReturnedDuplicateResult{StepName: bundle.TestStepLabel, Target: tgt.ID})
 		}
 		sr.activeTargets[tgt.ID] = nil
+		if sr.resultErr != nil {
+			err = sr.resultErr
+		}
 		sr.mu.Unlock()
 		return err
 	}
@@ -419,6 +425,12 @@ func (sr *StepRunner) setErrLocked(ctx xcontext.Context, err error) {
 	sr.mu.Unlock()
 	sr.notifyStopped(err)
 	sr.mu.Lock()
+}
+
+func (sr *StepRunner) getErr() error {
+	sr.mu.Lock()
+	defer sr.mu.Unlock()
+	return sr.resultErr
 }
 
 func safeCloseOutCh(ch chan test.TestStepResult) (recoverOccurred bool) {

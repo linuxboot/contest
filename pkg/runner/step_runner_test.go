@@ -254,20 +254,20 @@ func (s *StepRunnerSuite) TestStepPanics() {
 	require.NotNil(s.T(), resultChan)
 
 	// some of AddTarget may succeed as it takes some time for a step to panic
-	var gotError bool
+	var gotError error
 	for i := 0; i < 10; i++ {
 		time.Sleep(time.Millisecond)
 		if err := addTarget(ctx, tgt("target-id")); err != nil {
-			gotError = true
+			gotError = err
 		}
 	}
-	require.True(s.T(), gotError)
+	var expectedErrType *cerrors.ErrTestStepPaniced
+	require.ErrorAs(s.T(), gotError, &expectedErrType)
 
 	ev := <-resultChan
 	require.NotNil(s.T(), ev)
 	require.Nil(s.T(), ev.Target)
 
-	var expectedErrType *cerrors.ErrTestStepPaniced
 	require.ErrorAs(s.T(), ev.Err, &expectedErrType)
 	_, ok := <-resultChan
 	require.False(s.T(), ok)
