@@ -29,12 +29,38 @@ var EventTargetErr = event.Name("TargetErr")
 // EventTargetAcquired indicates that a target has been acquired for a Test
 var EventTargetAcquired = event.Name("TargetAcquired")
 
-// EventTargetAcquired indicates that a target has been released
+// EventTargetAcquireErr indicates that an error occurred during target acquiring
+var EventTargetAcquireErr = event.Name("TargetAcquireErr")
+
+// EventTargetReleased indicates that a target has been released
 var EventTargetReleased = event.Name("TargetReleased")
 
-// ErrPayload represents the payload associated with a TargetErr event
+// ErrPayload represents the payload associated with a TargetErr or AcquireErr events
 type ErrPayload struct {
 	Error string
+}
+
+// MarshalledErrPayload prepares error message as ErrPayload structure for event data payload
+func MarshalledErrPayload(err string) (json.RawMessage, error) {
+	payloadBytes, jmErr := json.Marshal(ErrPayload{Error: err})
+	if jmErr != nil {
+		return nil, fmt.Errorf("failed to marshal event: %w", jmErr)
+	}
+	return payloadBytes, nil
+}
+
+// UnMarshalErrPayload gets ErrPayload from eventdata's payload
+func UnMarshalErrPayload(payload json.RawMessage) (*ErrPayload, error) {
+	jsonPayload, err := payload.MarshalJSON()
+	if err != nil {
+		return nil, fmt.Errorf("could not marshal payload error: %v", err)
+	}
+
+	var errorPayload ErrPayload
+	if err := json.Unmarshal(jsonPayload, &errorPayload); err != nil {
+		return nil, fmt.Errorf("could not unmarshal payload error: %v", err)
+	}
+	return &errorPayload, nil
 }
 
 // Target represents a target to run tests on.

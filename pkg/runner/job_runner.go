@@ -283,6 +283,45 @@ func (jr *JobRunner) Run(ctx xcontext.Context, j *job.Job, resumeState *job.Paus
 	return nil, nil
 }
 
+func (jr *JobRunner) acquireTargets(
+	ctx xcontext.Context,
+	j *job.Job,
+	testID int,
+	targetLocker target.Locker,
+	resumeTargets []*target.Target,
+) ([]*target.Target, bool, error) {
+	t := j.Tests[testID-1]
+	bundle := t.TargetManagerBundle
+
+	if len(resumeTargets) > 0 {
+		if err := targetLocker.RefreshLocks(ctx, j.ID, jr.targetLockDuration, resumeTargets); err != nil {
+			return nil, false, fmt.Errorf("failed to refresh locks %v: %w", resumeTargets, err)
+		}
+		return resumeTargets, false, nil
+	}
+
+	var targets []*target.Target
+	if len(targets) == 0 {
+		var err error
+		targets, err = bundle.TargetManager.Acquire(
+			ctx, j.ID, j.TargetManagerAcquireTimeout+jr.targetLockDuration, bundle.AcquireParameters, targetLocker)
+		if err != nil {
+			return nil, false, err
+		}
+	}
+	// Lock all the targets returned by Acquire.
+	// Targets can also be locked in the `Acquire` method, for
+	// example to allow dynamic acquisition.
+	// We lock them again to ensure that all the acquired
+	// targets are locked before running the job.
+	// Locking an already-locked target (by the same owner)
+	// extends the locking deadline.
+	if err := targetLocker.Lock(ctx, j.ID, jr.targetLockDuration, targets); err != nil {
+		return nil, false, fmt.Errorf("target locking failed: %w", err)
+	}
+	return targets, true, nil
+}
+
 func (jr *JobRunner) runTest(ctx xcontext.Context,
 	j *job.Job, runID types.RunID, testID int, testAttempt uint32,
 	resumeState *job.PauseEventPayload,
@@ -292,55 +331,51 @@ func (jr *JobRunner) runTest(ctx xcontext.Context,
 	bundle := t.TargetManagerBundle
 	var (
 		targets  []*target.Target
-		errCh    = make(chan error, 1)
 		acquired bool
 		succeed  bool
 		runErr   error
 	)
 
+	header := testevent.Header{JobID: j.ID, RunID: runID, TestName: t.Name, TestAttempt: testAttempt}
+	testEventEmitter := storage.NewTestEventEmitter(jr.storageEngineVault, header)
+
+	var resumeTargets []*target.Target
+	if resumeState != nil && resumeState.Targets != nil {
+		resumeTargets = resumeState.Targets
+	}
+
+	tl := target.GetLocker()
+
+	acquireCtx, acquireCancel := xcontext.WithDeadline(ctx, time.Now().Add(j.TargetManagerAcquireTimeout))
+	defer acquireCancel()
+
 	// the Acquire semantic is synchronous, so that the implementation
 	// is simpler on the user's side. We run it in a goroutine in
 	// order to use a timeout for target acquisition.
-	tl := target.GetLocker()
+	// TODO: Make lockers finish on context cancel and remove goroutine
+	errCh := make(chan error, 1)
 	go func() {
-		// If resuming with targets already acquired, just make sure we still own them.
-		if resumeState != nil && resumeState.Targets != nil {
-			targets = resumeState.Targets
-			if err := tl.RefreshLocks(ctx, j.ID, jr.targetLockDuration, targets); err != nil {
-				errCh <- fmt.Errorf("failed to refresh locks %v: %w", targets, err)
-			}
-			errCh <- nil
-			return
-		}
-		if len(targets) == 0 {
-			var err error
-			targets, err = bundle.TargetManager.Acquire(ctx, j.ID, j.TargetManagerAcquireTimeout+jr.targetLockDuration, bundle.AcquireParameters, tl)
-			if err != nil {
-				errCh <- err
-				return
-			}
-			acquired = true
-		}
-		// Lock all the targets returned by Acquire.
-		// Targets can also be locked in the `Acquire` method, for
-		// example to allow dynamic acquisition.
-		// We lock them again to ensure that all the acquired
-		// targets are locked before running the job.
-		// Locking an already-locked target (by the same owner)
-		// extends the locking deadline.
-		if err := tl.Lock(ctx, j.ID, jr.targetLockDuration, targets); err != nil {
-			errCh <- fmt.Errorf("target locking failed: %w", err)
-		}
-		errCh <- nil
+		var err error
+		targets, acquired, err = jr.acquireTargets(acquireCtx, j, testID, tl, resumeTargets)
+		errCh <- err
 	}()
 
 	// wait for targets up to a certain amount of time
 	select {
-	case err := <-errCh:
-		if err != nil {
-			err = fmt.Errorf("run #%d: cannot fetch targets for test '%s': %v", runID, t.Name, err)
-			ctx.Errorf(err.Error())
-			return nil, nil, false, err
+	case acquireErr := <-errCh:
+		if acquireErr != nil {
+			ctx.Errorf("run #%d: cannot fetch targets for test '%s': %w", runID, t.Name, acquireErr)
+
+			payload, err := target.MarshalledErrPayload(acquireErr.Error())
+			if err != nil {
+				return nil, nil, false, err
+			}
+
+			eventData := testevent.Data{EventName: target.EventTargetAcquireErr, Payload: &payload}
+			if err = testEventEmitter.Emit(ctx, eventData); err != nil {
+				return nil, nil, false, err
+			}
+			return nil, nil, false, nil
 		}
 		// Associate targets with the job. Background routine will refresh the locks periodically.
 		jr.jobsMapLock.Lock()
@@ -351,9 +386,6 @@ func (jr *JobRunner) runTest(ctx xcontext.Context,
 		// Note: not handling cancellation here to allow TM plugins to wrap up correctly.
 		// We have timeout to ensure it doesn't get stuck forever.
 	}
-
-	header := testevent.Header{JobID: j.ID, RunID: runID, TestName: t.Name, TestAttempt: testAttempt}
-	testEventEmitter := storage.NewTestEventEmitter(jr.storageEngineVault, header)
 
 	// Emit events tracking targets acquisition
 	if acquired {

@@ -22,10 +22,11 @@ import (
 // targetRoutingEvents gather all event names which track the flow of targets
 // between TestSteps
 var targetRoutingEvents = map[event.Name]struct{}{
-	target.EventTargetIn:    struct{}{},
-	target.EventTargetErr:   struct{}{},
-	target.EventTargetOut:   struct{}{},
-	target.EventTargetInErr: struct{}{},
+	target.EventTargetIn:         {},
+	target.EventTargetErr:        {},
+	target.EventTargetOut:        {},
+	target.EventTargetInErr:      {},
+	target.EventTargetAcquireErr: {},
 }
 
 // buildTargetStatuses builds a list of TargetStepStatus, which represent the status of Targets within a TestStep
@@ -59,16 +60,11 @@ func (jr *JobRunner) buildTargetStatuses(coordinates job.TestStepCoordinates, ta
 			targetStatus.OutTime = testEvent.EmitTime
 		} else if evName == target.EventTargetErr {
 			targetStatus.OutTime = testEvent.EmitTime
-			errorPayload := target.ErrPayload{}
-			jsonPayload, err := testEvent.Data.Payload.MarshalJSON()
+			errorPayload, err := target.UnMarshalErrPayload(*testEvent.Data.Payload)
 			if err != nil {
-				targetStatus.Error = fmt.Sprintf("could not marshal payload error: %v", err)
+				targetStatus.Error = fmt.Sprintf("could not unmarshal payload error: %v", err)
 			} else {
-				if err := json.Unmarshal(jsonPayload, &errorPayload); err != nil {
-					targetStatus.Error = fmt.Sprintf("could not unmarshal payload error: %v", err)
-				} else {
-					targetStatus.Error = errorPayload.Error
-				}
+				targetStatus.Error = errorPayload.Error
 			}
 		}
 	}
@@ -173,15 +169,20 @@ func (jr *JobRunner) buildTestStatus(ctx xcontext.Context, coordinates job.TestC
 		testevent.QueryJobID(coordinates.JobID),
 		testevent.QueryRunID(coordinates.RunID),
 		testevent.QueryTestName(coordinates.TestName),
-		testevent.QueryEventName(target.EventTargetAcquired),
+		testevent.QueryEventNames([]event.Name{target.EventTargetAcquired, target.EventTargetAcquireErr}),
 	)
-
 	if err != nil {
 		return nil, fmt.Errorf("could not fetch events associated to target acquisition")
 	}
 
-	var targetStatuses []job.TargetStatus
+	var lastAttempt uint32
+	for _, ev := range targetAcquiredEvents {
+		if ev.Header.TestAttempt > lastAttempt {
+			lastAttempt = ev.Header.TestAttempt
+		}
+	}
 
+	var targetStatuses []job.TargetStatus
 	// Keep track of the last TargetStatus seen for each Target
 	targetMap := make(map[string]job.TargetStatus)
 	for _, testStepStatus := range testStatus.TestStepStatuses {
@@ -191,6 +192,34 @@ func (jr *JobRunner) buildTestStatus(ctx xcontext.Context, coordinates job.TestC
 	}
 
 	for _, targetEvent := range targetAcquiredEvents {
+		if targetEvent.Header.TestAttempt != lastAttempt {
+			continue
+		}
+
+		if targetEvent.Data.EventName == target.EventTargetAcquireErr {
+			var errMessage string
+			if targetEvent.Data.Payload != nil {
+				if errorPayload, err := target.UnMarshalErrPayload(*targetEvent.Data.Payload); err != nil {
+					errMessage = err.Error()
+				} else {
+					errMessage = errorPayload.Error
+				}
+			} else {
+				errMessage = "Failed to acquire targets"
+			}
+
+			targetStatuses = append(targetStatuses, job.TargetStatus{
+				TestStepCoordinates: job.TestStepCoordinates{
+					TestCoordinates: coordinates,
+				},
+				InTime:  targetEvent.EmitTime,
+				OutTime: targetEvent.EmitTime,
+				Error:   errMessage,
+				Events:  []testevent.Event{targetEvent},
+			})
+			continue
+		}
+
 		t := *targetEvent.Data.Target
 		if _, ok := targetMap[t.ID]; !ok {
 			// This Target is not associated to any TargetStatus, we assume it has not
