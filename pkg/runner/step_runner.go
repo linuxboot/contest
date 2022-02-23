@@ -16,7 +16,7 @@ import (
 	"github.com/linuxboot/contest/pkg/xcontext"
 )
 
-type AddTargetToStep func(tgt *target.Target) error
+type AddTargetToStep func(ctx xcontext.Context, tgt *target.Target) error
 
 type StepRunnerEvent struct {
 	// Target if set represents the target for which event was generated
@@ -44,7 +44,7 @@ type StepRunner struct {
 
 	resultErr         error
 	resultResumeState json.RawMessage
-	notifyStoppedOnce sync.Once
+	notifyStopped     func(err error)
 }
 
 type stepTargetInfo struct {
@@ -82,6 +82,17 @@ func (sr *StepRunner) Run(
 	if sr.resultsChan != nil {
 		return nil, nil, &cerrors.ErrAlreadyDone{}
 	}
+
+	var notifyStoppedOnce sync.Once
+	sr.notifyStopped = func(err error) {
+		notifyStoppedOnce.Do(func() {
+			select {
+			case sr.resultsChan <- StepRunnerEvent{Err: err}:
+			case <-ctx.Done():
+			}
+		})
+	}
+
 	resultsChan := make(chan StepRunnerEvent, 1)
 	sr.resultsChan = resultsChan
 
@@ -102,7 +113,7 @@ func (sr *StepRunner) Run(
 		sr.mu.Unlock()
 
 		// if an error occurred we already sent notification
-		sr.notifyStopped(ctx, nil)
+		sr.notifyStopped(nil)
 		close(sr.resultsChan)
 		ctx.Debugf("StepRunner finished")
 
@@ -122,7 +133,7 @@ func (sr *StepRunner) Run(
 		ctx.Debugf("Reading loop finished")
 	}()
 
-	return resultsChan, func(tgt *target.Target) error {
+	return resultsChan, func(ctx xcontext.Context, tgt *target.Target) error {
 		return sr.addTarget(ctx, bundle, ev, tgt)
 	}, nil
 }
@@ -137,23 +148,25 @@ func (sr *StepRunner) addTarget(
 		return fmt.Errorf("target should not be nil")
 	}
 
+	sr.mu.Lock()
+	stopped := sr.stopped
+	sr.mu.Unlock()
+	if stopped == nil {
+		return fmt.Errorf("step runner was stopped")
+	}
+
 	err := func() error {
-		stopped, targetInfo, err := func() (<-chan struct{}, *stepTargetInfo, error) {
+		targetInfo, err := func() (*stepTargetInfo, error) {
 			sr.mu.Lock()
 			defer sr.mu.Unlock()
 
-			stopped := sr.stopped
-			if stopped == nil {
-				return nil, nil, fmt.Errorf("step runner was stopped")
-			}
-
-			if _, found := sr.activeTargets[tgt.ID]; found {
-				return nil, nil, fmt.Errorf("target is already processed")
+			if targetInfo := sr.activeTargets[tgt.ID]; targetInfo != nil {
+				return nil, fmt.Errorf("target is already processed")
 			}
 			targetInfo := &stepTargetInfo{}
 			sr.activeTargets[tgt.ID] = targetInfo
 			sr.inputWg.Add(1)
-			return stopped, targetInfo, nil
+			return targetInfo, nil
 		}()
 
 		if err != nil {
@@ -191,6 +204,7 @@ func (sr *StepRunner) addTarget(
 		}
 		sr.activeTargets[tgt.ID] = nil
 		sr.mu.Unlock()
+		return err
 	}
 	return nil
 }
@@ -403,17 +417,8 @@ func (sr *StepRunner) setErrLocked(ctx xcontext.Context, err error) {
 
 	// notifyStopped is a blocking operation: should release the lock
 	sr.mu.Unlock()
-	sr.notifyStopped(ctx, err)
+	sr.notifyStopped(err)
 	sr.mu.Lock()
-}
-
-func (sr *StepRunner) notifyStopped(ctx xcontext.Context, err error) {
-	sr.notifyStoppedOnce.Do(func() {
-		select {
-		case sr.resultsChan <- StepRunnerEvent{Err: err}:
-		case <-ctx.Done():
-		}
-	})
 }
 
 func safeCloseOutCh(ch chan test.TestStepResult) (recoverOccurred bool) {

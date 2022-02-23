@@ -360,7 +360,7 @@ func (tr *TestRunner) injectTarget(ctx xcontext.Context, tgs *targetState, ss *s
 	ctx.Debugf("%s: injecting into %s", tgs, ss)
 
 	tgt := tgs.tgt
-	err := ss.addTarget(tgt)
+	err := ss.addTarget(ctx, tgt)
 	if err == nil {
 		tr.mu.Lock()
 		// By the time we get here the target could have been processed and result posted already, hence the check.
