@@ -60,7 +60,7 @@ func (jr *JobRunner) buildTargetStatuses(coordinates job.TestStepCoordinates, ta
 			targetStatus.OutTime = testEvent.EmitTime
 		} else if evName == target.EventTargetErr {
 			targetStatus.OutTime = testEvent.EmitTime
-			errorPayload, err := target.UnMarshalErrPayload(*testEvent.Data.Payload)
+			errorPayload, err := target.UnmarshalErrPayload(*testEvent.Data.Payload)
 			if err != nil {
 				targetStatus.Error = fmt.Sprintf("could not unmarshal payload error: %v", err)
 			} else {
@@ -199,7 +199,7 @@ func (jr *JobRunner) buildTestStatus(ctx xcontext.Context, coordinates job.TestC
 		if targetEvent.Data.EventName == target.EventTargetAcquireErr {
 			var errMessage string
 			if targetEvent.Data.Payload != nil {
-				if errorPayload, err := target.UnMarshalErrPayload(*targetEvent.Data.Payload); err != nil {
+				if errorPayload, err := target.UnmarshalErrPayload(*targetEvent.Data.Payload); err != nil {
 					errMessage = err.Error()
 				} else {
 					errMessage = errorPayload.Error

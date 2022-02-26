@@ -53,3 +53,19 @@ func TestTargetStringification(t *testing.T) {
 	tj5, _ := json.Marshal(t5)
 	require.Equal(t, `{"ID":"123","TMS":{"hello":"world"}}`, string(tj5))
 }
+
+func TestErrPayloadMarshalling(t *testing.T) {
+	t.Run("Nil", func(t *testing.T) {
+		res, err := UnmarshalErrPayload(nil)
+		require.NoError(t, err)
+		require.Equal(t, &ErrPayload{}, res)
+	})
+
+	t.Run("MarshalUnmarshal", func(t *testing.T) {
+		payload, err := MarshallErrPayload("dummy")
+		require.NoError(t, err)
+		res, err := UnmarshalErrPayload(payload)
+		require.NoError(t, err)
+		require.Equal(t, ErrPayload{Error: "dummy"}, *res)
+	})
+}

@@ -346,7 +346,7 @@ func (jr *JobRunner) runTest(ctx xcontext.Context,
 
 	tl := target.GetLocker()
 
-	acquireCtx, acquireCancel := xcontext.WithDeadline(ctx, time.Now().Add(j.TargetManagerAcquireTimeout))
+	acquireCtx, acquireCancel := xcontext.WithTimeout(ctx, j.TargetManagerAcquireTimeout)
 	defer acquireCancel()
 
 	// the Acquire semantic is synchronous, so that the implementation
@@ -366,13 +366,19 @@ func (jr *JobRunner) runTest(ctx xcontext.Context,
 		if acquireErr != nil {
 			ctx.Errorf("run #%d: cannot fetch targets for test '%s': %w", runID, t.Name, acquireErr)
 
-			payload, err := target.MarshalledErrPayload(acquireErr.Error())
+			// Assume that all errors could be retried except cancellation as both
+			// target manager and target locking problems can disappear if retried
+			if acquireErr == xcontext.ErrCanceled {
+				return nil, nil, false, acquireErr
+			}
+
+			payload, err := target.MarshallErrPayload(acquireErr.Error())
 			if err != nil {
 				return nil, nil, false, err
 			}
 
 			eventData := testevent.Data{EventName: target.EventTargetAcquireErr, Payload: &payload}
-			if err = testEventEmitter.Emit(ctx, eventData); err != nil {
+			if err := testEventEmitter.Emit(ctx, eventData); err != nil {
 				return nil, nil, false, err
 			}
 			return nil, nil, false, nil
