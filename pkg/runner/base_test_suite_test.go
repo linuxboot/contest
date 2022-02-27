@@ -47,6 +47,10 @@ func (mse *MemoryStorageEngine) GetTargetEvents(ctx xcontext.Context, testName s
 	return common.GetTestEventsAsString(ctx, mse.Storage, testName, &targetID, nil)
 }
 
+func (mse *MemoryStorageEngine) GetTestEvents(ctx xcontext.Context, testName string) string {
+	return common.GetTestEventsAsString(ctx, mse.Storage, testName, nil, nil)
+}
+
 type BaseTestSuite struct {
 	suite.Suite
 

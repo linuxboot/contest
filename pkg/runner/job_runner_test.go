@@ -28,61 +28,6 @@ import (
 	"github.com/linuxboot/contest/plugins/teststeps/echo"
 )
 
-const stateFullStepName = "statefull"
-
-type stateFullStep struct {
-	runFunction func(ctx xcontext.Context, ch test.TestStepChannels, params test.TestStepParameters,
-		ev testevent.Emitter, resumeState json.RawMessage) (json.RawMessage, error)
-	validateFunction func(ctx xcontext.Context, params test.TestStepParameters) error
-}
-
-func (sfs *stateFullStep) Name() string {
-	return stateFullStepName
-}
-
-func (sfs *stateFullStep) Run(ctx xcontext.Context, ch test.TestStepChannels, params test.TestStepParameters,
-	ev testevent.Emitter, resumeState json.RawMessage,
-) (json.RawMessage, error) {
-	if sfs.runFunction == nil {
-		return nil, fmt.Errorf("stateFullStep run is not initialised")
-	}
-	return sfs.runFunction(ctx, ch, params, ev, resumeState)
-}
-
-func (sfs *stateFullStep) ValidateParameters(ctx xcontext.Context, params test.TestStepParameters) error {
-	if sfs.validateFunction == nil {
-		return nil
-	}
-	return sfs.validateFunction(ctx, params)
-}
-
-const collectingReporterName = "collectingReporter"
-
-type collectingReporter struct {
-	runStatuses []job.RunStatus
-}
-
-func (r *collectingReporter) Name() string {
-	return collectingReporterName
-}
-
-func (r *collectingReporter) ValidateRunParameters([]byte) (interface{}, error) {
-	return nil, nil
-}
-
-func (r *collectingReporter) ValidateFinalParameters([]byte) (interface{}, error) {
-	return nil, nil
-}
-
-func (r *collectingReporter) RunReport(ctx xcontext.Context, parameters interface{}, runStatus *job.RunStatus, ev testevent.Fetcher) (bool, interface{}, error) {
-	r.runStatuses = append(r.runStatuses, *runStatus)
-	return true, nil, nil
-}
-
-func (r *collectingReporter) FinalReport(ctx xcontext.Context, parameters interface{}, runStatuses []job.RunStatus, ev testevent.Fetcher) (bool, interface{}, error) {
-	return true, nil, nil
-}
-
 type JobRunnerSuite struct {
 	BaseTestSuite
 }
@@ -280,6 +225,174 @@ func (s *JobRunnerSuite) TestJobWithTestRetry() {
 	}
 }
 
+func (s *JobRunnerSuite) TestJobRetryOnFailedAcquire() {
+	ctx, cancel := xcontext.WithCancel(logrusctx.NewContext(logger.LevelDebug))
+	defer cancel()
+
+	var mu sync.Mutex
+	var acquireCalledCnt int
+	tm := stateFullTargetManager{
+		validateAcquireParametersFunc: func([]byte) (interface{}, error) { return nil, nil },
+		validateReleaseParametersFunc: func(bytes []byte) (interface{}, error) { return nil, nil },
+		acquireFunc: func(ctx xcontext.Context, jobID types.JobID, jobTargetManagerAcquireTimeout time.Duration,
+			parameters interface{}, tl target.Locker,
+		) ([]*target.Target, error) {
+			mu.Lock()
+			defer mu.Unlock()
+			acquireCalledCnt++
+
+			require.Less(s.T(), acquireCalledCnt, 3)
+			if acquireCalledCnt == 1 {
+				return nil, fmt.Errorf("some error")
+			}
+			return []*target.Target{
+				{
+					ID: "T1",
+				},
+			}, nil
+		},
+		releaseFunc: func(ctx xcontext.Context, jobID types.JobID, targets []*target.Target, parameters interface{}) error {
+			return nil
+		},
+	}
+
+	reporter := &collectingReporter{}
+	j := job.Job{
+		ID:                          1,
+		Runs:                        1,
+		TargetManagerAcquireTimeout: 10 * time.Second,
+		TargetManagerReleaseTimeout: 10 * time.Second,
+		RunReporterBundles: []*job.ReporterBundle{
+			{
+				Reporter: reporter,
+			},
+		},
+		Tests: []*test.Test{
+			{
+				Name: testName,
+				RetryParameters: test.RetryParameters{
+					NumRetries:    1,
+					RetryInterval: xjson.Duration(time.Millisecond), // make a small interval to test waiting branch
+				},
+				TargetManagerBundle: &target.TargetManagerBundle{
+					TargetManager: tm,
+				},
+				TestStepsBundles: []test.TestStepBundle{
+					s.NewStep(ctx, "echo1_step_label", echo.Name, map[string][]test.Param{
+						"text": {*test.NewParam("hello")},
+					}),
+				},
+			},
+		},
+	}
+
+	jsm := storage.NewJobStorageManager(s.MemoryStorage.StorageEngineVault)
+	jr := NewJobRunner(jsm, s.MemoryStorage.StorageEngineVault, clock.New(), time.Second)
+	require.NotNil(s.T(), jr)
+
+	resumeState, err := jr.Run(ctx, &j, nil)
+	require.NoError(s.T(), err)
+	require.Nil(s.T(), resumeState)
+
+	require.Equal(s.T(), `
+{[1 1 SimpleTest 0 ][(*Target)(nil) TargetAcquireErr &"{\"Error\":\"some error\"}"]}
+{[1 1 SimpleTest 1 ][Target{ID: "T1"} TargetAcquired]}
+{[1 1 SimpleTest 1 echo1_step_label][Target{ID: "T1"} TargetIn]}
+{[1 1 SimpleTest 1 echo1_step_label][Target{ID: "T1"} TargetOut]}
+{[1 1 SimpleTest 1 ][Target{ID: "T1"} TargetReleased]}
+`, s.MemoryStorage.GetTestEvents(ctx, testName))
+
+	require.Len(s.T(), reporter.runStatuses, 1)
+	require.Len(s.T(), reporter.runStatuses[0].TestStatuses, 1)
+
+	ts := reporter.runStatuses[0].TestStatuses[0]
+	require.Equal(s.T(), j.ID, ts.JobID)
+	require.Equal(s.T(), types.RunID(0x1), ts.RunID)
+
+	for _, tgs := range ts.TargetStatuses {
+		require.Equal(s.T(), "T1", tgs.Target.ID)
+		require.Empty(s.T(), tgs.Error)
+		for _, ev := range tgs.Events {
+			require.Equal(s.T(), uint32(1), ev.Header.TestAttempt)
+		}
+	}
+}
+
+func (s *JobRunnerSuite) TestAcquireFailed() {
+	ctx, cancel := xcontext.WithCancel(logrusctx.NewContext(logger.LevelDebug))
+	defer cancel()
+
+	tm := stateFullTargetManager{
+		validateAcquireParametersFunc: func([]byte) (interface{}, error) { return nil, nil },
+		validateReleaseParametersFunc: func(bytes []byte) (interface{}, error) { return nil, nil },
+		acquireFunc: func(ctx xcontext.Context, jobID types.JobID, jobTargetManagerAcquireTimeout time.Duration,
+			parameters interface{}, tl target.Locker,
+		) ([]*target.Target, error) {
+			return nil, fmt.Errorf("some error")
+		},
+		releaseFunc: func(ctx xcontext.Context, jobID types.JobID, targets []*target.Target, parameters interface{}) error {
+			return nil
+		},
+	}
+
+	reporter := &collectingReporter{}
+	j := job.Job{
+		ID:                          1,
+		Runs:                        1,
+		TargetManagerAcquireTimeout: 10 * time.Second,
+		TargetManagerReleaseTimeout: 10 * time.Second,
+		RunReporterBundles: []*job.ReporterBundle{
+			{
+				Reporter: reporter,
+			},
+		},
+		Tests: []*test.Test{
+			{
+				Name: testName,
+				RetryParameters: test.RetryParameters{
+					NumRetries:    1,
+					RetryInterval: xjson.Duration(time.Millisecond), // make a small interval to test waiting branch
+				},
+				TargetManagerBundle: &target.TargetManagerBundle{
+					TargetManager: tm,
+				},
+				TestStepsBundles: []test.TestStepBundle{
+					s.NewStep(ctx, "echo1_step_label", echo.Name, map[string][]test.Param{
+						"text": {*test.NewParam("hello")},
+					}),
+				},
+			},
+		},
+	}
+
+	jsm := storage.NewJobStorageManager(s.MemoryStorage.StorageEngineVault)
+	jr := NewJobRunner(jsm, s.MemoryStorage.StorageEngineVault, clock.New(), time.Second)
+	require.NotNil(s.T(), jr)
+
+	resumeState, err := jr.Run(ctx, &j, nil)
+	require.NoError(s.T(), err)
+	require.Nil(s.T(), resumeState)
+
+	require.Equal(s.T(), `
+{[1 1 SimpleTest 0 ][(*Target)(nil) TargetAcquireErr &"{\"Error\":\"some error\"}"]}
+{[1 1 SimpleTest 1 ][(*Target)(nil) TargetAcquireErr &"{\"Error\":\"some error\"}"]}
+`, s.MemoryStorage.GetTestEvents(ctx, testName))
+
+	require.Len(s.T(), reporter.runStatuses, 1)
+	require.Len(s.T(), reporter.runStatuses[0].TestStatuses, 1)
+
+	ts := reporter.runStatuses[0].TestStatuses[0]
+	require.Equal(s.T(), j.ID, ts.JobID)
+	require.Equal(s.T(), types.RunID(0x1), ts.RunID)
+
+	for _, tgs := range ts.TargetStatuses {
+		require.NotEmpty(s.T(), tgs.Error)
+		for _, ev := range tgs.Events {
+			require.Equal(s.T(), uint32(1), ev.Header.TestAttempt)
+		}
+	}
+}
+
 func (s *JobRunnerSuite) TestResumeStateBadJobId() {
 	ctx, cancel := xcontext.WithCancel(logrusctx.NewContext(logger.LevelDebug))
 	defer cancel()
@@ -336,4 +449,89 @@ func (s *JobRunnerSuite) TestResumeStateBadJobId() {
 	resumeState, err := jr.Run(ctx, &j, &inputResumeState)
 	require.Error(s.T(), err)
 	require.Nil(s.T(), resumeState)
+}
+
+const stateFullStepName = "statefull"
+
+type stateFullStep struct {
+	runFunction func(ctx xcontext.Context, ch test.TestStepChannels, params test.TestStepParameters,
+		ev testevent.Emitter, resumeState json.RawMessage) (json.RawMessage, error)
+	validateFunction func(ctx xcontext.Context, params test.TestStepParameters) error
+}
+
+func (sfs *stateFullStep) Name() string {
+	return stateFullStepName
+}
+
+func (sfs *stateFullStep) Run(ctx xcontext.Context, ch test.TestStepChannels, params test.TestStepParameters,
+	ev testevent.Emitter, resumeState json.RawMessage,
+) (json.RawMessage, error) {
+	if sfs.runFunction == nil {
+		return nil, fmt.Errorf("stateFullStep run is not initialised")
+	}
+	return sfs.runFunction(ctx, ch, params, ev, resumeState)
+}
+
+func (sfs *stateFullStep) ValidateParameters(ctx xcontext.Context, params test.TestStepParameters) error {
+	if sfs.validateFunction == nil {
+		return nil
+	}
+	return sfs.validateFunction(ctx, params)
+}
+
+type stateFullTargetManager struct {
+	validateAcquireParametersFunc func([]byte) (interface{}, error)
+	validateReleaseParametersFunc func([]byte) (interface{}, error)
+	acquireFunc                   func(ctx xcontext.Context, jobID types.JobID, jobTargetManagerAcquireTimeout time.Duration,
+		parameters interface{}, tl target.Locker) ([]*target.Target, error)
+	releaseFunc func(ctx xcontext.Context, jobID types.JobID, targets []*target.Target, parameters interface{}) error
+}
+
+func (sfm stateFullTargetManager) ValidateAcquireParameters(params []byte) (interface{}, error) {
+	return sfm.validateAcquireParametersFunc(params)
+}
+
+func (sfm stateFullTargetManager) ValidateReleaseParameters(params []byte) (interface{}, error) {
+	return sfm.validateReleaseParametersFunc(params)
+}
+
+func (sfm stateFullTargetManager) Acquire(
+	ctx xcontext.Context,
+	jobID types.JobID,
+	jobTargetManagerAcquireTimeout time.Duration,
+	parameters interface{},
+	tl target.Locker,
+) ([]*target.Target, error) {
+	return sfm.acquireFunc(ctx, jobID, jobTargetManagerAcquireTimeout, parameters, tl)
+}
+
+func (sfm stateFullTargetManager) Release(ctx xcontext.Context, jobID types.JobID, targets []*target.Target, parameters interface{}) error {
+	return sfm.releaseFunc(ctx, jobID, targets, parameters)
+}
+
+const collectingReporterName = "collectingReporter"
+
+type collectingReporter struct {
+	runStatuses []job.RunStatus
+}
+
+func (r *collectingReporter) Name() string {
+	return collectingReporterName
+}
+
+func (r *collectingReporter) ValidateRunParameters([]byte) (interface{}, error) {
+	return nil, nil
+}
+
+func (r *collectingReporter) ValidateFinalParameters([]byte) (interface{}, error) {
+	return nil, nil
+}
+
+func (r *collectingReporter) RunReport(ctx xcontext.Context, parameters interface{}, runStatus *job.RunStatus, ev testevent.Fetcher) (bool, interface{}, error) {
+	r.runStatuses = append(r.runStatuses, *runStatus)
+	return true, nil, nil
+}
+
+func (r *collectingReporter) FinalReport(ctx xcontext.Context, parameters interface{}, runStatuses []job.RunStatus, ev testevent.Fetcher) (bool, interface{}, error) {
+	return true, nil, nil
 }
