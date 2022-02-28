@@ -55,11 +55,11 @@ func UnmarshalErrPayload(payload json.RawMessage) (*ErrPayload, error) {
 		return &ErrPayload{}, nil
 	}
 
-	var errorPayload ErrPayload
+	var errorPayload *ErrPayload
 	if err := json.Unmarshal(payload, &errorPayload); err != nil {
 		return nil, fmt.Errorf("could not unmarshal payload error: %v", err)
 	}
-	return &errorPayload, nil
+	return errorPayload, nil
 }
 
 // Target represents a target to run tests on.

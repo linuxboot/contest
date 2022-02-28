@@ -61,6 +61,12 @@ func TestErrPayloadMarshalling(t *testing.T) {
 		require.Equal(t, &ErrPayload{}, res)
 	})
 
+	t.Run("null_bytes", func(t *testing.T) {
+		res, err := UnmarshalErrPayload([]byte("null"))
+		require.NoError(t, err)
+		require.Nil(t, res)
+	})
+
 	t.Run("MarshalUnmarshal", func(t *testing.T) {
 		payload, err := MarshallErrPayload("dummy")
 		require.NoError(t, err)
