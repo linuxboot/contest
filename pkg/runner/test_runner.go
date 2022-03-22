@@ -202,13 +202,10 @@ func (tr *TestRunner) Run(
 		tgs.handlerRunning = true
 		tr.targetsWg.Add(1)
 
-		// goroutine captures variable by reference -> to avoid race condition we assign the value
-		// of the loop variable to an intermediate variable
-		state := tgs
-		go func() {
+		go func(state *targetState) {
 			tr.targetHandler(targetsCtx, state)
 			tr.targetsWg.Done()
-		}()
+		}(tgs)
 	}
 
 	// Run until no more progress can be made.
