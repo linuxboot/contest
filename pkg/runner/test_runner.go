@@ -345,7 +345,7 @@ func (tr *TestRunner) waitStepRunners(ctx xcontext.Context) error {
 		}
 	}
 
-	resultErr := tr.checkStepRunnersLocked()
+	resultErr := tr.checkStepRunnersFailed()
 	if len(stepsNeverReturned) > 0 && resultErr == nil {
 		resultErr = &cerrors.ErrTestStepsNeverReturned{StepNames: stepsNeverReturned}
 	}
@@ -608,13 +608,15 @@ func (tr *TestRunner) reportTargetResult(ctx xcontext.Context, ss *stepState, tg
 	select {
 	case resCh <- res:
 	case <-ctx.Done():
+		return ctx.Err()
 	case <-ss.ctx.Done():
+		return ss.ctx.Err()
 	}
 	return nil
 }
 
-// checkStepRunnersLocked checks if any step runner has encountered an error.
-func (tr *TestRunner) checkStepRunnersLocked() error {
+// checkStepRunnersFailed checks if any step runner has encountered an error.
+func (tr *TestRunner) checkStepRunnersFailed() error {
 	for i, ss := range tr.steps {
 		switch ss.runErr {
 		case nil:
@@ -669,7 +671,7 @@ func (tr *TestRunner) runMonitor(ctx xcontext.Context, minStep int) error {
 					break
 				}
 			}
-			if runErr = tr.checkStepRunnersLocked(); runErr != nil {
+			if runErr = tr.checkStepRunnersFailed(); runErr != nil {
 				break stepLoop
 			}
 			if !ok {
@@ -692,7 +694,7 @@ func (tr *TestRunner) runMonitor(ctx xcontext.Context, minStep int) error {
 	tr.targetsWg.Wait()
 
 	tr.mu.Lock()
-	runErr = tr.checkStepRunnersLocked()
+	runErr = tr.checkStepRunnersFailed()
 	tr.mu.Unlock()
 
 	ctx.Debugf("monitor: finished, %v", runErr)
