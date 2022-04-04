@@ -289,13 +289,24 @@ func (sr *StepRunner) outputLoop(
 		case res, ok := <-stepOut:
 			if !ok {
 				ctx.Debugf("Output channel closed")
+				func() {
+					sr.mu.Lock()
+					defer sr.mu.Unlock()
 
-				sr.mu.Lock()
-				if sr.runningLoopActive {
-					// This means that plugin closed its channels before leaving.
-					sr.setErrLocked(ctx, &cerrors.ErrTestStepClosedChannels{StepName: testStepLabel})
-				}
-				sr.mu.Unlock()
+					for tgtID, info := range sr.activeTargets {
+						if info != nil {
+							sr.setErrLocked(ctx, &cerrors.ErrTestStepLostTargets{
+								StepName: testStepLabel,
+								Targets:  []string{tgtID},
+							})
+						}
+					}
+
+					if sr.runningLoopActive {
+						// This means that plugin closed its channels before leaving.
+						sr.setErrLocked(ctx, &cerrors.ErrTestStepClosedChannels{StepName: testStepLabel})
+					}
+				}()
 				return
 			}
 
