@@ -58,10 +58,14 @@ func (e Step) Run(ctx xcontext.Context, ch test.TestStepChannels, params test.Te
 			if !ok {
 				return nil, nil
 			}
+			output, err := params.GetOne("text").Expand(target)
+			if err != nil {
+				return nil, err
+			}
 			// guaranteed to work here
 			jobID, _ := types.JobIDFromContext(ctx)
 			runID, _ := types.RunIDFromContext(ctx)
-			ctx.Infof("This is job %d, run %d on target %s with text '%s'", jobID, runID, params.GetOne("text"))
+			ctx.Infof("This is job %d, run %d on target %s with text '%s'", jobID, runID, target.ID, output)
 			ch.Out <- test.TestStepResult{Target: target}
 		case <-ctx.Done():
 			return nil, nil
