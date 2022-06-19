@@ -19,10 +19,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var (
-	ctx = logrusctx.NewContext(logger.LevelDebug)
-)
-
 // Definition of two dummy TestSteps to be used to test the PluginRegistry
 
 // AStep implements a dummy TestStep
@@ -44,18 +40,27 @@ func (e AStep) Name() string {
 }
 
 // Run executes the AStep
-func (e AStep) Run(ctx xcontext.Context, ch test.TestStepChannels, params test.TestStepParameters, ev testevent.Emitter, resumeState json.RawMessage) (json.RawMessage, error) {
+func (e AStep) Run(
+	ctx xcontext.Context,
+	ch test.TestStepChannels,
+	ev testevent.Emitter,
+	stepsVars test.StepsVariables,
+	params test.TestStepParameters,
+	resumeState json.RawMessage,
+) (json.RawMessage, error) {
 	return nil, nil
 }
 
 func TestRegisterTestStep(t *testing.T) {
+	ctx := logrusctx.NewContext(logger.LevelDebug)
 	pr := NewPluginRegistry(ctx)
-	err := pr.RegisterTestStep("AStep", NewAStep, []event.Name{event.Name("AStepEventName")})
+	err := pr.RegisterTestStep("AStep", NewAStep, []event.Name{"AStepEventName"})
 	require.NoError(t, err)
 }
 
 func TestRegisterTestStepDoesNotValidate(t *testing.T) {
+	ctx := logrusctx.NewContext(logger.LevelDebug)
 	pr := NewPluginRegistry(ctx)
-	err := pr.RegisterTestStep("AStep", NewAStep, []event.Name{event.Name("Event which does not validate")})
+	err := pr.RegisterTestStep("AStep", NewAStep, []event.Name{"Event which does not validate"})
 	require.Error(t, err)
 }

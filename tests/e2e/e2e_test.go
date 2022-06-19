@@ -256,20 +256,20 @@ func (ts *E2ETestSuite) TestSimple() {
 		require.Equal(ts.T(),
 			fmt.Sprintf(`
 {[%d 1 Test 1 0 ][Target{ID: "T1"} TargetAcquired]}
-{[%d 1 Test 1 0 Test 1 Step 1][Target{ID: "T1"} CmdStdout &"{\"Msg\":\"Test 1, Step 1, target T1\\n\"}"]}
-{[%d 1 Test 1 0 Test 1 Step 2][Target{ID: "T1"} CmdStdout &"{\"Msg\":\"Test 1, Step 2, target T1\\n\"}"]}
+{[%d 1 Test 1 0 Test1Step1][Target{ID: "T1"} CmdStdout &"{\"Msg\":\"Test 1, Step 1, target T1\\n\"}"]}
+{[%d 1 Test 1 0 Test1Step2][Target{ID: "T1"} CmdStdout &"{\"Msg\":\"Test 1, Step 2, target T1\\n\"}"]}
 {[%d 1 Test 1 0 ][Target{ID: "T1"} TargetReleased]}
 {[%d 1 Test 2 0 ][Target{ID: "T2"} TargetAcquired]}
-{[%d 1 Test 2 0 Test 2 Step 1][Target{ID: "T2"} CmdStdout &"{\"Msg\":\"Test 2, Step 1, target T2\\n\"}"]}
-{[%d 1 Test 2 0 Test 2 Step 2][Target{ID: "T2"} CmdStdout &"{\"Msg\":\"Test 2, Step 2, target T2\\n\"}"]}
+{[%d 1 Test 2 0 Test2Step1][Target{ID: "T2"} CmdStdout &"{\"Msg\":\"Test 2, Step 1, target T2\\n\"}"]}
+{[%d 1 Test 2 0 Test2Step2][Target{ID: "T2"} CmdStdout &"{\"Msg\":\"Test 2, Step 2, target T2\\n\"}"]}
 {[%d 1 Test 2 0 ][Target{ID: "T2"} TargetReleased]}
 {[%d 2 Test 1 0 ][Target{ID: "T1"} TargetAcquired]}
-{[%d 2 Test 1 0 Test 1 Step 1][Target{ID: "T1"} CmdStdout &"{\"Msg\":\"Test 1, Step 1, target T1\\n\"}"]}
-{[%d 2 Test 1 0 Test 1 Step 2][Target{ID: "T1"} CmdStdout &"{\"Msg\":\"Test 1, Step 2, target T1\\n\"}"]}
+{[%d 2 Test 1 0 Test1Step1][Target{ID: "T1"} CmdStdout &"{\"Msg\":\"Test 1, Step 1, target T1\\n\"}"]}
+{[%d 2 Test 1 0 Test1Step2][Target{ID: "T1"} CmdStdout &"{\"Msg\":\"Test 1, Step 2, target T1\\n\"}"]}
 {[%d 2 Test 1 0 ][Target{ID: "T1"} TargetReleased]}
 {[%d 2 Test 2 0 ][Target{ID: "T2"} TargetAcquired]}
-{[%d 2 Test 2 0 Test 2 Step 1][Target{ID: "T2"} CmdStdout &"{\"Msg\":\"Test 2, Step 1, target T2\\n\"}"]}
-{[%d 2 Test 2 0 Test 2 Step 2][Target{ID: "T2"} CmdStdout &"{\"Msg\":\"Test 2, Step 2, target T2\\n\"}"]}
+{[%d 2 Test 2 0 Test2Step1][Target{ID: "T2"} CmdStdout &"{\"Msg\":\"Test 2, Step 1, target T2\\n\"}"]}
+{[%d 2 Test 2 0 Test2Step2][Target{ID: "T2"} CmdStdout &"{\"Msg\":\"Test 2, Step 2, target T2\\n\"}"]}
 {[%d 2 Test 2 0 ][Target{ID: "T2"} TargetReleased]}
 `, jobID, jobID, jobID, jobID, jobID, jobID, jobID, jobID, jobID, jobID, jobID, jobID, jobID, jobID, jobID, jobID),
 			es,
@@ -321,22 +321,22 @@ func (ts *E2ETestSuite) TestPauseResume() {
 		require.Equal(ts.T(),
 			fmt.Sprintf(`
 {[%d 1 Test 1 0 ][Target{ID: "T1"} TargetAcquired]}
-{[%d 1 Test 1 0 Test 1 Step 1][Target{ID: "T1"} CmdStdout &"{\"Msg\":\"Test 1, Step 1, target T1\\n\"}"]}
-{[%d 1 Test 1 0 Test 1 Step 4][Target{ID: "T1"} CmdStdout &"{\"Msg\":\"Test 1, Step 3, target T1\\n\"}"]}
+{[%d 1 Test 1 0 Test1Step1][Target{ID: "T1"} CmdStdout &"{\"Msg\":\"Test 1, Step 1, target T1\\n\"}"]}
+{[%d 1 Test 1 0 Test1Step4][Target{ID: "T1"} CmdStdout &"{\"Msg\":\"Test 1, Step 3, target T1\\n\"}"]}
 {[%d 1 Test 1 0 ][Target{ID: "T1"} TargetReleased]}
 {[%d 1 Test 2 0 ][Target{ID: "T2"} TargetAcquired]}
-{[%d 1 Test 2 0 Test 2 Step 1][Target{ID: "T2"} CmdStdout &"{\"Msg\":\"Test 2, Step 1, target T2\\n\"}"]}
-{[%d 1 Test 2 0 Test 2 Step 2][Target{ID: "T2"} CmdStdout &"{\"Msg\":\"\"}"]}
-{[%d 1 Test 2 0 Test 2 Step 3][Target{ID: "T2"} CmdStdout &"{\"Msg\":\"Test 2, Step 3, target T2\\n\"}"]}
+{[%d 1 Test 2 0 Test2Step1][Target{ID: "T2"} CmdStdout &"{\"Msg\":\"Test 2, Step 1, target T2\\n\"}"]}
+{[%d 1 Test 2 0 Test2Step2][Target{ID: "T2"} CmdStdout &"{\"Msg\":\"\"}"]}
+{[%d 1 Test 2 0 Test2Step3][Target{ID: "T2"} CmdStdout &"{\"Msg\":\"Test 2, Step 3, target T2\\n\"}"]}
 {[%d 1 Test 2 0 ][Target{ID: "T2"} TargetReleased]}
 {[%d 2 Test 1 0 ][Target{ID: "T1"} TargetAcquired]}
-{[%d 2 Test 1 0 Test 1 Step 1][Target{ID: "T1"} CmdStdout &"{\"Msg\":\"Test 1, Step 1, target T1\\n\"}"]}
-{[%d 2 Test 1 0 Test 1 Step 4][Target{ID: "T1"} CmdStdout &"{\"Msg\":\"Test 1, Step 3, target T1\\n\"}"]}
+{[%d 2 Test 1 0 Test1Step1][Target{ID: "T1"} CmdStdout &"{\"Msg\":\"Test 1, Step 1, target T1\\n\"}"]}
+{[%d 2 Test 1 0 Test1Step4][Target{ID: "T1"} CmdStdout &"{\"Msg\":\"Test 1, Step 3, target T1\\n\"}"]}
 {[%d 2 Test 1 0 ][Target{ID: "T1"} TargetReleased]}
 {[%d 2 Test 2 0 ][Target{ID: "T2"} TargetAcquired]}
-{[%d 2 Test 2 0 Test 2 Step 1][Target{ID: "T2"} CmdStdout &"{\"Msg\":\"Test 2, Step 1, target T2\\n\"}"]}
-{[%d 2 Test 2 0 Test 2 Step 2][Target{ID: "T2"} CmdStdout &"{\"Msg\":\"\"}"]}
-{[%d 2 Test 2 0 Test 2 Step 3][Target{ID: "T2"} CmdStdout &"{\"Msg\":\"Test 2, Step 3, target T2\\n\"}"]}
+{[%d 2 Test 2 0 Test2Step1][Target{ID: "T2"} CmdStdout &"{\"Msg\":\"Test 2, Step 1, target T2\\n\"}"]}
+{[%d 2 Test 2 0 Test2Step2][Target{ID: "T2"} CmdStdout &"{\"Msg\":\"\"}"]}
+{[%d 2 Test 2 0 Test2Step3][Target{ID: "T2"} CmdStdout &"{\"Msg\":\"Test 2, Step 3, target T2\\n\"}"]}
 {[%d 2 Test 2 0 ][Target{ID: "T2"} TargetReleased]}
 `, jobID, jobID, jobID, jobID, jobID, jobID, jobID, jobID, jobID, jobID, jobID, jobID, jobID, jobID, jobID, jobID, jobID, jobID),
 			es,
@@ -425,21 +425,21 @@ func (ts *E2ETestSuite) TestRetries() {
 	{ // Verify step output.
 		es := testsCommon.GetJobEventsAsString(ctx, ts.st, jobID, []event.Name{
 			cmd.EventCmdStdout, target.EventTargetAcquired, target.EventTargetReleased,
-			target.EventTargetOut, target.EventTargetErr} )
+			target.EventTargetOut, target.EventTargetErr})
 		ctx.Debugf("%s", es)
 		require.Equal(ts.T(),
 			fmt.Sprintf(`
 {[%d 1 Test 1 0 ][Target{ID: "T1"} TargetAcquired]}
-{[%d 1 Test 1 0 Step 1][Target{ID: "T1"} CmdStdout &"{\"Msg\":\"Test 1, Step 1, target T1\\n\"}"]}
-{[%d 1 Test 1 0 Step 1][Target{ID: "T1"} TargetOut]}
-{[%d 1 Test 1 0 Step 2][Target{ID: "T1"} TargetErr &"{\"Error\":\"context deadline exceeded\"}"]}
+{[%d 1 Test 1 0 Step1][Target{ID: "T1"} CmdStdout &"{\"Msg\":\"Test 1, Step 1, target T1\\n\"}"]}
+{[%d 1 Test 1 0 Step1][Target{ID: "T1"} TargetOut]}
+{[%d 1 Test 1 0 Step2][Target{ID: "T1"} TargetErr &"{\"Error\":\"context deadline exceeded\"}"]}
 {[%d 1 Test 1 0 ][Target{ID: "T1"} TargetReleased]}
 {[%d 1 Test 1 1 ][Target{ID: "T1"} TargetAcquired]}
-{[%d 1 Test 1 1 Step 1][Target{ID: "T1"} CmdStdout &"{\"Msg\":\"Test 1, Step 1, target T1\\n\"}"]}
-{[%d 1 Test 1 1 Step 1][Target{ID: "T1"} TargetOut]}
-{[%d 1 Test 1 1 Step 2][Target{ID: "T1"} TargetOut]}
-{[%d 1 Test 1 1 Step 3][Target{ID: "T1"} CmdStdout &"{\"Msg\":\"Test 1, Step 1, target T1\\n\"}"]}
-{[%d 1 Test 1 1 Step 3][Target{ID: "T1"} TargetOut]}
+{[%d 1 Test 1 1 Step1][Target{ID: "T1"} CmdStdout &"{\"Msg\":\"Test 1, Step 1, target T1\\n\"}"]}
+{[%d 1 Test 1 1 Step1][Target{ID: "T1"} TargetOut]}
+{[%d 1 Test 1 1 Step2][Target{ID: "T1"} TargetOut]}
+{[%d 1 Test 1 1 Step3][Target{ID: "T1"} CmdStdout &"{\"Msg\":\"Test 1, Step 1, target T1\\n\"}"]}
+{[%d 1 Test 1 1 Step3][Target{ID: "T1"} TargetOut]}
 {[%d 1 Test 1 1 ][Target{ID: "T1"} TargetReleased]}
 `, jobID, jobID, jobID, jobID, jobID, jobID, jobID, jobID, jobID, jobID, jobID, jobID),
 			es,

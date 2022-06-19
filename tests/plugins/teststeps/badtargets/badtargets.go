@@ -31,7 +31,14 @@ func (ts *badTargets) Name() string {
 }
 
 // Run executes a step that messes up the flow of targets.
-func (ts *badTargets) Run(ctx xcontext.Context, ch test.TestStepChannels, params test.TestStepParameters, ev testevent.Emitter, resumeState json.RawMessage) (json.RawMessage, error) {
+func (ts *badTargets) Run(
+	ctx xcontext.Context,
+	ch test.TestStepChannels,
+	ev testevent.Emitter,
+	stepsVars test.StepsVariables,
+	inputParams test.TestStepParameters,
+	resumeState json.RawMessage,
+) (json.RawMessage, error) {
 	for {
 		select {
 		case tgt, ok := <-ch.In:

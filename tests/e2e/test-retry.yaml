@@ -14,14 +14,14 @@ TestDescriptors:
         TestName: Test 1
         Steps:
           - name: cmd
-            label: Step 1
+            label: Step1
             parameters:
               executable: [echo]
               args: ["Test 1, Step 1, target {{ .ID }}"]
               emit_stdout: [true]
               emit_stderr: [true]
           - name: waitport
-            label: Step 2
+            label: Step2
             parameters:
               target: ["localhost"]
               port: ["[[ .WaitPort]]"]
@@ -29,7 +29,7 @@ TestDescriptors:
               protocol: ["tcp"]
               timeout: ["500ms"]
           - name: cmd
-            label: Step 3
+            label: Step3
             parameters:
               executable: [ echo ]
               args: [ "Test 1, Step 1, target {{ .ID }}" ]
