@@ -9,13 +9,21 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strconv"
-
 	"github.com/linuxboot/contest/pkg/event"
 	"github.com/linuxboot/contest/pkg/event/testevent"
 	"github.com/linuxboot/contest/pkg/target"
 	"github.com/linuxboot/contest/pkg/xcontext"
+	"strconv"
 )
+
+// StepVariable is a pair that indicates a variable name produces by a step
+type StepVariable struct {
+	StepName     string
+	VariableName string
+}
+
+// StepVariablesMapping is a mapping between produced and consumed variables
+type StepVariablesMapping map[string]StepVariable
 
 // TestStepParameters represents the parameters that a TestStep should consume
 // according to the Test descriptor fetched by the TestFetcher
@@ -78,18 +86,20 @@ type TestStepsDescriptors struct {
 // TestStepDescriptor is the definition of a test step matching a test step
 // configuration.
 type TestStepDescriptor struct {
-	Name       string
-	Label      string
-	Parameters TestStepParameters
+	Name             string
+	Label            string
+	Parameters       TestStepParameters
+	VariablesMapping map[string]string
 }
 
 // TestStepBundle bundles the selected TestStep together with its parameters as
 // specified in the Test descriptor fetched by the TestFetcher
 type TestStepBundle struct {
-	TestStep      TestStep
-	TestStepLabel string
-	Parameters    TestStepParameters
-	AllowedEvents map[event.Name]bool
+	TestStep         TestStep
+	TestStepLabel    string
+	Parameters       TestStepParameters
+	VariablesMapping StepVariablesMapping
+	AllowedEvents    map[event.Name]bool
 }
 
 // TestStepResult is used by TestSteps to report result for a particular target.
@@ -107,13 +117,20 @@ type TestStepChannels struct {
 	Out chan<- TestStepResult
 }
 
+// StepsVariables represents a read/write access for step variables
+type StepsVariables interface {
+	Add(tgtID string, name string, v interface{}) error
+	Get(tgtID string, name string, out interface{}) error
+}
+
 // TestStep is the interface that all steps need to implement to be executed
 // by the TestRunner
 type TestStep interface {
 	// Name returns the name of the step
 	Name() string
 	// Run runs the test step. The test step is expected to be synchronous.
-	Run(ctx xcontext.Context, ch TestStepChannels, params TestStepParameters, ev testevent.Emitter,
+	Run(ctx xcontext.Context, ch TestStepChannels, ev testevent.Emitter,
+		stepsVars StepsVariables, params TestStepParameters,
 		resumeState json.RawMessage) (json.RawMessage, error)
 	// ValidateParameters checks that the parameters are correct before passing
 	// them to Run.

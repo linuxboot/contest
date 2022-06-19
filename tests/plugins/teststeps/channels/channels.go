@@ -29,7 +29,14 @@ func (ts *channels) Name() string {
 }
 
 // Run executes a step that runs fine but closes its output channels on exit.
-func (ts *channels) Run(ctx xcontext.Context, ch test.TestStepChannels, params test.TestStepParameters, ev testevent.Emitter, resumeState json.RawMessage) (json.RawMessage, error) {
+func (ts *channels) Run(
+	ctx xcontext.Context,
+	ch test.TestStepChannels,
+	ev testevent.Emitter,
+	stepsVars test.StepsVariables,
+	inputParams test.TestStepParameters,
+	resumeState json.RawMessage,
+) (json.RawMessage, error) {
 	for target := range ch.In {
 		ch.Out <- test.TestStepResult{Target: target}
 	}

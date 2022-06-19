@@ -128,12 +128,18 @@ func TestTestStepLabel(t *testing.T) {
 	require.NoError(t, err)
 	err = pluginRegistry.RegisterTestFetcher(literal.Load())
 	require.NoError(t, err)
+	err = pluginRegistry.RegisterTestStep(echo.Load())
+	require.NoError(t, err)
 	err = pluginRegistry.RegisterReporter(noop.Load())
 	require.NoError(t, err)
 
 	testFetchParams, err := json.Marshal(&literal.FetchParameters{
-		TestName: "AA",
+		TestName: "AAA",
 		Steps: []*test.TestStepDescriptor{{
+			Name: echo.Name,
+			Parameters: test.TestStepParameters{
+				"text": []test.Param{*test.NewParam("\"abc\"")},
+			},
 			Label: strings.Repeat("A", limits.MaxTestStepLabelLen+1),
 		}},
 	})

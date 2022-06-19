@@ -65,7 +65,14 @@ func (ts *Step) shouldFail(t *target.Target, params test.TestStepParameters) boo
 }
 
 // Run executes the example step.
-func (ts *Step) Run(ctx xcontext.Context, ch test.TestStepChannels, params test.TestStepParameters, ev testevent.Emitter, resumeState json.RawMessage) (json.RawMessage, error) {
+func (ts *Step) Run(
+	ctx xcontext.Context,
+	ch test.TestStepChannels,
+	ev testevent.Emitter,
+	stepsVars test.StepsVariables,
+	params test.TestStepParameters,
+	resumeState json.RawMessage,
+) (json.RawMessage, error) {
 	f := func(ctx xcontext.Context, target *target.Target) error {
 		// Sleep to ensure TargetIn fires first. This simplifies test assertions.
 		time.Sleep(50 * time.Millisecond)
