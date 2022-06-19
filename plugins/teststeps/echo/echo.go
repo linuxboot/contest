@@ -51,7 +51,14 @@ func (e Step) Name() string {
 }
 
 // Run executes the step
-func (e Step) Run(ctx xcontext.Context, ch test.TestStepChannels, params test.TestStepParameters, ev testevent.Emitter, resumeState json.RawMessage) (json.RawMessage, error) {
+func (e Step) Run(
+	ctx xcontext.Context,
+	ch test.TestStepChannels,
+	ev testevent.Emitter,
+	stepsVars test.StepsVariables,
+	params test.TestStepParameters,
+	resumeState json.RawMessage,
+) (json.RawMessage, error) {
 	for {
 		select {
 		case target, ok := <-ch.In:

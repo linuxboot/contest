@@ -58,7 +58,8 @@ func (s *JobRunnerSuite) TestSimpleJobStartFinish() {
 	var resultTargets []*target.Target
 
 	require.NoError(s.T(), s.RegisterStateFullStep(
-		func(ctx xcontext.Context, ch test.TestStepChannels, params test.TestStepParameters, ev testevent.Emitter, resumeState json.RawMessage) (json.RawMessage, error) {
+		func(ctx xcontext.Context, ch test.TestStepChannels, ev testevent.Emitter,
+			stepsVars test.StepsVariables, params test.TestStepParameters, resumeState json.RawMessage) (json.RawMessage, error) {
 			return teststeps.ForEachTarget(stateFullStepName, ctx, ch, func(ctx xcontext.Context, target *target.Target) error {
 				assert.NotNil(s.T(), target)
 				mu.Lock()
@@ -91,7 +92,7 @@ func (s *JobRunnerSuite) TestSimpleJobStartFinish() {
 					TargetManager:     targetlist.New(),
 				},
 				TestStepsBundles: []test.TestStepBundle{
-					s.NewStep(ctx, "test_step_label", stateFullStepName, nil),
+					s.NewStep(ctx, "test_step_label", stateFullStepName, nil, nil),
 				},
 			},
 		},
@@ -124,7 +125,8 @@ func (s *JobRunnerSuite) TestJobWithTestRetry() {
 	var callsCount int
 
 	require.NoError(s.T(), s.RegisterStateFullStep(
-		func(ctx xcontext.Context, ch test.TestStepChannels, params test.TestStepParameters, ev testevent.Emitter, resumeState json.RawMessage) (json.RawMessage, error) {
+		func(ctx xcontext.Context, ch test.TestStepChannels, ev testevent.Emitter,
+			stepsVars test.StepsVariables, params test.TestStepParameters, resumeState json.RawMessage) (json.RawMessage, error) {
 			return teststeps.ForEachTarget(stateFullStepName, ctx, ch, func(ctx xcontext.Context, target *target.Target) error {
 				assert.NotNil(s.T(), target)
 				mu.Lock()
@@ -175,11 +177,11 @@ func (s *JobRunnerSuite) TestJobWithTestRetry() {
 				TestStepsBundles: []test.TestStepBundle{
 					s.NewStep(ctx, "echo1_step_label", echo.Name, map[string][]test.Param{
 						"text": {*test.NewParam("hello")},
-					}),
-					s.NewStep(ctx, "test_step_label", stateFullStepName, nil),
+					}, nil),
+					s.NewStep(ctx, "test_step_label", stateFullStepName, nil, nil),
 					s.NewStep(ctx, "echo2_step_label", echo.Name, map[string][]test.Param{
 						"text": {*test.NewParam("world")},
-					}),
+					}, nil),
 				},
 			},
 		},
@@ -280,7 +282,7 @@ func (s *JobRunnerSuite) TestJobRetryOnFailedAcquire() {
 				TestStepsBundles: []test.TestStepBundle{
 					s.NewStep(ctx, "echo1_step_label", echo.Name, map[string][]test.Param{
 						"text": {*test.NewParam("hello")},
-					}),
+					}, nil),
 				},
 			},
 		},
@@ -359,7 +361,7 @@ func (s *JobRunnerSuite) TestAcquireFailed() {
 				TestStepsBundles: []test.TestStepBundle{
 					s.NewStep(ctx, "echo1_step_label", echo.Name, map[string][]test.Param{
 						"text": {*test.NewParam("hello")},
-					}),
+					}, nil),
 				},
 			},
 		},
@@ -429,7 +431,7 @@ func (s *JobRunnerSuite) TestResumeStateBadJobId() {
 				TestStepsBundles: []test.TestStepBundle{
 					s.NewStep(ctx, "echo1_step_label", echo.Name, map[string][]test.Param{
 						"text": {*test.NewParam("hello")},
-					}),
+					}, nil),
 				},
 			},
 		},
@@ -454,8 +456,8 @@ func (s *JobRunnerSuite) TestResumeStateBadJobId() {
 const stateFullStepName = "statefull"
 
 type stateFullStep struct {
-	runFunction func(ctx xcontext.Context, ch test.TestStepChannels, params test.TestStepParameters,
-		ev testevent.Emitter, resumeState json.RawMessage) (json.RawMessage, error)
+	runFunction func(ctx xcontext.Context, ch test.TestStepChannels, ev testevent.Emitter,
+		stepsVars test.StepsVariables, params test.TestStepParameters, resumeState json.RawMessage) (json.RawMessage, error)
 	validateFunction func(ctx xcontext.Context, params test.TestStepParameters) error
 }
 
@@ -463,13 +465,18 @@ func (sfs *stateFullStep) Name() string {
 	return stateFullStepName
 }
 
-func (sfs *stateFullStep) Run(ctx xcontext.Context, ch test.TestStepChannels, params test.TestStepParameters,
-	ev testevent.Emitter, resumeState json.RawMessage,
+func (sfs *stateFullStep) Run(
+	ctx xcontext.Context,
+	ch test.TestStepChannels,
+	ev testevent.Emitter,
+	stepsVars test.StepsVariables,
+	params test.TestStepParameters,
+	resumeState json.RawMessage,
 ) (json.RawMessage, error) {
 	if sfs.runFunction == nil {
 		return nil, fmt.Errorf("stateFullStep run is not initialised")
 	}
-	return sfs.runFunction(ctx, ch, params, ev, resumeState)
+	return sfs.runFunction(ctx, ch, ev, stepsVars, params, resumeState)
 }
 
 func (sfs *stateFullStep) ValidateParameters(ctx xcontext.Context, params test.TestStepParameters) error {

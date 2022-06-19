@@ -43,6 +43,8 @@ type TestRunner struct {
 	steps   []*stepState            // The pipeline, in order of execution
 	targets map[string]*targetState // Target state lookup map
 
+	stepsVariables *testStepsVariables
+
 	// One mutex to rule them all, used to serialize access to all the state above.
 	// Could probably be split into several if necessary.
 	mu          sync.Mutex
@@ -61,14 +63,18 @@ const (
 	targetStepPhaseEnd                      // (5) Finished running a step.
 )
 
+// stepVariables represents the emitted variables of the steps
+type stepVariables map[string]json.RawMessage
+
 // targetState contains state associated with one target progressing through the pipeline.
 type targetState struct {
 	tgt *target.Target
 
 	// This part of state gets serialized into JSON for resumption.
-	CurStep  int             `json:"S,omitempty"` // Current step number.
-	CurPhase targetStepPhase `json:"P,omitempty"` // Current phase of step execution.
-	Res      *xjson.Error    `json:"R,omitempty"` // Final result, if reached the end state.
+	CurStep        int                      `json:"S,omitempty"` // Current step number.
+	CurPhase       targetStepPhase          `json:"P,omitempty"` // Current phase of step execution.
+	Res            *xjson.Error             `json:"R,omitempty"` // Final result, if reached the end state.
+	StepsVariables map[string]stepVariables `json:"V,omitempty"` // maps steps onto emitted variables of each
 
 	handlerRunning bool
 }
@@ -138,6 +144,20 @@ func (tr *TestRunner) Run(
 		}
 	}
 
+	var err error
+	tr.stepsVariables, err = newTestStepsVariables(t.TestStepsBundles)
+	if err != nil {
+		ctx.Errorf("Failed to initialise test steps variables: %v", err)
+		return nil, nil, err
+	}
+
+	for targetID, targetState := range tr.targets {
+		if err := tr.stepsVariables.initTargetStepsVariables(targetID, targetState.StepsVariables); err != nil {
+			ctx.Errorf("Failed to initialise test steps variables for target: %s: %v", targetID, err)
+			return nil, nil, err
+		}
+	}
+
 	// Set up the pipeline
 	for i, sb := range t.TestStepsBundles {
 		var srs json.RawMessage
@@ -201,7 +221,12 @@ func (tr *TestRunner) Run(
 	numInFlightTargets := 0
 	for i, tgt := range targets {
 		tgs := tr.targets[tgt.ID]
-		stepErr := tr.steps[tgs.CurStep].GetError()
+		tgs.StepsVariables, err = tr.stepsVariables.getTargetStepsVariables(tgt.ID)
+		if err != nil {
+			ctx.Errorf("Failed to get steps variables: %v", err)
+			return nil, nil, err
+		}
+		stepErr := tr.steps[tgs.CurStep].runErr
 		if tgs.CurPhase == targetStepPhaseRun {
 			numInFlightTargets++
 			if stepErr != xcontext.ErrPaused {
@@ -549,3 +574,151 @@ func (tgs *targetState) String() string {
 	return fmt.Sprintf("[%s %d %s %t %s]",
 		tgs.tgt, tgs.CurStep, tgs.CurPhase, finished, resText)
 }
+
+type testStepsVariables struct {
+	existingSteps map[string]struct{}
+
+	lock                   sync.Mutex
+	stepsVariablesByTarget map[string]map[string]stepVariables
+}
+
+func newTestStepsVariables(bundles []test.TestStepBundle) (*testStepsVariables, error) {
+	result := &testStepsVariables{
+		existingSteps:          make(map[string]struct{}),
+		stepsVariablesByTarget: make(map[string]map[string]stepVariables),
+	}
+	for _, bs := range bundles {
+		if len(bs.TestStepLabel) == 0 {
+			continue
+		}
+		if _, found := result.existingSteps[bs.TestStepLabel]; found {
+			return nil, fmt.Errorf("duplication of test step label: '%s'", bs.TestStepLabel)
+		}
+		result.existingSteps[bs.TestStepLabel] = struct{}{}
+	}
+	return result, nil
+}
+
+func (tsv *testStepsVariables) initTargetStepsVariables(tgtID string, stepsVars map[string]stepVariables) error {
+	if _, found := tsv.stepsVariablesByTarget[tgtID]; found {
+		return fmt.Errorf("duplication of target ID: '%s'", tgtID)
+	}
+	if stepsVars == nil {
+		tsv.stepsVariablesByTarget[tgtID] = make(map[string]stepVariables)
+	} else {
+		tsv.stepsVariablesByTarget[tgtID] = stepsVars
+	}
+	return nil
+}
+
+func (tsv *testStepsVariables) getTargetStepsVariables(tgtID string) (map[string]stepVariables, error) {
+	tsv.lock.Lock()
+	defer tsv.lock.Unlock()
+
+	vars, found := tsv.stepsVariablesByTarget[tgtID]
+	if !found {
+		return nil, fmt.Errorf("target ID: '%s' is not found", tgtID)
+	}
+
+	// make a copy in case of buggy steps that can still be using it
+	result := make(map[string]stepVariables)
+	for name, value := range vars {
+		result[name] = value
+	}
+	return result, nil
+}
+
+func (tsv *testStepsVariables) Add(tgtID string, stepLabel string, name string, value json.RawMessage) error {
+	if err := tsv.checkInput(tgtID, stepLabel, name); err != nil {
+		return err
+	}
+
+	// tsv.stepsVariablesByTarget is a readonly map, though its values may change
+	targetSteps := tsv.stepsVariablesByTarget[tgtID]
+	tsv.lock.Lock()
+	defer tsv.lock.Unlock()
+
+	stepVars, found := targetSteps[stepLabel]
+	if !found {
+		stepVars = make(stepVariables)
+		targetSteps[stepLabel] = stepVars
+	}
+	stepVars[name] = value
+	return nil
+}
+
+func (tsv *testStepsVariables) Get(tgtID string, stepLabel string, name string) (json.RawMessage, error) {
+	if err := tsv.checkInput(tgtID, stepLabel, name); err != nil {
+		return nil, err
+	}
+
+	targetSteps := tsv.stepsVariablesByTarget[tgtID]
+	tsv.lock.Lock()
+	defer tsv.lock.Unlock()
+
+	stepVars, found := targetSteps[stepLabel]
+	if !found {
+		return nil, fmt.Errorf("step '%s' didn't emit any variables yet", stepLabel)
+	}
+	value, found := stepVars[name]
+	if !found {
+		return nil, fmt.Errorf("step '%s' didn't emit variable '%s' yet", stepLabel, name)
+	}
+	return value, nil
+}
+
+func (tsv *testStepsVariables) checkInput(tgtID string, stepLabel string, name string) error {
+	if len(stepLabel) == 0 {
+		return fmt.Errorf("empty step name")
+	}
+	if len(tgtID) == 0 {
+		return fmt.Errorf("empty target ID")
+	}
+	if len(name) == 0 {
+		return fmt.Errorf("empty variable name")
+	}
+	return nil
+}
+
+type stepVariablesAccessor struct {
+	stepLabel   string
+	varsMapping test.StepVariablesMapping
+	tsv         *testStepsVariables
+}
+
+func newStepVariablesAccessor(stepLabel string, varsMapping test.StepVariablesMapping, tsv *testStepsVariables) *stepVariablesAccessor {
+	result := &stepVariablesAccessor{
+		stepLabel:   stepLabel,
+		varsMapping: varsMapping,
+		tsv:         tsv,
+	}
+	if result.varsMapping == nil {
+		result.varsMapping = make(test.StepVariablesMapping)
+	}
+	return result
+}
+
+func (sva *stepVariablesAccessor) Add(tgtID string, name string, value interface{}) error {
+	if len(sva.stepLabel) == 0 {
+		return nil
+	}
+	b, err := json.Marshal(value)
+	if err != nil {
+		return fmt.Errorf("failed to serialize variable: %v", value)
+	}
+	return sva.tsv.Add(tgtID, sva.stepLabel, name, b)
+}
+
+func (sva *stepVariablesAccessor) Get(tgtID string, name string, out interface{}) error {
+	stepVar, found := sva.varsMapping[name]
+	if !found {
+		return fmt.Errorf("no mapping for variable '%s'", name)
+	}
+	b, err := sva.tsv.Get(tgtID, stepVar.StepName, stepVar.VariableName)
+	if err != nil {
+		return err
+	}
+	return json.Unmarshal(b, out)
+}
+
+var _ test.StepsVariables = (*stepVariablesAccessor)(nil)

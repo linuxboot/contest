@@ -61,7 +61,14 @@ func (ts *Step) shouldFail(t *target.Target) bool {
 }
 
 // Run executes the example step.
-func (ts *Step) Run(ctx xcontext.Context, ch test.TestStepChannels, params test.TestStepParameters, ev testevent.Emitter, resumeState json.RawMessage) (json.RawMessage, error) {
+func (ts *Step) Run(
+	ctx xcontext.Context,
+	ch test.TestStepChannels,
+	ev testevent.Emitter,
+	stepsVars test.StepsVariables,
+	params test.TestStepParameters,
+	resumeState json.RawMessage,
+) (json.RawMessage, error) {
 	f := func(ctx xcontext.Context, target *target.Target) error {
 		ctx.Infof("Executing on target %s", target)
 		// NOTE: you may want more robust error handling here, possibly just

@@ -29,7 +29,14 @@ func (ts *hanging) Name() string {
 }
 
 // Run executes a step that does not process any targets and never returns.
-func (ts *hanging) Run(ctx xcontext.Context, ch test.TestStepChannels, params test.TestStepParameters, ev testevent.Emitter, resumeState json.RawMessage) (json.RawMessage, error) {
+func (ts *hanging) Run(
+	ctx xcontext.Context,
+	ch test.TestStepChannels,
+	ev testevent.Emitter,
+	stepsVars test.StepsVariables,
+	inputParams test.TestStepParameters,
+	resumeState json.RawMessage,
+) (json.RawMessage, error) {
 	channel := make(chan struct{})
 	<-channel
 	return nil, nil
