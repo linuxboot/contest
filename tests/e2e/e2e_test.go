@@ -45,6 +45,7 @@ import (
 	"github.com/linuxboot/contest/plugins/testfetchers/literal"
 	"github.com/linuxboot/contest/plugins/teststeps/cmd"
 	"github.com/linuxboot/contest/plugins/teststeps/sleep"
+	"github.com/linuxboot/contest/plugins/teststeps/variables"
 	"github.com/linuxboot/contest/plugins/teststeps/waitport"
 	testsCommon "github.com/linuxboot/contest/tests/common"
 	"github.com/linuxboot/contest/tests/common/goroutine_leak_check"
@@ -122,7 +123,7 @@ func (ts *E2ETestSuite) startServer(extraArgs ...string) {
 				targetlist_with_state.Load,
 			},
 			TestFetcherLoaders: []test.TestFetcherLoader{literal.Load},
-			TestStepLoaders:    []test.TestStepLoader{cmd.Load, sleep.Load, waitport.Load},
+			TestStepLoaders:    []test.TestStepLoader{cmd.Load, sleep.Load, waitport.Load, variables.Load},
 			ReporterLoaders:    []job.ReporterLoader{targetsuccess.Load, noop.Load},
 		}
 		err := server.Main(&pc, "contest", args, serverSigs)

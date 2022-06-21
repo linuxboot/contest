@@ -57,7 +57,7 @@ func (p Param) JSON() json.RawMessage {
 
 // Expand evaluates the raw expression and applies the necessary manipulation,
 // if any.
-func (p *Param) Expand(target *target.Target, vars StepsVariables) (string, error) {
+func (p *Param) Expand(target *target.Target, vars StepsVariablesReader) (string, error) {
 	if p == nil {
 		return "", errors.New("parameter cannot be nil")
 	}

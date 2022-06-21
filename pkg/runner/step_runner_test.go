@@ -390,6 +390,10 @@ type stepsVariablesMock struct {
 	get func(tgtID string, name string, value interface{}) error
 }
 
+func (sm *stepsVariablesMock) AddRaw(tgtID string, name string, value json.RawMessage) error {
+	return sm.add(tgtID, name, value)
+}
+
 func (sm *stepsVariablesMock) Add(tgtID string, name string, value interface{}) error {
 	return sm.add(tgtID, name, value)
 }

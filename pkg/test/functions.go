@@ -32,7 +32,7 @@ func getFuncMap() map[string]interface{} {
 	return mapCopy
 }
 
-func registerStepVariableAccessor(fm map[string]interface{}, tgtID string, vars StepsVariables) {
+func registerStepVariableAccessor(fm map[string]interface{}, tgtID string, vars StepsVariablesReader) {
 	fm["StringVar"] = func(varName string) (string, error) {
 		var s string
 		if err := vars.Get(tgtID, varName, &s); err != nil {

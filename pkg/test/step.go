@@ -118,13 +118,15 @@ type TestStepChannels struct {
 	Out chan<- TestStepResult
 }
 
+type StepsVariablesReader interface {
+	// Get obtains existing variable by a mappedName which should be specified in variables mapping
+	Get(tgtID string, mappedName string, out interface{}) error
+}
+
 // StepsVariables represents a read/write access for step variables
 type StepsVariables interface {
 	// Add adds a new or replaces existing variable associated with current test step and target
 	Add(tgtID string, name string, in interface{}) error
-
-	// Get obtains existing variable by a mappedName which should be specified in variables mapping
-	Get(tgtID string, mappedName string, out interface{}) error
 }
 
 // TestStep is the interface that all steps need to implement to be executed
