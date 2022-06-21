@@ -42,7 +42,7 @@ func Load() (string, test.TestStepFactory, []event.Name) {
 func getDuration(params test.TestStepParameters) (time.Duration, error) {
 	durP := params.GetOne("duration")
 	if durP.IsEmpty() {
-		return 0, errors.New("Missing 'duration' field in sleep parameters")
+		return 0, errors.New("missing 'duration' field in sleep parameters")
 	}
 	dur, err := time.ParseDuration(durP.String())
 	if err != nil {
