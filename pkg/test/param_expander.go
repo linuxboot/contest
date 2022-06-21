@@ -14,10 +14,10 @@ import (
 
 type ParamExpander struct {
 	t    *target.Target
-	vars StepsVariables
+	vars StepsVariablesReader
 }
 
-func NewParamExpander(target *target.Target, vars StepsVariables) *ParamExpander {
+func NewParamExpander(target *target.Target, vars StepsVariablesReader) *ParamExpander {
 	return &ParamExpander{t: target, vars: vars}
 }
 

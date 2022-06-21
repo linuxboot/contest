@@ -19,7 +19,7 @@ import (
 
 // StepVariable is a pair that indicates a variable name produces by a step
 type StepVariable struct {
-	StepName     string
+	StepLabel    string
 	VariableName string
 }
 
@@ -125,8 +125,12 @@ type StepsVariablesReader interface {
 
 // StepsVariables represents a read/write access for step variables
 type StepsVariables interface {
+	StepsVariablesReader
 	// Add adds a new or replaces existing variable associated with current test step and target
 	Add(tgtID string, name string, in interface{}) error
+	// AddRaw adds a new or replaces existing variable associated with current test step and target
+	// The input content should be a valid json
+	AddRaw(tgtID string, name string, inRaw json.RawMessage) error
 }
 
 // TestStep is the interface that all steps need to implement to be executed

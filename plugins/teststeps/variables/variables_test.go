@@ -29,7 +29,7 @@ func TestValidateParameters(t *testing.T) {
 	require.NoError(t, obj.ValidateParameters(xcontext.Background(), test.TestStepParameters{
 		"var1": []test.Param{
 			{
-				json.RawMessage("123"),
+				RawMessage: json.RawMessage("123"),
 			},
 		},
 	}))
@@ -37,7 +37,7 @@ func TestValidateParameters(t *testing.T) {
 	require.Error(t, obj.ValidateParameters(xcontext.Background(), test.TestStepParameters{
 		"var var": []test.Param{
 			{
-				json.RawMessage("123"),
+				RawMessage: json.RawMessage("123"),
 			},
 		},
 	}))
@@ -45,7 +45,7 @@ func TestValidateParameters(t *testing.T) {
 	require.Error(t, obj.ValidateParameters(xcontext.Background(), test.TestStepParameters{
 		"var1": []test.Param{
 			{
-				json.RawMessage("ALALALALA[}"),
+				RawMessage: json.RawMessage("ALALALALA[}"),
 			},
 		},
 	}))
@@ -84,17 +84,17 @@ func TestVariablesEmission(t *testing.T) {
 	state, err := obj.Run(ctx, test.TestStepChannels{In: in, Out: out}, ev, svm, test.TestStepParameters{
 		"str_variable": []test.Param{
 			{
-				json.RawMessage("\"dummy\""),
+				RawMessage: json.RawMessage("\"dummy\""),
 			},
 		},
 		"int_variable": []test.Param{
 			{
-				json.RawMessage("123"),
+				RawMessage: json.RawMessage("123"),
 			},
 		},
 		"complex_variable": []test.Param{
 			{
-				json.RawMessage("{\"name\":\"value\"}"),
+				RawMessage: json.RawMessage("{\"name\":\"value\"}"),
 			},
 		},
 	}, nil)

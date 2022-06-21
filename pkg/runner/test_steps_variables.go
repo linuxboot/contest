@@ -128,25 +128,33 @@ func newStepVariablesAccessor(stepLabel string, varsMapping test.StepVariablesMa
 }
 
 func (sva *stepVariablesAccessor) Add(tgtID string, name string, in interface{}) error {
-	if len(sva.stepLabel) == 0 {
-		return nil
-	}
 	b, err := json.Marshal(in)
 	if err != nil {
 		return fmt.Errorf("failed to serialize variable: %v", in)
 	}
-	return sva.tsv.Add(tgtID, sva.stepLabel, name, b)
+	return sva.AddRaw(tgtID, name, b)
+}
+
+func (sva *stepVariablesAccessor) AddRaw(tgtID string, name string, inRaw json.RawMessage) error {
+	if len(sva.stepLabel) == 0 {
+		return nil
+	}
+	var v interface{}
+	if err := json.Unmarshal(inRaw, &v); err != nil {
+		return fmt.Errorf("invalid input, failed to unmarshal: %v", err)
+	}
+	return sva.tsv.Add(tgtID, sva.stepLabel, name, inRaw)
 }
 
 func (sva *stepVariablesAccessor) Get(tgtID string, mappedName string, out interface{}) error {
-	if sva.varsMapping == nil {
+	if len(sva.varsMapping) == 0 {
 		return fmt.Errorf("step doesn't have variables mapping")
 	}
 	stepVar, found := sva.varsMapping[mappedName]
 	if !found {
 		return fmt.Errorf("no mapping for variable '%s'", mappedName)
 	}
-	b, err := sva.tsv.Get(tgtID, stepVar.StepName, stepVar.VariableName)
+	b, err := sva.tsv.Get(tgtID, stepVar.StepLabel, stepVar.VariableName)
 	if err != nil {
 		return err
 	}
