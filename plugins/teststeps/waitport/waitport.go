@@ -59,7 +59,7 @@ func (ts *WaitPort) Run(
 
 	f := func(ctx xcontext.Context, targetWithData *teststeps.TargetWithData) error {
 		target := targetWithData.Target
-		targetParams, err := expandParameters(target, params)
+		targetParams, err := expandParameters(target, params, stepsVars)
 		if err != nil {
 			return err
 		}
@@ -242,11 +242,11 @@ type targetParameters struct {
 	Timeout       time.Duration
 }
 
-func expandParameters(t *target.Target, params *parameters) (*targetParameters, error) {
+func expandParameters(t *target.Target, params *parameters, stepsVars test.StepsVariables) (*targetParameters, error) {
 	var address string
 	if params.target != nil {
 		var err error
-		address, err = params.target.Expand(t)
+		address, err = params.target.Expand(t, stepsVars)
 		if err != nil {
 			return nil, fmt.Errorf("cannot expand target parameter '%s': '%v'", params.target.String(), err)
 		}

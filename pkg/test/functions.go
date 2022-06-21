@@ -32,6 +32,23 @@ func getFuncMap() map[string]interface{} {
 	return mapCopy
 }
 
+func registerStepVariableAccessor(fm map[string]interface{}, tgtID string, vars StepsVariables) {
+	fm["StringVar"] = func(varName string) (string, error) {
+		var s string
+		if err := vars.Get(tgtID, varName, &s); err != nil {
+			return "", err
+		}
+		return s, nil
+	}
+	fm["IntVar"] = func(varName string) (int, error) {
+		var i int
+		if err := vars.Get(tgtID, varName, &i); err != nil {
+			return 0, err
+		}
+		return i, nil
+	}
+}
+
 // RegisterFunction registers a template function suitable for text/template.
 // It can be either a func(string) string or a func(string) (string, error),
 // hence it's passed as an empty interface.

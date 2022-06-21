@@ -13,16 +13,17 @@ import (
 )
 
 type ParamExpander struct {
-	t *target.Target
+	t    *target.Target
+	vars StepsVariables
 }
 
-func NewParamExpander(target *target.Target) *ParamExpander {
-	return &ParamExpander{target}
+func NewParamExpander(target *target.Target, vars StepsVariables) *ParamExpander {
+	return &ParamExpander{t: target, vars: vars}
 }
 
 func (pe *ParamExpander) Expand(value string) (string, error) {
 	p := NewParam(value)
-	return p.Expand(pe.t)
+	return p.Expand(pe.t, pe.vars)
 }
 
 func (pe *ParamExpander) ExpandObject(obj interface{}, out interface{}) error {

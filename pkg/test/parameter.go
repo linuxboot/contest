@@ -57,12 +57,17 @@ func (p Param) JSON() json.RawMessage {
 
 // Expand evaluates the raw expression and applies the necessary manipulation,
 // if any.
-func (p *Param) Expand(target *target.Target) (string, error) {
+func (p *Param) Expand(target *target.Target, vars StepsVariables) (string, error) {
 	if p == nil {
 		return "", errors.New("parameter cannot be nil")
 	}
+
+	funcs := getFuncMap()
+	if vars != nil {
+		registerStepVariableAccessor(funcs, target.ID, vars)
+	}
 	// use Go text/template from here
-	tmpl, err := template.New("").Funcs(getFuncMap()).Parse(p.String())
+	tmpl, err := template.New("").Funcs(funcs).Parse(p.String())
 	if err != nil {
 		return "", fmt.Errorf("failed to parse template: %v", err)
 	}
