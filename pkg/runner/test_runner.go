@@ -575,9 +575,6 @@ func (ss *stepState) setErrLocked(err error) {
 	}
 	ss.ctx.Errorf("setErrLocked: %v", err)
 	ss.runErr = err
-
-	// A fatal error happened, further processing makes no sense
-	ss.cancel()
 }
 
 // reportTargetResult reports result of executing a step to the appropriate target handler.
@@ -689,14 +686,41 @@ func (tr *TestRunner) runMonitor(ctx xcontext.Context, minStep int) error {
 	if runErr != nil {
 		return runErr
 	}
-	// Wait for all the targets to finish.
-	ctx.Debugf("monitor: waiting for targets to finish")
-	tr.targetsWg.Wait()
 
+	//
+	// After all targets were sent to the steps we should monitor steps for incoming errors
+	//
 	tr.mu.Lock()
-	runErr = tr.checkStepRunnersFailed()
-	tr.mu.Unlock()
+	defer tr.mu.Unlock()
 
+	var pass int
+tgtLoop:
+	for ; runErr == nil; pass++ {
+		if runErr = tr.checkStepRunnersFailed(); runErr != nil {
+			break tgtLoop
+		}
+		done := true
+		for _, tgs := range tr.targets {
+			ctx.Debugf("monitor pass %d: %s", pass, tgs)
+			if tgs.handlerRunning && (tgs.CurStep < len(tr.steps) || tgs.CurPhase != targetStepPhaseEnd) {
+				if tgs.CurPhase == targetStepPhaseRun {
+					// We have a target inside a step.
+					ss := tr.steps[tgs.CurStep]
+					if ss.runErr == xcontext.ErrPaused {
+						// It's been paused, this is fine.
+						continue
+					}
+				}
+				done = false
+				break
+			}
+		}
+		if done {
+			break
+		}
+		// Wait for notification: as progress is being made, we get notified.
+		tr.monitorCond.Wait()
+	}
 	ctx.Debugf("monitor: finished, %v", runErr)
 	return runErr
 }
