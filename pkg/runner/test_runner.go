@@ -703,13 +703,9 @@ tgtLoop:
 		for _, tgs := range tr.targets {
 			ctx.Debugf("monitor pass %d: %s", pass, tgs)
 			if tgs.handlerRunning && (tgs.CurStep < len(tr.steps) || tgs.CurPhase != targetStepPhaseEnd) {
-				if tgs.CurPhase == targetStepPhaseRun {
-					// We have a target inside a step.
-					ss := tr.steps[tgs.CurStep]
-					if ss.runErr == xcontext.ErrPaused {
-						// It's been paused, this is fine.
-						continue
-					}
+				if tgs.CurPhase == targetStepPhaseRun && tr.steps[tgs.CurStep].runErr == xcontext.ErrPaused {
+					// It's been paused, this is fine.
+					continue
 				}
 				done = false
 				break
