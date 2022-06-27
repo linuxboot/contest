@@ -21,6 +21,9 @@ const (
 	JobDescFormatYAML
 )
 
+// JobDescriptorVersion denotes the version that is used by the cli tool
+const JobDescriptorVersion string = "1.0"
+
 // ParseJobDescriptor validates a job descriptor's well-formedness, and returns a
 // JSON-formatted descriptor if it was provided in a different format.
 // The currently supported format are JSON and YAML.
@@ -37,6 +40,10 @@ func ParseJobDescriptor(data []byte, jobDescFormat JobDescFormat) ([]byte, error
 		if err := yaml.Unmarshal(data, &jobDesc); err != nil {
 			return nil, fmt.Errorf("failed to parse YAML job descriptor: %w", err)
 		}
+	}
+	// Add the Descriptor version if it is not provided
+	if _, ok := jobDesc["Version"]; !ok {
+		jobDesc["Version"] = JobDescriptorVersion
 	}
 	// then marshal the structure back to JSON
 	jobDescJSON, err := json.MarshalIndent(jobDesc, "", "    ")
