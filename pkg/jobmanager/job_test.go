@@ -112,6 +112,122 @@ func TestNewJobNoTests(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestVariablesReferToExistingStepLabels(t *testing.T) {
+	pr := pluginregistry.NewPluginRegistry(xcontext.Background())
+	require.NoError(t, pr.RegisterTestStep(echo.Load()))
+	require.NoError(t, pr.RegisterTargetManager(targetlist.Load()))
+	require.NoError(t, pr.RegisterTestFetcher(literal.Load()))
+	require.NoError(t, pr.RegisterReporter(noop.Load()))
+
+	targetManagerAcquireParameters := `{
+		"Targets": [
+			{
+				"ID": "id1",
+				"FQDN": "some-host.fna1.dummy-facebook.com"
+			}
+		]
+	}`
+
+	t.Run("correct_label", func(t *testing.T) {
+		testParams := `{
+			"TestName": "TestVariables",
+			"Steps": [
+				{
+					"name": "echo",
+					"label": "echo1",
+					"parameters": {
+						"text": ["Some text1"]
+					}
+				},
+				{
+					"name": "echo",
+					"label": "echo2",
+					"parameters": {
+						"text": ["Some text1"]
+					},
+					"variablesmapping": {
+						"output_var": "echo1.message"
+					}
+				}
+			]
+		}`
+
+		testDescriptors := []*test.TestDescriptor{
+			{
+				TargetManagerName:              "targetList",
+				TargetManagerAcquireParameters: []byte(targetManagerAcquireParameters),
+				TargetManagerReleaseParameters: []byte("{}"),
+				TestFetcherName:                "literal",
+				TestFetcherFetchParameters:     []byte(testParams),
+			},
+		}
+
+		jd := job.Descriptor{
+			TestDescriptors: testDescriptors,
+			JobName:         "Test",
+			Reporting: job.Reporting{
+				RunReporters: []job.ReporterConfig{
+					{Name: "noop"},
+				},
+			},
+		}
+
+		result, err := NewJobFromDescriptor(xcontext.Background(), pr, &jd)
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		require.Len(t, result.Tests, 1)
+		require.Equal(t, "TestVariables", result.Tests[0].Name)
+	})
+
+	t.Run("unexisting_label", func(t *testing.T) {
+		testParams := `{
+			"TestName": "TestVariables",
+			"Steps": [
+				{
+					"name": "echo",
+					"label": "echo1",
+					"parameters": {
+						"text": ["Some text1"]
+					}
+				},
+				{
+					"name": "echo",
+					"label": "echo2",
+					"parameters": {
+						"text": ["Some text1"]
+					},
+					"variablesmapping": {
+						"output_var": "noecho.message"
+					}
+				}
+			]
+		}`
+
+		testDescriptors := []*test.TestDescriptor{
+			{
+				TargetManagerName:              "targetList",
+				TargetManagerAcquireParameters: []byte(targetManagerAcquireParameters),
+				TargetManagerReleaseParameters: []byte("{}"),
+				TestFetcherName:                "literal",
+				TestFetcherFetchParameters:     []byte(testParams),
+			},
+		}
+
+		jd := job.Descriptor{
+			TestDescriptors: testDescriptors,
+			JobName:         "Test",
+			Reporting: job.Reporting{
+				RunReporters: []job.ReporterConfig{
+					{Name: "noop"},
+				},
+			},
+		}
+
+		_, err := NewJobFromDescriptor(xcontext.Background(), pr, &jd)
+		require.Error(t, err)
+	})
+}
+
 func TestNewJobNoTestSteps(t *testing.T) {
 	pr := pluginregistry.NewPluginRegistry(xcontext.Background())
 	// require.NoError(t, pr.RegisterTestStep(echo.Load()))

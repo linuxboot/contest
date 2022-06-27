@@ -98,5 +98,17 @@ func newStepBundles(ctx xcontext.Context, descriptors test.TestStepsDescriptors,
 		}
 		labels[bundle.TestStepLabel] = true
 	}
+	// verify that all variables mappings refer to existing labels
+	for _, bundle := range testStepBundles {
+		if bundle.VariablesMapping == nil {
+			continue
+		}
+		for _, sv := range bundle.VariablesMapping {
+			if _, ok := labels[sv.StepLabel]; !ok {
+				return nil, fmt.Errorf("variable '%s.%s' of step '%s' refers to unexisting step",
+					sv.StepLabel, sv.VariableName, bundle.TestStepLabel)
+			}
+		}
+	}
 	return testStepBundles, nil
 }
