@@ -64,3 +64,37 @@ func TestRegisterTestStepDoesNotValidate(t *testing.T) {
 	err := pr.RegisterTestStep("AStep", NewAStep, []event.Name{"Event which does not validate"})
 	require.Error(t, err)
 }
+
+func TestNewTestStepBundle(t *testing.T) {
+	t.Run("valid_bundle", func(t *testing.T) {
+		ctx := logrusctx.NewContext(logger.LevelDebug)
+		pr := NewPluginRegistry(ctx)
+		err := pr.RegisterTestStep("AStep", NewAStep, []event.Name{"AStepEventName"})
+		require.NoError(t, err)
+
+		_, err = pr.NewTestStepBundle(ctx, test.TestStepDescriptor{
+			Name:  "AStep",
+			Label: "Dummy",
+			VariablesMapping: map[string]string{
+				"variable": "step_label.var",
+			},
+		})
+		require.NoError(t, err)
+	})
+
+	t.Run("invalid_variable_name", func(t *testing.T) {
+		ctx := logrusctx.NewContext(logger.LevelDebug)
+		pr := NewPluginRegistry(ctx)
+		err := pr.RegisterTestStep("AStep", NewAStep, []event.Name{"AStepEventName"})
+		require.NoError(t, err)
+
+		_, err = pr.NewTestStepBundle(ctx, test.TestStepDescriptor{
+			Name:  "AStep",
+			Label: "Dummy",
+			VariablesMapping: map[string]string{
+				"variable   ": "step_label.var",
+			},
+		})
+		require.Error(t, err)
+	})
+}

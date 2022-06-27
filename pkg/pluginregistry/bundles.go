@@ -59,12 +59,11 @@ func (r *PluginRegistry) NewTestStepBundle(ctx xcontext.Context, testStepDescrip
 			}
 
 			variablesMapping[internalName] = test.StepVariable{
-				StepName:     parts[0],
+				StepLabel:    parts[0],
 				VariableName: parts[1],
 			}
 		}
 	}
-	// TODO: check that all testStep labels from variable mappings exist
 	testStepBundle := test.TestStepBundle{
 		TestStep:         testStep,
 		TestStepLabel:    label,

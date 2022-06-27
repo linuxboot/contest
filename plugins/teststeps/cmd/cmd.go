@@ -110,14 +110,14 @@ func (ts *Cmd) Run(
 		// expand args
 		var args []string
 		for _, arg := range ts.args {
-			expArg, err := arg.Expand(target)
+			expArg, err := arg.Expand(target, stepsVars)
 			if err != nil {
 				return fmt.Errorf("failed to expand argument '%s': %v", arg, err)
 			}
 			args = append(args, expArg)
 		}
 		cmd := exec.CommandContext(ctx, ts.executable, args...)
-		pwd, err := ts.dir.Expand(target)
+		pwd, err := ts.dir.Expand(target, stepsVars)
 		if err != nil {
 			return fmt.Errorf("failed to expand argument dir '%s': %v", ts.dir, err)
 		}

@@ -45,6 +45,7 @@ import (
 	"github.com/linuxboot/contest/plugins/testfetchers/literal"
 	"github.com/linuxboot/contest/plugins/teststeps/cmd"
 	"github.com/linuxboot/contest/plugins/teststeps/sleep"
+	"github.com/linuxboot/contest/plugins/teststeps/variables"
 	"github.com/linuxboot/contest/plugins/teststeps/waitport"
 	testsCommon "github.com/linuxboot/contest/tests/common"
 	"github.com/linuxboot/contest/tests/common/goroutine_leak_check"
@@ -122,7 +123,7 @@ func (ts *E2ETestSuite) startServer(extraArgs ...string) {
 				targetlist_with_state.Load,
 			},
 			TestFetcherLoaders: []test.TestFetcherLoader{literal.Load},
-			TestStepLoaders:    []test.TestStepLoader{cmd.Load, sleep.Load, waitport.Load},
+			TestStepLoaders:    []test.TestStepLoader{cmd.Load, sleep.Load, waitport.Load, variables.Load},
 			ReporterLoaders:    []job.ReporterLoader{targetsuccess.Load, noop.Load},
 		}
 		err := server.Main(&pc, "contest", args, serverSigs)
@@ -147,6 +148,22 @@ func (ts *E2ETestSuite) startServer(extraArgs ...string) {
 	} else {
 		require.NoError(ts.T(), fmt.Errorf("Server failed to initialize but no error was returned"))
 	}
+}
+
+func (ts *E2ETestSuite) startTask(taskFile string) types.JobID {
+	// No jobs to begin with.
+	var listResp api.ListResponse
+	_, err := ts.runClient(&listResp, "list")
+	require.NoError(ts.T(), err)
+	require.Empty(ts.T(), listResp.Data.JobIDs)
+
+	// Start a job.
+	var resp api.StartResponse
+	_, err = ts.runClient(&resp, "start", "-Y", taskFile)
+	require.NoError(ts.T(), err)
+	ctx.Infof("%+v", resp)
+	require.NotEqual(ts.T(), 0, resp.Data.JobID)
+	return resp.Data.JobID
 }
 
 func (ts *E2ETestSuite) stopServer(timeout time.Duration) error {
@@ -217,22 +234,8 @@ func (ts *E2ETestSuite) TestCLIErrors() {
 }
 
 func (ts *E2ETestSuite) TestSimple() {
-	var jobID types.JobID
 	ts.startServer()
-	{ // No jobs to begin with.
-		var resp api.ListResponse
-		_, err := ts.runClient(&resp, "list")
-		require.NoError(ts.T(), err)
-		require.Empty(ts.T(), resp.Data.JobIDs)
-	}
-	{ // Start a job.
-		var resp api.StartResponse
-		_, err := ts.runClient(&resp, "start", "-Y", "test-simple.yaml")
-		require.NoError(ts.T(), err)
-		ctx.Infof("%+v", resp)
-		require.NotEqual(ts.T(), 0, resp.Data.JobID)
-		jobID = resp.Data.JobID
-	}
+	jobID := ts.startTask("test-simple.yaml")
 	{ // Wait for the job to finish
 		var resp api.StatusResponse
 		for i := 1; i < 5; i++ {
@@ -272,6 +275,42 @@ func (ts *E2ETestSuite) TestSimple() {
 {[%d 2 Test 2 0 Test2Step2][Target{ID: "T2"} CmdStdout &"{\"Msg\":\"Test 2, Step 2, target T2\\n\"}"]}
 {[%d 2 Test 2 0 ][Target{ID: "T2"} TargetReleased]}
 `, jobID, jobID, jobID, jobID, jobID, jobID, jobID, jobID, jobID, jobID, jobID, jobID, jobID, jobID, jobID, jobID),
+			es,
+		)
+	}
+	require.NoError(ts.T(), ts.stopServer(5*time.Second))
+}
+
+func (ts *E2ETestSuite) TestVariables() {
+	ts.startServer()
+	jobID := ts.startTask("test-variables.yaml")
+
+	{ // Wait for the job to finish
+		var resp api.StatusResponse
+		for i := 1; i < 5; i++ {
+			time.Sleep(1 * time.Second)
+			stdout, err := ts.runClient(&resp, "status", fmt.Sprintf("%d", jobID))
+			require.NoError(ts.T(), err)
+			require.Nil(ts.T(), resp.Err, "error: %s", resp.Err)
+			ctx.Infof("Job %d state %s", jobID, resp.Data.Status.State)
+			if resp.Data.Status.State == string(job.EventJobCompleted) {
+				ctx.Debugf("Job %d status: %s", jobID, stdout)
+				break
+			}
+		}
+		require.Equal(ts.T(), string(job.EventJobCompleted), resp.Data.Status.State)
+	}
+	{ // Verify step output.
+		es := testsCommon.GetJobEventsAsString(ctx, ts.st, jobID, []event.Name{
+			cmd.EventCmdStdout, target.EventTargetAcquired, target.EventTargetReleased,
+		})
+		ctx.Debugf("%s", es)
+		require.Equal(ts.T(),
+			fmt.Sprintf(`
+{[%d 1 Test 1 0 ][Target{ID: "T1"} TargetAcquired]}
+{[%d 1 Test 1 0 cmdstep][Target{ID: "T1"} CmdStdout &"{\"Msg\":\"Hello\\n\"}"]}
+{[%d 1 Test 1 0 ][Target{ID: "T1"} TargetReleased]}
+`, jobID, jobID, jobID),
 			es,
 		)
 	}
