@@ -67,6 +67,7 @@ func (d *Descriptor) CheckVersion() error {
 	if d.Version == "" {
 		return fmt.Errorf("Version Error: Empty Job Descriptor Version Field!")
 	}
+	// Convert the version string into 2 numbers
 	versionNums := strings.Split(d.Version, ".")
 	if len(versionNums) != 2 {
 		return fmt.Errorf("Version Error: Incorrect Job Descriptor Version %v", d.Version)
@@ -84,6 +85,9 @@ func (d *Descriptor) CheckVersion() error {
 	Currentmajor, _ := strconv.Atoi(currentVersionNums[0])
 	Currentminor, _ := strconv.Atoi(currentVersionNums[1])
 
+	// checks the major,minor numbers againest the supported version
+	// If the major don't match of the minor is ahead of the currently supported
+	// , return an error msg
 	if majorVersion != Currentmajor || minorVersion > Currentminor {
 		return fmt.Errorf(
 			"Version Error: The Job Descriptor Version %s is't compatible with the Server's %s",
