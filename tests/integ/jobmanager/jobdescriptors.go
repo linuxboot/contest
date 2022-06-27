@@ -3,6 +3,7 @@
 // This source code is licensed under the MIT license found in the
 // LICENSE file in the root directory of this source tree.
 
+//go:build integration || integration_storage
 // +build integration integration_storage
 
 package test
@@ -274,15 +275,15 @@ var jobDescriptorSlowEcho2 = descriptorMust2(&templateData{
        "Steps": [
            {
                "name": "slowecho",
-               "label": "Step 1",
+               "label": "Step1",
                "parameters": {
                  "sleep": ["0.5"],
-                 "text": ["Hello step 1"]
+                 "text": ["Hello step1"]
                }
            },
            {
                "name": "slowecho",
-               "label": "Step 2",
+               "label": "Step2",
                "parameters": {
                  "sleep": ["0"],
                  "text": ["Hello step 2"]

@@ -32,12 +32,15 @@ func (r *PluginRegistry) NewTestStepBundle(ctx xcontext.Context, testStepDescrip
 	if len(label) == 0 {
 		return nil, ErrStepLabelIsMandatory{TestStepDescriptor: testStepDescriptor}
 	}
+	if err := test.CheckVariableName(label); err != nil {
+		return nil, InvalidVariableFormat{InvalidName: label, Err: err}
+	}
 
 	var variablesMapping test.StepVariablesMapping
 	if testStepDescriptor.VariablesMapping != nil {
 		variablesMapping = make(test.StepVariablesMapping)
 		for internalName, mappedName := range testStepDescriptor.VariablesMapping {
-			if err := checkVariableName(internalName); err != nil {
+			if err := test.CheckVariableName(internalName); err != nil {
 				return nil, InvalidVariableFormat{InvalidName: internalName, Err: err}
 			}
 			if _, found := variablesMapping[internalName]; found {
@@ -48,10 +51,10 @@ func (r *PluginRegistry) NewTestStepBundle(ctx xcontext.Context, testStepDescrip
 			if len(parts) != 2 {
 				return nil, fmt.Errorf("variable mapping '%s' should contain a single '.' separator", mappedName)
 			}
-			if err := checkVariableName(parts[0]); err != nil {
+			if err := test.CheckVariableName(parts[0]); err != nil {
 				return nil, InvalidVariableFormat{InvalidName: parts[0], Err: err}
 			}
-			if err := checkVariableName(parts[1]); err != nil {
+			if err := test.CheckVariableName(parts[1]); err != nil {
 				return nil, InvalidVariableFormat{InvalidName: parts[1], Err: err}
 			}
 
@@ -160,32 +163,4 @@ func (r *PluginRegistry) NewFinalReporterBundle(reporterName string, reporterPar
 		Parameters: rp,
 	}
 	return &reporterBundle, nil
-}
-
-func isAlpha(ch int32) bool {
-	return (ch >= 'a' && ch <= 'z') || (ch >= 'A' || ch <= 'Z')
-}
-
-func checkVariableName(s string) error {
-	if len(s) == 0 {
-		return fmt.Errorf("empty variable name")
-	}
-	for idx, ch := range s {
-		if idx == 0 {
-			if !isAlpha(ch) {
-				return fmt.Errorf("first character should be alpha, got %c", ch)
-			}
-		}
-		if isAlpha(ch) {
-			continue
-		}
-		if ch >= '0' || ch <= '9' {
-			continue
-		}
-		if ch == '_' {
-			continue
-		}
-		return fmt.Errorf("got unxpected character: %c", ch)
-	}
-	return nil
 }
