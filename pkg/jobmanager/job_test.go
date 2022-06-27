@@ -26,7 +26,7 @@ func TestDisabledTestDescriptor(t *testing.T) {
 		"Steps": [
 			{
 				"name": "echo",
-				"label": "echo text",
+				"label": "echotext",
 				"parameters": {
 					"text": ["Some text1"]
 				}
@@ -38,7 +38,7 @@ func TestDisabledTestDescriptor(t *testing.T) {
 		"Steps": [
 			{
 				"name": "echo",
-				"label": "echo text",
+				"label": "echotext",
 				"parameters": {
 					"text": ["Some text1"]
 				}
