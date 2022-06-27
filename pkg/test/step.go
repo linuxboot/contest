@@ -14,6 +14,7 @@ import (
 	"github.com/linuxboot/contest/pkg/target"
 	"github.com/linuxboot/contest/pkg/xcontext"
 	"strconv"
+	"unicode"
 )
 
 // StepVariable is a pair that indicates a variable name produces by a step
@@ -119,8 +120,11 @@ type TestStepChannels struct {
 
 // StepsVariables represents a read/write access for step variables
 type StepsVariables interface {
-	Add(tgtID string, name string, v interface{}) error
-	Get(tgtID string, name string, out interface{}) error
+	// Add adds a new or replaces existing variable associated with current test step and target
+	Add(tgtID string, name string, in interface{}) error
+
+	// Get obtains existing variable by a mappedName which should be specified in variables mapping
+	Get(tgtID string, mappedName string, out interface{}) error
 }
 
 // TestStep is the interface that all steps need to implement to be executed
@@ -135,4 +139,23 @@ type TestStep interface {
 	// ValidateParameters checks that the parameters are correct before passing
 	// them to Run.
 	ValidateParameters(ctx xcontext.Context, params TestStepParameters) error
+}
+
+// CheckVariableName checks that input argument forms a valid variable name
+func CheckVariableName(s string) error {
+	if len(s) == 0 {
+		return fmt.Errorf("empty variable name")
+	}
+	for idx, ch := range s {
+		if idx == 0 {
+			if !unicode.IsLetter(ch) {
+				return fmt.Errorf("first character should be alpha, got %c", ch)
+			}
+		}
+		if unicode.IsLetter(ch) || unicode.IsDigit(ch) || ch == '_' {
+			continue
+		}
+		return fmt.Errorf("got unxpected character: %c", ch)
+	}
+	return nil
 }
