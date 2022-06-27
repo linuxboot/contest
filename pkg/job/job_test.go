@@ -36,7 +36,7 @@ func TestEmptyVersion(t *testing.T) {
 	)
 }
 
-func TestIncompitableVersions(t *testing.T) {
+func TestIncompatibleVersions(t *testing.T) {
 	var cases []Case
 
 	cases = append(cases, Case{
