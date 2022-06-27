@@ -22,6 +22,10 @@ func (jm *JobManager) start(ev *api.Event) *api.EventResponse {
 	if err := json.Unmarshal([]byte(msg.JobDescriptor), &jd); err != nil {
 		return &api.EventResponse{Err: err}
 	}
+	// Check the compatibility of the JobDescriptor
+	if err := jd.CheckVersion(); err != nil {
+		return &api.EventResponse{Err: err}
+	}
 	if err := job.CheckTags(jd.Tags, false /* allowInternal */); err != nil {
 		return &api.EventResponse{Err: err}
 	}

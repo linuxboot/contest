@@ -8,6 +8,7 @@ package job
 import (
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -17,10 +18,16 @@ import (
 	"github.com/insomniacslk/xjson"
 )
 
+// CurrentDescriptorVersion is the current version of the job descriptor
+// that the client must speaks to descripe jobs.
+// It has to number to denote breaking and non-breaking changes
+const CurrentDescriptorVersion string = "1.0"
+
 // Descriptor models the deserialized version of the JSON text given as
 // input to the job creation request.
 type Descriptor struct {
 	JobName                     string
+	Version                     string
 	Tags                        []string
 	Runs                        uint
 	RunInterval                 xjson.Duration
@@ -51,6 +58,40 @@ func (d *Descriptor) Validate() error {
 			return errors.New("run reporters cannot have empty or all-whitespace names")
 		}
 	}
+	return nil
+}
+
+// CheckVersion checks the compatibility of the received descriptor
+// version against the supported one
+func (d *Descriptor) CheckVersion() error {
+	if d.Version == "" {
+		return fmt.Errorf("Version Error: Empty Job Descriptor Version Field!")
+	}
+	versionNums := strings.Split(d.Version, ".")
+	if len(versionNums) != 2 {
+		return fmt.Errorf("Version Error: Incorrect Job Descriptor Version %v", d.Version)
+	}
+	majorVersion, err := strconv.Atoi(versionNums[0])
+	if err != nil {
+		return fmt.Errorf("Version Error: %w", err)
+	}
+	minorVersion, err := strconv.Atoi(versionNums[1])
+	if err != nil {
+		return fmt.Errorf("Version Error: %w", err)
+	}
+
+	currentVersionNums := strings.Split(CurrentDescriptorVersion, ".")
+	Currentmajor, _ := strconv.Atoi(currentVersionNums[0])
+	Currentminor, _ := strconv.Atoi(currentVersionNums[1])
+
+	if majorVersion != Currentmajor || minorVersion > Currentminor {
+		return fmt.Errorf(
+			"Version Error: The Job Descriptor Version %s is't compatible with the Server's %s",
+			d.Version,
+			CurrentDescriptorVersion,
+		)
+	}
+
 	return nil
 }
 
