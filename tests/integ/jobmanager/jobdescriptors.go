@@ -3,6 +3,7 @@
 // This source code is licensed under the MIT license found in the
 // LICENSE file in the root directory of this source tree.
 
+//go:build integration || integration_storage
 // +build integration integration_storage
 
 package test
@@ -10,11 +11,15 @@ package test
 import (
 	"bytes"
 	"text/template"
+
+	"github.com/linuxboot/contest/pkg/job"
 )
 
+var jobDescriptorVersion = job.CurrentDescriptorVersion()
 var jobDescriptorTemplate = template.Must(template.New("jobDescriptor").Parse(`
 {
     "JobName": "test job",
+    "Version": "{{ .Version }}",
     "ReporterName": "TargetSuccess",
     "ReporterParameters": {
         "SuccessExpression": ">10%"
@@ -59,22 +64,24 @@ var jobDescriptorTemplate = template.Must(template.New("jobDescriptor").Parse(`
 `))
 
 type templateData struct {
+	Version     string
 	Runs        int
 	RunInterval string
 	ExtraTags   string
 	Def         string
 }
 
-func descriptorMust2(data *templateData) string {
+// Decouple the template from the function in order not to repeate logic
+func descriptorMust2(t *template.Template, data *templateData) string {
 	var buf bytes.Buffer
-	if err := jobDescriptorTemplate.Execute(&buf, data); err != nil {
+	if err := t.Execute(&buf, data); err != nil {
 		panic(err)
 	}
 	return buf.String()
 }
 
-func descriptorMust(def string) string {
-	return descriptorMust2(&templateData{Runs: 1, RunInterval: "1s", Def: def})
+func descriptorMust(t *template.Template, def string) string {
+	return descriptorMust2(t, &templateData{Version: jobDescriptorVersion, Runs: 1, RunInterval: "1s", Def: def})
 }
 
 var testStepsNoop = `
@@ -88,12 +95,13 @@ var testStepsNoop = `
         ],
         "TestName": "IntegrationTest: noop"
     }`
-var jobDescriptorNoop = descriptorMust(testStepsNoop)
+var jobDescriptorNoop = descriptorMust(jobDescriptorTemplate, testStepsNoop)
 var jobDescriptorNoop2 = descriptorMust2(
-	&templateData{Runs: 1, RunInterval: "1s", Def: testStepsNoop, ExtraTags: `, "foo"`},
+	jobDescriptorTemplate,
+	&templateData{Version: jobDescriptorVersion, Runs: 1, RunInterval: "1s", Def: testStepsNoop, ExtraTags: `, "foo"`},
 )
 
-var jobDescriptorSlowEcho = descriptorMust(`
+var jobDescriptorSlowEcho = descriptorMust(jobDescriptorTemplate, `
    "TestFetcherFetchParameters": {
        "Steps": [
            {
@@ -108,7 +116,7 @@ var jobDescriptorSlowEcho = descriptorMust(`
        "TestName": "IntegrationTest: slow echo"
    }`)
 
-var jobDescriptorFailure = descriptorMust(`
+var jobDescriptorFailure = descriptorMust(jobDescriptorTemplate, `
    "TestFetcherFetchParameters": {
        "Steps": [
            {
@@ -120,7 +128,7 @@ var jobDescriptorFailure = descriptorMust(`
        "TestName": "IntegrationTest: fail"
    }`)
 
-var jobDescriptorCrash = descriptorMust(`
+var jobDescriptorCrash = descriptorMust(jobDescriptorTemplate, `
    "TestFetcherFetchParameters": {
        "Steps": [
            {
@@ -132,7 +140,7 @@ var jobDescriptorCrash = descriptorMust(`
        "TestName": "IntegrationTest: crash"
    }`)
 
-var jobDescriptorHang = descriptorMust(`
+var jobDescriptorHang = descriptorMust(jobDescriptorTemplate, `
    "TestFetcherFetchParameters": {
        "Steps": [
            {
@@ -144,7 +152,7 @@ var jobDescriptorHang = descriptorMust(`
        "TestName": "IntegrationTest: noreturn"
    }`)
 
-var jobDescriptorNoLabel = descriptorMust(`
+var jobDescriptorNoLabel = descriptorMust(jobDescriptorTemplate, `
    "TestFetcherFetchParameters": {
        "Steps": [
            {
@@ -155,7 +163,7 @@ var jobDescriptorNoLabel = descriptorMust(`
        "TestName": "IntegrationTest: no_label"
    }`)
 
-var jobDescriptorLabelDuplication = descriptorMust(`
+var jobDescriptorLabelDuplication = descriptorMust(jobDescriptorTemplate, `
    "TestFetcherFetchParameters": {
        "Steps": [
            {
@@ -172,7 +180,7 @@ var jobDescriptorLabelDuplication = descriptorMust(`
        "TestName": "TestTestStepLabelDuplication"
    }`)
 
-var jobDescriptorNullStep = descriptorMust(`
+var jobDescriptorNullStep = descriptorMust(jobDescriptorTemplate, `
    "TestFetcherFetchParameters": {
        "Steps": [
            {
@@ -185,9 +193,10 @@ var jobDescriptorNullStep = descriptorMust(`
        "TestName": "IntegrationTest: null TestStep"
    }`)
 
-var jobDescriptorNullTest = `
+var nullTestTemplate = template.Must(template.New("jobDescriptor").Parse(`
 {
     "JobName": "test job",
+    "Version": "{{ .Version }}",
     "Tags": [
         "integration_testing"
     ],
@@ -205,8 +214,11 @@ var jobDescriptorNullTest = `
         ]
     }
 }
-`
-var jobDescriptorBadTag = descriptorMust2(&templateData{
+`))
+var jobDescriptorNullTest = descriptorMust2(nullTestTemplate, &templateData{Version: jobDescriptorVersion})
+
+var jobDescriptorBadTag = descriptorMust2(jobDescriptorTemplate, &templateData{
+	Version:     jobDescriptorVersion,
 	Runs:        2,
 	RunInterval: "1s",
 	ExtraTags:   `, "a bad one"`,
@@ -226,7 +238,8 @@ var jobDescriptorBadTag = descriptorMust2(&templateData{
    }`,
 })
 
-var jobDescriptorInternalTag = descriptorMust2(&templateData{
+var jobDescriptorInternalTag = descriptorMust2(jobDescriptorTemplate, &templateData{
+	Version:     jobDescriptorVersion,
 	Runs:        2,
 	RunInterval: "1s",
 	ExtraTags:   `, "_foo"`,
@@ -246,7 +259,8 @@ var jobDescriptorInternalTag = descriptorMust2(&templateData{
    }`,
 })
 
-var jobDescriptorDuplicateTag = descriptorMust2(&templateData{
+var jobDescriptorDuplicateTag = descriptorMust2(jobDescriptorTemplate, &templateData{
+	Version:     jobDescriptorVersion,
 	Runs:        2,
 	RunInterval: "1s",
 	ExtraTags:   `, "qwe", "qwe"`,
@@ -266,7 +280,8 @@ var jobDescriptorDuplicateTag = descriptorMust2(&templateData{
    }`,
 })
 
-var jobDescriptorSlowEcho2 = descriptorMust2(&templateData{
+var jobDescriptorSlowEcho2 = descriptorMust2(jobDescriptorTemplate, &templateData{
+	Version:     jobDescriptorVersion,
 	Runs:        2,
 	RunInterval: "0.5s",
 	Def: `
@@ -293,9 +308,10 @@ var jobDescriptorSlowEcho2 = descriptorMust2(&templateData{
    }`,
 })
 
-var jobDescriptorReadmeta = `
+var readmetaTemplate = template.Must(template.New("jobDescriptor").Parse(`
 {
     "JobName": "test job",
+    "Version": "{{ .Version }}",
     "Runs": 1,
     "RunInterval": "5s",
     "Tags": [
@@ -334,4 +350,5 @@ var jobDescriptorReadmeta = `
         ]
     }
 }
-`
+`))
+var jobDescriptorReadmeta = descriptorMust2(readmetaTemplate, &templateData{Version: jobDescriptorVersion})

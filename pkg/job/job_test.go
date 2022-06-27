@@ -1,57 +1,66 @@
 package job
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
 
+var (
+	currentDescriptorVersion = CurrentDescriptorVersion()
+)
+
+type Case struct {
+	version        string
+	expectedErrMsg string
+}
+
 func TestValidVersion(t *testing.T) {
-	validJd := Descriptor{
-		Version: "1.0",
+	vaild := Descriptor{
+		Version: currentDescriptorVersion,
 	}
 
-	require.NoError(t, validJd.CheckVersion())
+	require.NoError(t, vaild.CheckVersion())
 }
 
 func TestEmptyVersion(t *testing.T) {
-	emptyVersionJd := Descriptor{
+	emptyVersionJD := Descriptor{
 		Version: "",
 	}
 
 	require.EqualError(
 		t,
-		emptyVersionJd.CheckVersion(),
+		emptyVersionJD.CheckVersion(),
 		"Version Error: Empty Job Descriptor Version Field!",
 	)
 }
 
-func TestInCompitableVersions(t *testing.T) {
-	// CurrentVersion "1.0"
-	cases := []struct {
-		version        string
-		expectedErrMsg string
-	}{
-		{"1.1", "Version Error: The Job Descriptor Version 1.1 is't compatible with the Server's 1.0"},
-		{"2.0", "Version Error: The Job Descriptor Version 2.0 is't compatible with the Server's 1.0"},
-	}
+func TestIncompitableVersions(t *testing.T) {
+	var cases []Case
+
+	cases = append(cases, Case{
+		fmt.Sprintf("%d.%d", JobDescriptorMajorVersion, JobDescriptorMinorVersion+1),
+		"Version Error: The Job Descriptor Version %s is not compatible with the server: %s",
+	})
+
+	cases = append(cases, Case{
+		fmt.Sprintf("%d.%d", JobDescriptorMajorVersion+1, JobDescriptorMinorVersion),
+		"Version Error: The Job Descriptor Version %s is not compatible with the server: %s",
+	})
 
 	for _, c := range cases {
 		require.EqualError(
 			t,
 			(&Descriptor{Version: c.version}).CheckVersion(),
-			c.expectedErrMsg,
+			fmt.Sprintf(c.expectedErrMsg, c.version, currentDescriptorVersion),
 		)
 	}
 
 }
 
-func TestInValidVersion(t *testing.T) {
-	// CurrentVersion "1.0"
-	cases := []struct {
-		version        string
-		expectedErrMsg string
-	}{
+func TestInvalidVersion(t *testing.T) {
+	cases := []Case{
 		{"1.", "Version Error: strconv.Atoi: parsing \"\": invalid syntax"},
 		{".0", "Version Error: strconv.Atoi: parsing \"\": invalid syntax"},
 		{".", "Version Error: strconv.Atoi: parsing \"\": invalid syntax"},

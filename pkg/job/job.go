@@ -18,10 +18,11 @@ import (
 	"github.com/insomniacslk/xjson"
 )
 
-// CurrentDescriptorVersion is the current version of the job descriptor
-// that the client must speaks to descripe jobs.
-// It has to number to denote breaking and non-breaking changes
-const CurrentDescriptorVersion string = "1.0"
+// JobDescriptorMajorVersion, JobDescriptorMinorVersion are the current
+// version of the job descriptor that the client must speaks to descripe jobs.
+// It has two numbers to denote breaking and non-breaking changes
+const JobDescriptorMajorVersion uint = 1
+const JobDescriptorMinorVersion uint = 0
 
 // Descriptor models the deserialized version of the JSON text given as
 // input to the job creation request.
@@ -81,22 +82,25 @@ func (d *Descriptor) CheckVersion() error {
 		return fmt.Errorf("Version Error: %w", err)
 	}
 
-	currentVersionNums := strings.Split(CurrentDescriptorVersion, ".")
-	Currentmajor, _ := strconv.Atoi(currentVersionNums[0])
-	Currentminor, _ := strconv.Atoi(currentVersionNums[1])
-
-	// checks the major,minor numbers againest the supported version
+	// checks the major, minor numbers against the supported version
 	// If the major don't match of the minor is ahead of the currently supported
 	// , return an error msg
-	if majorVersion != Currentmajor || minorVersion > Currentminor {
+	if majorVersion != int(JobDescriptorMajorVersion) || minorVersion > int(JobDescriptorMinorVersion) {
 		return fmt.Errorf(
-			"Version Error: The Job Descriptor Version %s is't compatible with the Server's %s",
+			"Version Error: The Job Descriptor Version %s is not compatible with the server: %d.%d",
 			d.Version,
-			CurrentDescriptorVersion,
+			JobDescriptorMajorVersion,
+			JobDescriptorMinorVersion,
 		)
 	}
 
 	return nil
+}
+
+// CurrentDescriptorVersion returns current JobDescriptor version as a string
+// e.g "1.0"
+func CurrentDescriptorVersion() string {
+	return fmt.Sprintf("%d.%d", JobDescriptorMajorVersion, JobDescriptorMinorVersion)
 }
 
 // ExtendedDescriptor is a job descriptor which has been extended with the full
