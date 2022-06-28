@@ -17,11 +17,11 @@ type Case struct {
 }
 
 func TestValidVersion(t *testing.T) {
-	vaild := Descriptor{
+	valid := Descriptor{
 		Version: currentDescriptorVersion,
 	}
 
-	require.NoError(t, vaild.CheckVersion())
+	require.NoError(t, valid.CheckVersion())
 }
 
 func TestEmptyVersion(t *testing.T) {
