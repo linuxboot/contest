@@ -60,6 +60,12 @@ func run(requestor string, transport transport.Transport, stdout io.Writer) erro
 			return fmt.Errorf("failed to parse job descriptor: %w", err)
 		}
 
+		// Add the version field if it does not exist
+		jobDescJSON, err = addVersion(jobDescJSON)
+		if err != nil {
+			return fmt.Errorf("failed to add version to descriptor: %w", err)
+		}
+
 		startResp, err := transport.Start(context.Background(), requestor, string(jobDescJSON))
 		if err != nil {
 			return err
@@ -183,4 +189,24 @@ func parseJob(jobIDStr string) (types.JobID, error) {
 		return 0, fmt.Errorf("Invalid job ID: %s: it must be positive", jobIDStr)
 	}
 	return jobID, nil
+}
+
+// addVersion adds the version field to the job descriptor if it does not exist
+func addVersion(jobDescJSON []byte) ([]byte, error) {
+	var (
+		jobDesc = make(map[string]interface{})
+	)
+	if err := json.Unmarshal(jobDescJSON, &jobDesc); err != nil {
+		return nil, fmt.Errorf("failed to parse JSON job descriptor: %w", err)
+	}
+	// Add the Descriptor version if it is not provided
+	if _, ok := jobDesc["Version"]; !ok {
+		jobDesc["Version"] = JobDescriptorVersion
+	}
+	// then serialize the descriptor back to JSON
+	jobDescJSON, err := json.MarshalIndent(jobDesc, "", "    ")
+	if err != nil {
+		return nil, fmt.Errorf("failed to serialize job descriptor to JSON: %w", err)
+	}
+	return jobDescJSON, nil
 }

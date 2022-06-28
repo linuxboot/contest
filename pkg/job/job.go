@@ -8,6 +8,7 @@ package job
 import (
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -17,10 +18,17 @@ import (
 	"github.com/insomniacslk/xjson"
 )
 
+// JobDescriptorMajorVersion, JobDescriptorMinorVersion are the current
+// version of the job descriptor that the client must speaks to descripe jobs.
+// It has two numbers to denote breaking and non-breaking changes
+const JobDescriptorMajorVersion uint = 1
+const JobDescriptorMinorVersion uint = 0
+
 // Descriptor models the deserialized version of the JSON text given as
 // input to the job creation request.
 type Descriptor struct {
 	JobName                     string
+	Version                     string
 	Tags                        []string
 	Runs                        uint
 	RunInterval                 xjson.Duration
@@ -52,6 +60,47 @@ func (d *Descriptor) Validate() error {
 		}
 	}
 	return nil
+}
+
+// CheckVersion checks the compatibility of the received descriptor
+// version against the supported one
+func (d *Descriptor) CheckVersion() error {
+	if d.Version == "" {
+		return fmt.Errorf("Version Error: Empty Job Descriptor Version Field!")
+	}
+	// Convert the version string into 2 numbers
+	versionNums := strings.Split(d.Version, ".")
+	if len(versionNums) != 2 {
+		return fmt.Errorf("Version Error: Incorrect Job Descriptor Version %v", d.Version)
+	}
+	majorVersion, err := strconv.Atoi(versionNums[0])
+	if err != nil {
+		return fmt.Errorf("Version Error: %w", err)
+	}
+	minorVersion, err := strconv.Atoi(versionNums[1])
+	if err != nil {
+		return fmt.Errorf("Version Error: %w", err)
+	}
+
+	// checks the major, minor numbers against the supported version
+	// If the major don't match of the minor is ahead of the currently supported
+	// , return an error msg
+	if majorVersion != int(JobDescriptorMajorVersion) || minorVersion > int(JobDescriptorMinorVersion) {
+		return fmt.Errorf(
+			"Version Error: The Job Descriptor Version %s is not compatible with the server: %d.%d",
+			d.Version,
+			JobDescriptorMajorVersion,
+			JobDescriptorMinorVersion,
+		)
+	}
+
+	return nil
+}
+
+// CurrentDescriptorVersion returns current JobDescriptor version as a string
+// e.g "1.0"
+func CurrentDescriptorVersion() string {
+	return fmt.Sprintf("%d.%d", JobDescriptorMajorVersion, JobDescriptorMinorVersion)
 }
 
 // ExtendedDescriptor is a job descriptor which has been extended with the full

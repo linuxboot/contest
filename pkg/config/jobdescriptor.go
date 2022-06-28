@@ -38,6 +38,7 @@ func ParseJobDescriptor(data []byte, jobDescFormat JobDescFormat) ([]byte, error
 			return nil, fmt.Errorf("failed to parse YAML job descriptor: %w", err)
 		}
 	}
+
 	// then marshal the structure back to JSON
 	jobDescJSON, err := json.MarshalIndent(jobDesc, "", "    ")
 	if err != nil {

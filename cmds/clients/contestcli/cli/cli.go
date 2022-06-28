@@ -10,6 +10,7 @@ import (
 	"io"
 	"time"
 
+	"github.com/linuxboot/contest/pkg/job"
 	"github.com/linuxboot/contest/pkg/transport/http"
 
 	flag "github.com/spf13/pflag"
@@ -19,6 +20,9 @@ const (
 	defaultRequestor = "contestcli-http"
 	jobWaitPoll      = 10 * time.Second
 )
+
+// JobDescriptorVersion denotes the version that is used by the cli tool
+var JobDescriptorVersion string = job.CurrentDescriptorVersion()
 
 var (
 	flagSet       *flag.FlagSet
