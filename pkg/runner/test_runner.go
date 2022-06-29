@@ -545,7 +545,7 @@ func (tr *TestRunner) runStepIfNeeded(ss *stepState) error {
 	resumeState := ss.resumeState
 	ss.resumeState = nil
 
-	sva := newStepVariablesAccessor(ss.sb.TestStepLabel, ss.sb.VariablesMapping, tr.stepsVariables)
+	sva := newStepVariablesAccessor(ss.sb.TestStepLabel, tr.stepsVariables)
 	resultCh, addTarget, err := ss.stepRunner.Run(ss.ctx, ss.sb, sva, ss.ev, resumeState, ss.resumeStateTargets)
 	if err != nil {
 		return fmt.Errorf("failed to stert a step runner for '%s': %v", ss.sb.TestStepLabel, err)

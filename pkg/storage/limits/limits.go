@@ -37,15 +37,15 @@ const MaxTestNameLen = 32
 
 // ValidateTestName retruns error if the test name does not match storage limitations
 func (v *Validator) ValidateTestName(testName string) error {
-	return v.validate(testName, "Test name", false, MaxTestNameLen)
+	return v.validate(testName, "Test name", MaxTestNameLen)
 }
 
 // MaxTestStepLabelLen is a max length of test step label field
 const MaxTestStepLabelLen = 32
 
 // ValidateTestStepLabel returns error if the test step label does not match storage limitations
-func (v *Validator) ValidateTestStepLabel(testStepName string) error {
-	return v.validate(testStepName, "Test step label", false, MaxTestStepLabelLen)
+func (v *Validator) ValidateTestStepLabel(testStepLabel string) error {
+	return v.validate(testStepLabel, "Test step label", MaxTestStepLabelLen)
 }
 
 // MaxJobNameLen is a max length of job name field
@@ -53,7 +53,7 @@ const MaxJobNameLen = 64
 
 // ValidateJobName retruns error if the job name does not match storage limitations
 func (v *Validator) ValidateJobName(jobName string) error {
-	return v.validate(jobName, "Job name", true, MaxJobNameLen)
+	return v.validate(jobName, "Job name", MaxJobNameLen)
 }
 
 // MaxEventNameLen is a max length of event name field
@@ -61,7 +61,7 @@ const MaxEventNameLen = 32
 
 // ValidateEventName retruns error if the event name does not match storage limitations
 func (v *Validator) ValidateEventName(eventName string) error {
-	return v.validate(eventName, "Event name", true, MaxEventNameLen)
+	return v.validate(eventName, "Event name", MaxEventNameLen)
 }
 
 // MaxReporterNameLen is a max length of reporter name field
@@ -69,7 +69,7 @@ const MaxReporterNameLen = 32
 
 // ValidateReporterName retruns error if the reporter name does not match storage limitations
 func (v *Validator) ValidateReporterName(reporterName string) error {
-	return v.validate(reporterName, "Reporter name", true, MaxReporterNameLen)
+	return v.validate(reporterName, "Reporter name", MaxReporterNameLen)
 }
 
 // MaxRequestorNameLen is a max length of Requestor name field
@@ -77,7 +77,7 @@ const MaxRequestorNameLen = 32
 
 // ValidateRequestorName retruns error if the requestor name does not match storage limitations
 func (v *Validator) ValidateRequestorName(requestorName string) error {
-	return v.validate(requestorName, "Requestor name", true, MaxRequestorNameLen)
+	return v.validate(requestorName, "Requestor name", MaxRequestorNameLen)
 }
 
 // MaxServerIDLen is a max length of server id field
@@ -85,10 +85,10 @@ const MaxServerIDLen = 64
 
 // ValidateServerID retruns error if the ServerID does not match storage limitations
 func (v *Validator) ValidateServerID(serverID string) error {
-	return v.validate(serverID, "Server ID", true, MaxServerIDLen)
+	return v.validate(serverID, "Server ID", MaxServerIDLen)
 }
 
-func (v *Validator) validate(data string, dataName string, allowEmpty bool, maxDataLen int) error {
+func (v *Validator) validate(data string, dataName string, maxDataLen int) error {
 	if l := len(data); l > maxDataLen {
 		return ErrParameterIsTooLong{DataName: dataName, MaxLen: maxDataLen, ActualLen: l}
 	}

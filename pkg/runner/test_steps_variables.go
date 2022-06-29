@@ -114,16 +114,14 @@ func (tsv *testStepsVariables) checkInput(tgtID string, stepLabel string, name s
 }
 
 type stepVariablesAccessor struct {
-	stepLabel   string
-	varsMapping test.StepVariablesMapping
-	tsv         *testStepsVariables
+	stepLabel string
+	tsv       *testStepsVariables
 }
 
-func newStepVariablesAccessor(stepLabel string, varsMapping test.StepVariablesMapping, tsv *testStepsVariables) *stepVariablesAccessor {
+func newStepVariablesAccessor(stepLabel string, tsv *testStepsVariables) *stepVariablesAccessor {
 	return &stepVariablesAccessor{
-		stepLabel:   stepLabel,
-		varsMapping: varsMapping,
-		tsv:         tsv,
+		stepLabel: stepLabel,
+		tsv:       tsv,
 	}
 }
 
@@ -138,15 +136,8 @@ func (sva *stepVariablesAccessor) Add(tgtID string, name string, in interface{})
 	return sva.tsv.Add(tgtID, sva.stepLabel, name, b)
 }
 
-func (sva *stepVariablesAccessor) Get(tgtID string, mappedName string, out interface{}) error {
-	if sva.varsMapping == nil {
-		return fmt.Errorf("step doesn't have variables mapping")
-	}
-	stepVar, found := sva.varsMapping[mappedName]
-	if !found {
-		return fmt.Errorf("no mapping for variable '%s'", mappedName)
-	}
-	b, err := sva.tsv.Get(tgtID, stepVar.StepName, stepVar.VariableName)
+func (sva *stepVariablesAccessor) Get(tgtID string, stepLabel, name string, out interface{}) error {
+	b, err := sva.tsv.Get(tgtID, stepLabel, name)
 	if err != nil {
 		return err
 	}

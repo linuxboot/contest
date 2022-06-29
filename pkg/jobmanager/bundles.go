@@ -60,6 +60,7 @@ func newBundlesFromSteps(ctx xcontext.Context, descriptors []*test.TestStepDescr
 
 	// look up test step plugins in the plugin registry
 	var stepBundles []test.TestStepBundle
+
 	for idx, descriptor := range descriptors {
 		if descriptor == nil {
 			return nil, fmt.Errorf("test step description is null")
@@ -98,5 +99,6 @@ func newStepBundles(ctx xcontext.Context, descriptors test.TestStepsDescriptors,
 		}
 		labels[bundle.TestStepLabel] = true
 	}
+	// TODO: verify that test variables refer to existing steps
 	return testStepBundles, nil
 }

@@ -17,15 +17,6 @@ import (
 	"unicode"
 )
 
-// StepVariable is a pair that indicates a variable name produces by a step
-type StepVariable struct {
-	StepName     string
-	VariableName string
-}
-
-// StepVariablesMapping is a mapping between produced and consumed variables
-type StepVariablesMapping map[string]StepVariable
-
 // TestStepParameters represents the parameters that a TestStep should consume
 // according to the Test descriptor fetched by the TestFetcher
 type TestStepParameters map[string][]Param
@@ -96,11 +87,10 @@ type TestStepDescriptor struct {
 // TestStepBundle bundles the selected TestStep together with its parameters as
 // specified in the Test descriptor fetched by the TestFetcher
 type TestStepBundle struct {
-	TestStep         TestStep
-	TestStepLabel    string
-	Parameters       TestStepParameters
-	VariablesMapping StepVariablesMapping
-	AllowedEvents    map[event.Name]bool
+	TestStep      TestStep
+	TestStepLabel string
+	Parameters    TestStepParameters
+	AllowedEvents map[event.Name]bool
 }
 
 // TestStepResult is used by TestSteps to report result for a particular target.
@@ -124,7 +114,7 @@ type StepsVariables interface {
 	Add(tgtID string, name string, in interface{}) error
 
 	// Get obtains existing variable by a mappedName which should be specified in variables mapping
-	Get(tgtID string, mappedName string, out interface{}) error
+	Get(tgtID string, stepLabel, name string, out interface{}) error
 }
 
 // TestStep is the interface that all steps need to implement to be executed

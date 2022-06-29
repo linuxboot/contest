@@ -90,13 +90,11 @@ func (s *BaseTestSuite) NewStep(
 	ctx xcontext.Context,
 	label, name string,
 	params test.TestStepParameters,
-	variablesMapping map[string]string,
 ) test.TestStepBundle {
 	td := test.TestStepDescriptor{
-		Name:             name,
-		Label:            label,
-		Parameters:       params,
-		VariablesMapping: variablesMapping,
+		Name:       name,
+		Label:      label,
+		Parameters: params,
 	}
 	sb, err := s.PluginRegistry.NewTestStepBundle(ctx, td)
 	require.NoError(s.T(), err)

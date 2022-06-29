@@ -78,7 +78,7 @@ func (s *StepRunnerSuite) TestRunningStep() {
 
 	inputResumeState := json.RawMessage("{\"some_input\": 42}")
 	resultChan, addTarget, err := stepRunner.Run(ctx,
-		s.NewStep(ctx, "test_step_label", stateFullStepName, nil, nil),
+		s.NewStep(ctx, "test_step_label", stateFullStepName, nil),
 		newStepsVariablesMock(nil, nil),
 		emitter,
 		inputResumeState,
@@ -144,7 +144,7 @@ func (s *StepRunnerSuite) TestAddSameTargetSequentiallyTimes() {
 	defer stepRunner.Stop()
 
 	resultChan, addTarget, err := stepRunner.Run(ctx,
-		s.NewStep(ctx, "test_step_label", stateFullStepName, nil, nil),
+		s.NewStep(ctx, "test_step_label", stateFullStepName, nil),
 		newStepsVariablesMock(nil, nil),
 		emitter,
 		nil,
@@ -200,7 +200,7 @@ func (s *StepRunnerSuite) TestAddTargetReturnsErrorIfFailsToInput() {
 	defer stepRunner.Stop()
 
 	resultChan, addTarget, err := stepRunner.Run(ctx,
-		s.NewStep(ctx, "test_step_label", stateFullStepName, nil, nil),
+		s.NewStep(ctx, "test_step_label", stateFullStepName, nil),
 		newStepsVariablesMock(nil, nil),
 		emitter,
 		nil,
@@ -246,7 +246,7 @@ func (s *StepRunnerSuite) TestStepPanics() {
 	defer stepRunner.Stop()
 
 	resultChan, addTarget, err := stepRunner.Run(ctx,
-		s.NewStep(ctx, "test_step_label", stateFullStepName, nil, nil),
+		s.NewStep(ctx, "test_step_label", stateFullStepName, nil),
 		newStepsVariablesMock(nil, nil),
 		NewTestStepEventsEmitterFactory(
 			s.MemoryStorage.StorageEngineVault,
@@ -306,7 +306,7 @@ func (s *StepRunnerSuite) TestCornerCases() {
 		defer stepRunner.Stop()
 
 		resultChan, addTarget, err := stepRunner.Run(ctx,
-			s.NewStep(ctx, "test_step_label", stateFullStepName, nil, nil),
+			s.NewStep(ctx, "test_step_label", stateFullStepName, nil),
 			newStepsVariablesMock(nil, nil),
 			emitter,
 			nil,
@@ -326,7 +326,7 @@ func (s *StepRunnerSuite) TestCornerCases() {
 		defer stepRunner.Stop()
 
 		resultChan, _, err := stepRunner.Run(ctx,
-			s.NewStep(ctx, "test_step_label", stateFullStepName, nil, nil),
+			s.NewStep(ctx, "test_step_label", stateFullStepName, nil),
 			newStepsVariablesMock(nil, nil),
 			emitter,
 			nil,
@@ -336,7 +336,7 @@ func (s *StepRunnerSuite) TestCornerCases() {
 		require.NotNil(s.T(), resultChan)
 
 		resultChan2, _, err2 := stepRunner.Run(ctx,
-			s.NewStep(ctx, "test_step_label", stateFullStepName, nil, nil),
+			s.NewStep(ctx, "test_step_label", stateFullStepName, nil),
 			newStepsVariablesMock(nil, nil),
 			emitter,
 			nil,
@@ -352,7 +352,7 @@ func (s *StepRunnerSuite) TestCornerCases() {
 		defer stepRunner.Stop()
 
 		resultChan, _, err := stepRunner.Run(ctx,
-			s.NewStep(ctx, "test_step_label", stateFullStepName, nil, nil),
+			s.NewStep(ctx, "test_step_label", stateFullStepName, nil),
 			newStepsVariablesMock(nil, nil),
 			emitter,
 			nil,
@@ -373,7 +373,7 @@ func (s *StepRunnerSuite) TestCornerCases() {
 
 		stepRunner.Stop()
 		resultChan, _, err := stepRunner.Run(ctx,
-			s.NewStep(ctx, "test_step_label", stateFullStepName, nil, nil),
+			s.NewStep(ctx, "test_step_label", stateFullStepName, nil),
 			newStepsVariablesMock(nil, nil),
 			emitter,
 			nil,
@@ -387,20 +387,20 @@ func (s *StepRunnerSuite) TestCornerCases() {
 
 type stepsVariablesMock struct {
 	add func(tgtID string, name string, value interface{}) error
-	get func(tgtID string, name string, value interface{}) error
+	get func(tgtID string, stepLabel, name string, value interface{}) error
 }
 
 func (sm *stepsVariablesMock) Add(tgtID string, name string, value interface{}) error {
 	return sm.add(tgtID, name, value)
 }
 
-func (sm *stepsVariablesMock) Get(tgtID string, name string, value interface{}) error {
-	return sm.get(tgtID, name, value)
+func (sm *stepsVariablesMock) Get(tgtID string, stepLabel, name string, value interface{}) error {
+	return sm.get(tgtID, stepLabel, name, value)
 }
 
 func newStepsVariablesMock(
 	add func(tgtID string, name string, value interface{}) error,
-	get func(tgtID string, name string, value interface{}) error,
+	get func(tgtID string, stepLabel, name string, value interface{}) error,
 ) *stepsVariablesMock {
 	return &stepsVariablesMock{
 		add: add,

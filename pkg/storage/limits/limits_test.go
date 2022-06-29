@@ -134,7 +134,7 @@ func TestTestStepLabel(t *testing.T) {
 	require.NoError(t, err)
 
 	testFetchParams, err := json.Marshal(&literal.FetchParameters{
-		TestName: "AAA",
+		TestName: "AA",
 		Steps: []*test.TestStepDescriptor{{
 			Name: echo.Name,
 			Parameters: test.TestStepParameters{
