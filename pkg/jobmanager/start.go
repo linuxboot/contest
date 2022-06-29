@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/linuxboot/contest/perf"
 	"github.com/linuxboot/contest/pkg/api"
 	"github.com/linuxboot/contest/pkg/job"
 	"github.com/linuxboot/contest/pkg/xcontext"
@@ -90,6 +91,11 @@ func (jm *JobManager) runJob(ctx xcontext.Context, j *job.Job, resumeState *job.
 		delete(jm.jobs, j.ID)
 		jm.jobsMu.Unlock()
 	}()
+
+	// reflect the number of running jobs
+	perf.JobCounter.Add(1)
+	//, when the job is done decrement the counter
+	defer perf.JobCounter.Add(-1)
 
 	ctx = ctx.WithField("job_id", j.ID)
 

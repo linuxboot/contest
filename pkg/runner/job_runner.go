@@ -13,6 +13,7 @@ import (
 
 	"github.com/benbjohnson/clock"
 
+	"github.com/linuxboot/contest/perf"
 	"github.com/linuxboot/contest/pkg/event"
 	"github.com/linuxboot/contest/pkg/event/frameworkevent"
 	"github.com/linuxboot/contest/pkg/event/testevent"
@@ -319,6 +320,10 @@ func (jr *JobRunner) acquireTargets(
 	if err := targetLocker.Lock(ctx, j.ID, jr.targetLockDuration, targets); err != nil {
 		return nil, false, fmt.Errorf("target locking failed: %w", err)
 	}
+
+	// when the targets are acquired, update the counter
+	perf.TargetCounter.Add(int64(len(targets)))
+
 	return targets, true, nil
 }
 
@@ -480,6 +485,10 @@ func (jr *JobRunner) runTest(ctx xcontext.Context,
 		return nil, nil, succeed, fmt.Errorf("target manager release timed out after %s", j.TargetManagerReleaseTimeout)
 		// Ignore cancellation here, we want release and unlock to happen in that case.
 	}
+
+	// If the targets are released, update the counter
+	perf.TargetCounter.Add(-1 * int64(len(targets)))
+
 	// return the Run error only after releasing the targets, and only
 	// if we are not running indefinitely. An error returned by the TestRunner
 	// is considered a fatal condition and will cause the termination of the
