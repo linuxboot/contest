@@ -7,8 +7,6 @@ package pluginregistry
 
 import (
 	"fmt"
-	"strings"
-
 	"github.com/linuxboot/contest/pkg/job"
 	"github.com/linuxboot/contest/pkg/target"
 	"github.com/linuxboot/contest/pkg/test"
@@ -36,41 +34,11 @@ func (r *PluginRegistry) NewTestStepBundle(ctx xcontext.Context, testStepDescrip
 		return nil, InvalidVariableFormat{InvalidName: label, Err: err}
 	}
 
-	var variablesMapping test.StepVariablesMapping
-	if testStepDescriptor.VariablesMapping != nil {
-		variablesMapping = make(test.StepVariablesMapping)
-		for internalName, mappedName := range testStepDescriptor.VariablesMapping {
-			if err := test.CheckVariableName(internalName); err != nil {
-				return nil, InvalidVariableFormat{InvalidName: internalName, Err: err}
-			}
-			if _, found := variablesMapping[internalName]; found {
-				return nil, fmt.Errorf("duplication of '%s' variable", internalName)
-			}
-			// NewStepVariable creates a StepVariable object from mapping: "stepName.VariableName"
-			parts := strings.Split(mappedName, ".")
-			if len(parts) != 2 {
-				return nil, fmt.Errorf("variable mapping '%s' should contain a single '.' separator", mappedName)
-			}
-			if err := test.CheckVariableName(parts[0]); err != nil {
-				return nil, InvalidVariableFormat{InvalidName: parts[0], Err: err}
-			}
-			if err := test.CheckVariableName(parts[1]); err != nil {
-				return nil, InvalidVariableFormat{InvalidName: parts[1], Err: err}
-			}
-
-			variablesMapping[internalName] = test.StepVariable{
-				StepName:     parts[0],
-				VariableName: parts[1],
-			}
-		}
-	}
-	// TODO: check that all testStep labels from variable mappings exist
 	testStepBundle := test.TestStepBundle{
-		TestStep:         testStep,
-		TestStepLabel:    label,
-		Parameters:       testStepDescriptor.Parameters,
-		AllowedEvents:    allowedEvents,
-		VariablesMapping: variablesMapping,
+		TestStep:      testStep,
+		TestStepLabel: label,
+		Parameters:    testStepDescriptor.Parameters,
+		AllowedEvents: allowedEvents,
 	}
 	return &testStepBundle, nil
 }

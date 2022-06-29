@@ -92,7 +92,7 @@ func (s *JobRunnerSuite) TestSimpleJobStartFinish() {
 					TargetManager:     targetlist.New(),
 				},
 				TestStepsBundles: []test.TestStepBundle{
-					s.NewStep(ctx, "test_step_label", stateFullStepName, nil, nil),
+					s.NewStep(ctx, "test_step_label", stateFullStepName, nil),
 				},
 			},
 		},
@@ -177,11 +177,11 @@ func (s *JobRunnerSuite) TestJobWithTestRetry() {
 				TestStepsBundles: []test.TestStepBundle{
 					s.NewStep(ctx, "echo1_step_label", echo.Name, map[string][]test.Param{
 						"text": {*test.NewParam("hello")},
-					}, nil),
-					s.NewStep(ctx, "test_step_label", stateFullStepName, nil, nil),
+					}),
+					s.NewStep(ctx, "test_step_label", stateFullStepName, nil),
 					s.NewStep(ctx, "echo2_step_label", echo.Name, map[string][]test.Param{
 						"text": {*test.NewParam("world")},
-					}, nil),
+					}),
 				},
 			},
 		},
@@ -282,7 +282,7 @@ func (s *JobRunnerSuite) TestJobRetryOnFailedAcquire() {
 				TestStepsBundles: []test.TestStepBundle{
 					s.NewStep(ctx, "echo1_step_label", echo.Name, map[string][]test.Param{
 						"text": {*test.NewParam("hello")},
-					}, nil),
+					}),
 				},
 			},
 		},
@@ -361,7 +361,7 @@ func (s *JobRunnerSuite) TestAcquireFailed() {
 				TestStepsBundles: []test.TestStepBundle{
 					s.NewStep(ctx, "echo1_step_label", echo.Name, map[string][]test.Param{
 						"text": {*test.NewParam("hello")},
-					}, nil),
+					}),
 				},
 			},
 		},
@@ -431,7 +431,7 @@ func (s *JobRunnerSuite) TestResumeStateBadJobId() {
 				TestStepsBundles: []test.TestStepBundle{
 					s.NewStep(ctx, "echo1_step_label", echo.Name, map[string][]test.Param{
 						"text": {*test.NewParam("hello")},
-					}, nil),
+					}),
 				},
 			},
 		},
