@@ -13,7 +13,6 @@ import (
 
 	"github.com/benbjohnson/clock"
 
-	"github.com/linuxboot/contest/perf"
 	"github.com/linuxboot/contest/pkg/event"
 	"github.com/linuxboot/contest/pkg/event/frameworkevent"
 	"github.com/linuxboot/contest/pkg/event/testevent"
@@ -322,7 +321,9 @@ func (jr *JobRunner) acquireTargets(
 	}
 
 	// when the targets are acquired, update the counter
-	perf.TargetCounter.Add(int64(len(targets)))
+	if metrics := ctx.Metrics(); metrics != nil {
+		metrics.IntGauge("acquired_targets").Add(int64(len(targets)))
+	}
 
 	return targets, true, nil
 }
@@ -487,7 +488,9 @@ func (jr *JobRunner) runTest(ctx xcontext.Context,
 	}
 
 	// If the targets are released, update the counter
-	perf.TargetCounter.Add(-1 * int64(len(targets)))
+	if metrics := ctx.Metrics(); metrics != nil {
+		metrics.IntGauge("acquired_targets").Add(-int64(len(targets)))
+	}
 
 	// return the Run error only after releasing the targets, and only
 	// if we are not running indefinitely. An error returned by the TestRunner
