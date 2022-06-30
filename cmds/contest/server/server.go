@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/benbjohnson/clock"
-	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/linuxboot/contest/pkg/api"
 	"github.com/linuxboot/contest/pkg/config"
@@ -30,7 +29,6 @@ import (
 	"github.com/linuxboot/contest/pkg/xcontext"
 	"github.com/linuxboot/contest/pkg/xcontext/bundles/logrusctx"
 	"github.com/linuxboot/contest/pkg/xcontext/logger"
-	promadapter "github.com/linuxboot/contest/pkg/xcontext/metrics/prometheus"
 	"github.com/linuxboot/contest/plugins/storage/memory"
 	"github.com/linuxboot/contest/plugins/storage/rdbms"
 	"github.com/linuxboot/contest/plugins/targetlocker/dblocker"
@@ -154,11 +152,6 @@ func Main(pluginConfig *PluginConfig, cmd string, args []string, sigs <-chan os.
 	ctx, pause := xcontext.WithNotify(ctx, xcontext.ErrPaused)
 	log := ctx.Logger()
 	defer cancel()
-
-	// TODO: maybe add a flag to collect metrics
-	// Initiate the context with metrics collector
-	prometheusRegistry := prometheus.NewRegistry()
-	ctx = ctx.WithMetrics(promadapter.New(prometheusRegistry, prometheusRegistry))
 
 	// Let's store storage engine in context
 	storageEngineVault := storage.NewSimpleEngineVault()
