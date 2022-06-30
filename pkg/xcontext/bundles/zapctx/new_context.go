@@ -53,7 +53,7 @@ func NewContext(logLevel logger.Level, opts ...bundles.Option) xcontext.Context 
 	loggerInstance := logger.ConvertLogger(loggerRaw.Sugar())
 	ctx := xcontext.NewContext(
 		stdCtx, "",
-		loggerInstance, prometheusadapter.New(prometheus.DefaultRegisterer), cfg.Tracer,
+		loggerInstance, prometheusadapter.New(prometheus.DefaultRegisterer, prometheus.DefaultGatherer), cfg.Tracer,
 		nil, nil)
 	return ctx
 }

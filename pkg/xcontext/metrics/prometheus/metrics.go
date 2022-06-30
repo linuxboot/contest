@@ -101,6 +101,7 @@ func (v *GaugeVec) GetMetricWith(labels prometheus.Labels) (prometheus.Gauge, er
 type storage struct {
 	locker     sync.Mutex
 	registerer prometheus.Registerer
+	gatherer   prometheus.Gatherer
 	count      map[string]*CounterVec
 	gauge      map[string]*GaugeVec
 	intGauge   map[string]*GaugeVec
@@ -130,10 +131,11 @@ type Metrics struct {
 }
 
 // New returns a new instance of Metrics
-func New(registerer prometheus.Registerer) *Metrics {
+func New(registerer prometheus.Registerer, gatherer prometheus.Gatherer) *Metrics {
 	m := &Metrics{
 		storage: &storage{
 			registerer: registerer,
+			gatherer:   gatherer,
 			count:      map[string]*CounterVec{},
 			gauge:      map[string]*GaugeVec{},
 			intGauge:   map[string]*GaugeVec{},
@@ -164,6 +166,11 @@ func (m *Metrics) List() []prometheus.Collector {
 
 func (m *Metrics) Registerer() prometheus.Registerer {
 	return m.registerer
+}
+
+// Added the Gatherer, so that the metric can be easily exported
+func (m *Metrics) Gatherer() prometheus.Gatherer {
+	return m.gatherer
 }
 
 func (m *Metrics) getOrCreateCountVec(key string, possibleLabelNames []string) *CounterVec {

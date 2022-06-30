@@ -78,7 +78,9 @@ func NewContext(logLevel logger.Level, opts ...bundles.Option) xcontext.Context 
 	}
 	ctx := xcontext.NewContext(
 		context.Background(), "",
-		logrusadapter.Adapter.Convert(entry), prometheusadapter.New(prometheus.DefaultRegisterer), cfg.Tracer,
+		logrusadapter.Adapter.Convert(entry),
+		prometheusadapter.New(prometheus.DefaultRegisterer, prometheus.DefaultGatherer),
+		cfg.Tracer,
 		nil, nil)
 	return ctx
 }

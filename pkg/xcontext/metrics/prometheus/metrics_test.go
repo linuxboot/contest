@@ -28,7 +28,7 @@ func TestMetrics(t *testing.T) {
 				// for prometheus we decided to tolerate this problem, therefore
 				// adding hacks to prevent a wrong values: pre-register metrics
 				// with all the labels beforehand.
-				m := New(registerer)
+				m := New(registerer, nil)
 				m.WithTags(Fields{"testField": "", "anotherField": ""}).Count("WithOverriddenTags")
 				m.WithTags(Fields{"testField": "", "anotherField": ""}).Gauge("WithOverriddenTags")
 				m.WithTags(Fields{"testField": "", "anotherField": ""}).IntGauge("WithOverriddenTags")
@@ -40,7 +40,7 @@ func TestMetrics(t *testing.T) {
 }
 
 func TestMetricsList(t *testing.T) {
-	m := New(nil)
+	m := New(nil, nil)
 	m.WithTags(Fields{"testField": "", "anotherField": ""}).Count("test")
 	m.WithTags(Fields{"testField": "", "anotherField": ""}).Gauge("test")
 	m.WithTags(Fields{"testField": "", "anotherField": ""}).IntGauge("test")
@@ -65,8 +65,8 @@ func TestMetricsList(t *testing.T) {
 
 func TestMetricsRegistererDoubleUse(t *testing.T) {
 	registry := prometheus.NewRegistry()
-	metrics0 := New(registry)
-	metrics1 := New(registry)
+	metrics0 := New(registry, nil)
+	metrics1 := New(registry, nil)
 
 	// these test cases should panic:
 
