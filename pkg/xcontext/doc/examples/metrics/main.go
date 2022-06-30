@@ -42,7 +42,7 @@ func main() {
 		ctx = ctx.WithMetrics(simplemetrics.New())
 	case MetricsTypePrometheus:
 		prometheusRegistry = prometheus.NewRegistry()
-		ctx = ctx.WithMetrics(promadapter.New(prometheusRegistry))
+		ctx = ctx.WithMetrics(promadapter.New(prometheusRegistry, prometheusRegistry))
 	case MetricsTypeTSMetrics:
 		ctx = ctx.WithMetrics(tsmadapter.New())
 	default:
