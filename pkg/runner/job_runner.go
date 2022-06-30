@@ -21,6 +21,7 @@ import (
 	"github.com/linuxboot/contest/pkg/target"
 	"github.com/linuxboot/contest/pkg/types"
 	"github.com/linuxboot/contest/pkg/xcontext"
+	"github.com/linuxboot/contest/pkg/xcontext/metrics/perf"
 )
 
 // jobInfo describes jobs currently being run.
@@ -322,7 +323,7 @@ func (jr *JobRunner) acquireTargets(
 
 	// when the targets are acquired, update the counter
 	if metrics := ctx.Metrics(); metrics != nil {
-		metrics.IntGauge("acquired_targets").Add(int64(len(targets)))
+		metrics.IntGauge(perf.ACQUIRED_TARGETS).Add(int64(len(targets)))
 	}
 
 	return targets, true, nil
@@ -489,7 +490,7 @@ func (jr *JobRunner) runTest(ctx xcontext.Context,
 
 	// If the targets are released, update the counter
 	if metrics := ctx.Metrics(); metrics != nil {
-		metrics.IntGauge("acquired_targets").Add(-int64(len(targets)))
+		metrics.IntGauge(perf.ACQUIRED_TARGETS).Add(-int64(len(targets)))
 	}
 
 	// return the Run error only after releasing the targets, and only

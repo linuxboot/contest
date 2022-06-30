@@ -13,6 +13,7 @@ import (
 	"github.com/linuxboot/contest/pkg/api"
 	"github.com/linuxboot/contest/pkg/job"
 	"github.com/linuxboot/contest/pkg/xcontext"
+	"github.com/linuxboot/contest/pkg/xcontext/metrics/perf"
 )
 
 func (jm *JobManager) start(ev *api.Event) *api.EventResponse {
@@ -93,9 +94,9 @@ func (jm *JobManager) runJob(ctx xcontext.Context, j *job.Job, resumeState *job.
 
 	if metrics := ctx.Metrics(); metrics != nil {
 		// reflect the number of running jobs
-		metrics.IntGauge("running_jobs").Add(1)
+		metrics.IntGauge(perf.RUNNING_JOBS).Add(1)
 		//, when the job is done decrement the counter
-		defer metrics.IntGauge("running_jobs").Add(-1)
+		defer metrics.IntGauge(perf.RUNNING_JOBS).Add(-1)
 	}
 
 	ctx = ctx.WithField("job_id", j.ID)
