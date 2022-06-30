@@ -76,9 +76,13 @@ func NewContext(logLevel logger.Level, opts ...bundles.Option) xcontext.Context 
 			CallerPrettyfier: callerFormatter,
 		})
 	}
+
+	prometheusRegistry := prometheus.NewRegistry()
 	ctx := xcontext.NewContext(
 		context.Background(), "",
-		logrusadapter.Adapter.Convert(entry), prometheusadapter.New(prometheus.DefaultRegisterer), cfg.Tracer,
+		logrusadapter.Adapter.Convert(entry),
+		prometheusadapter.New(prometheusRegistry, prometheusRegistry),
+		cfg.Tracer,
 		nil, nil)
 	return ctx
 }

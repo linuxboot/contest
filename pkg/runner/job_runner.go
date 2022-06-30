@@ -21,6 +21,7 @@ import (
 	"github.com/linuxboot/contest/pkg/target"
 	"github.com/linuxboot/contest/pkg/types"
 	"github.com/linuxboot/contest/pkg/xcontext"
+	"github.com/linuxboot/contest/pkg/xcontext/metrics/perf"
 )
 
 // jobInfo describes jobs currently being run.
@@ -319,6 +320,12 @@ func (jr *JobRunner) acquireTargets(
 	if err := targetLocker.Lock(ctx, j.ID, jr.targetLockDuration, targets); err != nil {
 		return nil, false, fmt.Errorf("target locking failed: %w", err)
 	}
+
+	// when the targets are acquired, update the counter
+	if metrics := ctx.Metrics(); metrics != nil {
+		metrics.IntGauge(perf.ACQUIRED_TARGETS).Add(int64(len(targets)))
+	}
+
 	return targets, true, nil
 }
 
@@ -480,6 +487,12 @@ func (jr *JobRunner) runTest(ctx xcontext.Context,
 		return nil, nil, succeed, fmt.Errorf("target manager release timed out after %s", j.TargetManagerReleaseTimeout)
 		// Ignore cancellation here, we want release and unlock to happen in that case.
 	}
+
+	// If the targets are released, update the counter
+	if metrics := ctx.Metrics(); metrics != nil {
+		metrics.IntGauge(perf.ACQUIRED_TARGETS).Add(-int64(len(targets)))
+	}
+
 	// return the Run error only after releasing the targets, and only
 	// if we are not running indefinitely. An error returned by the TestRunner
 	// is considered a fatal condition and will cause the termination of the
