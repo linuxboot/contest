@@ -49,7 +49,6 @@ import (
 	"github.com/linuxboot/contest/tests/plugins/teststeps/noreturn"
 	readmetastep "github.com/linuxboot/contest/tests/plugins/teststeps/readmeta"
 	"github.com/linuxboot/contest/tests/plugins/teststeps/slowecho"
-	"github.com/prometheus/client_golang/prometheus"
 )
 
 // Integration tests for the JobManager use an in-memory storage layer, which
@@ -93,7 +92,7 @@ type TestListener struct {
 
 // Serve implements the main logic of a dummy listener which talks to the API
 // layer to trigger actions in the JobManager
-func (tl *TestListener) Serve(ctx xcontext.Context, contestApi *api.API, promRegistry *prometheus.Registry) error {
+func (tl *TestListener) Serve(ctx xcontext.Context, contestApi *api.API) error {
 	ctx.Debugf("Serving mock listener")
 	tl.api = contestApi
 	for {
