@@ -161,7 +161,7 @@ func (jm *JobManager) Run(ctx xcontext.Context, resumeJobs bool) error {
 
 	errCh := make(chan error, 1)
 	go func() {
-		lErr := jm.apiListener.Serve(apiCtx, a, nil)
+		lErr := jm.apiListener.Serve(apiCtx, a)
 		ctx.Infof("Listener shut down successfully.")
 		errCh <- lErr
 		close(errCh)

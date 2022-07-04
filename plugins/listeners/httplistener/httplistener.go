@@ -21,7 +21,6 @@ import (
 	"github.com/linuxboot/contest/pkg/storage"
 	"github.com/linuxboot/contest/pkg/types"
 	"github.com/linuxboot/contest/pkg/xcontext"
-	"github.com/prometheus/client_golang/prometheus"
 )
 
 // HTTPListener implements the api.Listener interface.
@@ -241,7 +240,7 @@ func listenWithCancellation(ctx xcontext.Context, s *http.Server) error {
 
 // Serve implements the api.Listener.Serve interface method. It starts an HTTP
 // API listener and returns an api.Event channel that the caller can iterate on.
-func (h *HTTPListener) Serve(ctx xcontext.Context, a *api.API, promRegistry *prometheus.Registry) error {
+func (h *HTTPListener) Serve(ctx xcontext.Context, a *api.API) error {
 	if a == nil {
 		return errors.New("API object is nil")
 	}
