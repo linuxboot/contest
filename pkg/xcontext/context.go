@@ -16,11 +16,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/linuxboot/contest/pkg/xcontext/buildinfo"
 	"github.com/linuxboot/contest/pkg/xcontext/fields"
 	"github.com/linuxboot/contest/pkg/xcontext/logger"
 	"github.com/linuxboot/contest/pkg/xcontext/metrics"
-	"github.com/google/uuid"
 )
 
 var (
@@ -337,7 +337,7 @@ func (ctx *ctxValue) TraceID() TraceID {
 func (ctx *ctxValue) WithTraceID(traceID TraceID) Context {
 	ctxClone := ctx.clone()
 	ctxClone.traceIDValue = traceID
-	return ctxClone.WithTag("traceID", traceID)
+	return ctxClone.WithField("traceID", traceID)
 }
 
 func (ctx *ctxValue) considerPendingTags() {
