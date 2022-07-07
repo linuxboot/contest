@@ -1,4 +1,4 @@
-FROM mysql:8.0
+FROM mysql:8.0-debian
 
 # Configure golang environment to run migration against database
 ARG TARGETARCH
