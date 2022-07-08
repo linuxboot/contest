@@ -167,7 +167,7 @@ func (a *API) Start(ctx xcontext.Context, requestor EventRequestor, jobDescripto
 	ev := &Event{
 		// To allow jobs to finish we do not allow passing cancel and pause
 		// signals to the job's context (therefore: xcontext.WithResetSignalers).
-		Context:  xcontext.WithResetSignalers(ctx).WithTag("api_method", "start"),
+		Context:  xcontext.WithResetSignalers(ctx).WithField("api_method", "start"),
 		Type:     EventTypeStart,
 		ServerID: resp.ServerID,
 		Msg: EventStartMsg{
@@ -191,7 +191,7 @@ func (a *API) Start(ctx xcontext.Context, requestor EventRequestor, jobDescripto
 func (a *API) Stop(ctx xcontext.Context, requestor EventRequestor, jobID types.JobID) (Response, error) {
 	resp := a.newResponse(ResponseTypeStop)
 	ev := &Event{
-		Context:  ctx.WithTag("api_method", "stop"),
+		Context:  ctx.WithField("api_method", "stop"),
 		Type:     EventTypeStop,
 		ServerID: resp.ServerID,
 		Msg: EventStopMsg{
@@ -214,7 +214,7 @@ func (a *API) Stop(ctx xcontext.Context, requestor EventRequestor, jobID types.J
 func (a *API) Status(ctx xcontext.Context, requestor EventRequestor, jobID types.JobID) (Response, error) {
 	resp := a.newResponse(ResponseTypeStatus)
 	ev := &Event{
-		Context:  ctx.WithTag("api_method", "status"),
+		Context:  ctx.WithField("api_method", "status"),
 		Type:     EventTypeStatus,
 		ServerID: resp.ServerID,
 		Msg: EventStatusMsg{
@@ -239,7 +239,7 @@ func (a *API) Status(ctx xcontext.Context, requestor EventRequestor, jobID types
 func (a *API) Retry(ctx xcontext.Context, requestor EventRequestor, jobID types.JobID) (Response, error) {
 	resp := a.newResponse(ResponseTypeRetry)
 	ev := &Event{
-		Context:  ctx.WithTag("api_method", "retry"),
+		Context:  ctx.WithField("api_method", "retry"),
 		Type:     EventTypeRetry,
 		ServerID: resp.ServerID,
 		Msg: EventRetryMsg{
@@ -266,7 +266,7 @@ func (a *API) Retry(ctx xcontext.Context, requestor EventRequestor, jobID types.
 func (a *API) List(ctx xcontext.Context, requestor EventRequestor, query *storage.JobQuery) (Response, error) {
 	resp := a.newResponse(ResponseTypeList)
 	ev := &Event{
-		Context:  ctx.WithTag("api_method", "list"),
+		Context:  ctx.WithField("api_method", "list"),
 		Type:     EventTypeList,
 		ServerID: resp.ServerID,
 		Msg: EventListMsg{
