@@ -471,7 +471,7 @@ func (s *TestRunnerSuite) TestRandomizedMultiStep() {
 }
 
 func (s *TestRunnerSuite) TestVariables() {
-	ctx, cancel := xcontext.WithCancel(logrusctx.NewContext(logger.LevelDebug))
+	ctx, cancel := logrusctx.NewContext(logger.LevelDebug)
 	defer cancel()
 
 	var (

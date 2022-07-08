@@ -30,8 +30,8 @@ func (r *PluginRegistry) NewTestStepBundle(ctx xcontext.Context, testStepDescrip
 	if len(label) == 0 {
 		return nil, ErrStepLabelIsMandatory{TestStepDescriptor: testStepDescriptor}
 	}
-	if err := test.CheckVariableName(label); err != nil {
-		return nil, InvalidVariableFormat{InvalidName: label, Err: err}
+	if err := test.CheckIdentifier(label); err != nil {
+		return nil, ErrInvalidStepLabelFormat{InvalidName: label, Err: err}
 	}
 
 	testStepBundle := test.TestStepBundle{

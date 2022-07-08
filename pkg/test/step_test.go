@@ -49,9 +49,9 @@ func TestTestStepParametersUnmarshalNested(t *testing.T) {
 }
 
 func TestCheckVariableName(t *testing.T) {
-	require.NoError(t, CheckVariableName("Abc123_XYZ"))
-	require.Error(t, CheckVariableName(""))
-	require.Error(t, CheckVariableName("1AAA"))
-	require.Error(t, CheckVariableName("a b"))
-	require.Error(t, CheckVariableName("a()+b"))
+	require.NoError(t, CheckIdentifier("Abc123_XYZ"))
+	require.Error(t, CheckIdentifier(""))
+	require.Error(t, CheckIdentifier("1AAA"))
+	require.Error(t, CheckIdentifier("a b"))
+	require.Error(t, CheckIdentifier("a()+b"))
 }
