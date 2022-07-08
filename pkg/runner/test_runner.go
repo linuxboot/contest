@@ -44,7 +44,7 @@ type TestRunner struct {
 	steps   []*stepState            // The pipeline, in order of execution
 	targets map[string]*targetState // Target state lookup map
 
-	stepsVariables *testStepsVariables
+	stepOutputs *testStepsVariables // contains emitted steps variables
 
 	// One mutex to rule them all, used to serialize access to all the state above.
 	// Could probably be split into several if necessary.
@@ -171,14 +171,14 @@ func (tr *TestRunner) Run(
 	}
 
 	var err error
-	tr.stepsVariables, err = newTestStepsVariables(t.TestStepsBundles)
+	tr.stepOutputs, err = newTestStepsVariables(t.TestStepsBundles)
 	if err != nil {
 		ctx.Errorf("Failed to initialise test steps variables: %v", err)
 		return nil, nil, err
 	}
 
 	for targetID, targetState := range tr.targets {
-		if err := tr.stepsVariables.initTargetStepsVariables(targetID, targetState.StepsVariables); err != nil {
+		if err := tr.stepOutputs.initTargetStepsVariables(targetID, targetState.StepsVariables); err != nil {
 			ctx.Errorf("Failed to initialise test steps variables for target: %s: %v", targetID, err)
 			return nil, nil, err
 		}
@@ -258,7 +258,7 @@ func (tr *TestRunner) Run(
 	numInFlightTargets := 0
 	for i, tgt := range targets {
 		tgs := tr.targets[tgt.ID]
-		tgs.StepsVariables, err = tr.stepsVariables.getTargetStepsVariables(tgt.ID)
+		tgs.StepsVariables, err = tr.stepOutputs.getTargetStepsVariables(tgt.ID)
 		if err != nil {
 			ctx.Errorf("Failed to get steps variables: %v", err)
 			return nil, nil, err
@@ -545,7 +545,7 @@ func (tr *TestRunner) runStepIfNeeded(ss *stepState) error {
 	resumeState := ss.resumeState
 	ss.resumeState = nil
 
-	sva := newStepVariablesAccessor(ss.sb.TestStepLabel, tr.stepsVariables)
+	sva := newStepVariablesAccessor(ss.sb.TestStepLabel, tr.stepOutputs)
 	resultCh, addTarget, err := ss.stepRunner.Run(ss.ctx, ss.sb, sva, ss.ev, resumeState, ss.resumeStateTargets)
 	if err != nil {
 		return fmt.Errorf("failed to stert a step runner for '%s': %v", ss.sb.TestStepLabel, err)
