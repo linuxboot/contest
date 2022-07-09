@@ -264,8 +264,8 @@ func (sr *StepRunner) WaitResults(ctx context.Context) (stepResult StepResult, e
 	sr.mu.Lock()
 	defer sr.mu.Unlock()
 	return StepResult{
-		Err:         resultErr,
-		ResumeState: resultResumeState,
+		Err:         sr.resultErr,
+		ResumeState: sr.resultResumeState,
 	}, nil
 }
 
