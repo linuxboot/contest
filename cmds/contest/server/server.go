@@ -27,6 +27,7 @@ import (
 	"github.com/linuxboot/contest/pkg/userfunctions/donothing"
 	"github.com/linuxboot/contest/pkg/userfunctions/ocp"
 	"github.com/linuxboot/contest/pkg/xcontext"
+	"github.com/linuxboot/contest/pkg/xcontext/bundles"
 	"github.com/linuxboot/contest/pkg/xcontext/bundles/logrusctx"
 	"github.com/linuxboot/contest/pkg/xcontext/logger"
 	"github.com/linuxboot/contest/plugins/storage/memory"
@@ -47,6 +48,7 @@ var (
 	flagTargetLocker       *string
 	flagInstanceTag        *string
 	flagLogLevel           *string
+	flagAdminServerAddr    *string
 	flagPauseTimeout       *time.Duration
 	flagResumeJobs         *bool
 	flagTargetLockDuration *time.Duration
@@ -56,6 +58,7 @@ func initFlags(cmd string) {
 	flagSet = flag.NewFlagSet(cmd, flag.ContinueOnError)
 	flagDBURI = flagSet.String("dbURI", config.DefaultDBURI, "Database URI")
 	flagListenAddr = flagSet.String("listenAddr", ":8080", "Listen address and port")
+	flagAdminServerAddr = flagSet.String("adminServerAddr", "http://localhost:8000", "Addr of the admin server to connect to")
 	flagServerID = flagSet.String("serverID", "", "Set a static server ID, e.g. the host name or another unique identifier. If unset, will use the listener's default")
 	flagProcessTimeout = flagSet.Duration("processTimeout", api.DefaultEventTimeout, "API request processing timeout")
 	flagTargetLocker = flagSet.String("targetLocker", "auto", "Target locker implementation to use, \"auto\" follows DBURI setting")
@@ -148,7 +151,13 @@ func Main(pluginConfig *PluginConfig, cmd string, args []string, sigs <-chan os.
 
 	clk := clock.New()
 
-	ctx, cancel := logrusctx.NewContext(logLevel, logging.DefaultOptions()...)
+	logrusOpts := logging.DefaultOptions()
+
+	if flagAdminServerAddr != nil {
+		logrusOpts = append(logrusOpts, bundles.OptionHttpLoggerAddr(*flagAdminServerAddr))
+	}
+
+	ctx, cancel := logrusctx.NewContext(logLevel, logrusOpts...)
 	ctx, pause := xcontext.WithNotify(ctx, xcontext.ErrPaused)
 	log := ctx.Logger()
 	defer cancel()

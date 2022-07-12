@@ -8,12 +8,14 @@ package logrusctx
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 	"runtime"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 
+	"github.com/linuxboot/contest/pkg/loggerhook"
 	"github.com/linuxboot/contest/pkg/xcontext"
 	"github.com/linuxboot/contest/pkg/xcontext/bundles"
 	"github.com/linuxboot/contest/pkg/xcontext/logger"
@@ -88,5 +90,19 @@ func NewContext(logLevel logger.Level, opts ...bundles.Option) (xcontext.Context
 		),
 	)
 
+	if cfg.HttpLoggerAddr != "" {
+		httpHook, err := loggerhook.NewHttpHook(cfg.HttpLoggerAddr)
+		if err == nil {
+			// clean the http logger on ctx canceling
+			go func() {
+				<-ctx.Done()
+				httpHook.Close()
+			}()
+
+			entry.Logger.AddHook(httpHook)
+		} else {
+			fmt.Fprintf(os.Stderr, "Error while creating http logger hook: %v", err)
+		}
+	}
 	return ctx, cancel
 }

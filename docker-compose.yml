@@ -4,11 +4,13 @@ services:
         build:
             context: .
             dockerfile: docker/contest/Dockerfile
-        command: bash -c "cd /go/src/github.com/linuxboot/contest/cmds/contest/ && go run . -dbURI 'contest:contest@tcp(dbstorage:3306)/contest_integ?parseTime=true'"
+        command: bash -c "cd /go/src/github.com/linuxboot/contest/cmds/contest/ && go run . -dbURI 'contest:contest@tcp(dbstorage:3306)/contest_integ?parseTime=true' -adminServerAddr 'http://adminserver:8000'"
         ports:
             - 8080:8080
         depends_on:
             mysql:
+                condition: service_healthy
+            admin-server:
                 condition: service_healthy
         networks:
             - net
@@ -30,6 +32,43 @@ services:
             net:
                 aliases:
                     - dbstorage
+    
+    admin-server:
+        build:
+            context: .
+            # using the same dockerfile as it copies the whole context repo
+            # then we run admin_server from the cmds
+            dockerfile: docker/contest/Dockerfile
+        command: bash -c "cd /go/src/github.com/linuxboot/contest/cmds/admin_server/ && go run . -port 8000 -dbURI 'mongodb://mongostorage:27017'"
+        healthcheck:
+            test: curl --fail -X GET http://localhost:8000/status || exit 1
+            interval: 5s
+            timeout: 1s
+            retries: 5
+        depends_on:
+            mongo:
+                condition: service_healthy
+        networks:
+            net:
+                aliases:
+                    - adminserver
+
+    mongo:
+        build:
+            context: .
+            dockerfile: docker/mongo/Dockerfile
+        command: mongod --port 27017 --quiet --logpath /dev/null
+        ports:
+            - 27017:27017
+        healthcheck:
+            test: echo 'db.runCommand("ping").ok' | mongo localhost:27017/admin-server-db --quiet
+            interval: 5s
+            timeout: 1s
+            retries: 5
+        networks:
+            net:
+                aliases:
+                    - mongostorage
 
 networks:
     net:
