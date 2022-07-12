@@ -12,7 +12,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"flag"
 	"fmt"
 	"net/http"
 	"os"
@@ -20,16 +19,11 @@ import (
 	"time"
 
 	"github.com/linuxboot/contest/cmds/admin_server/storage"
-	mongoAdapter "github.com/linuxboot/contest/cmds/admin_server/storage/mongo"
+	mongoStorage "github.com/linuxboot/contest/cmds/admin_server/storage/mongo"
 	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
-)
-
-var (
-	flagAdminEndpoint = flag.String("adminServer", "http://adminserver:8000/log", "admin server log push endpoint")
-	flagMongoEndpoint = flag.String("mongoDBURI", "mongodb://mongostorage:27017", "mongodb URI")
 )
 
 func setupCleanDB(uri string) (*mongo.Client, error) {
@@ -38,14 +32,16 @@ func setupCleanDB(uri string) (*mongo.Client, error) {
 		return nil, err
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), *flagOperationTimeout)
 	defer cancel()
 	err = client.Connect(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	err = client.Database(mongoAdapter.DefaultDB).Drop(context.Background())
+	ctx, cancel = context.WithTimeout(context.Background(), *flagOperationTimeout)
+	defer cancel()
+	err = client.Database(mongoStorage.DefaultDB).Drop(ctx)
 
 	return client, err
 }
@@ -61,17 +57,17 @@ func submitLog(addr string, log storage.Log) error {
 	return err
 }
 
-func getAllLogs(t *testing.T, db *mongo.Client) []mongoAdapter.Log {
-	cur, err := db.Database(mongoAdapter.DefaultDB).
-		Collection(mongoAdapter.DefaultCollection).
+func getAllLogs(t *testing.T, db *mongo.Client) []storage.Log {
+	cur, err := db.Database(mongoStorage.DefaultDB).
+		Collection(mongoStorage.DefaultCollection).
 		Find(context.Background(), bson.D{{}})
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	var dbLogs []mongoAdapter.Log
+	var dbLogs []storage.Log
 	for cur.Next(context.Background()) {
-		var log mongoAdapter.Log
+		var log storage.Log
 		err := cur.Decode(&log)
 		if err != nil {
 			t.Fatal(err)
@@ -97,7 +93,9 @@ func TestLogPush(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer db.Disconnect(context.Background())
+	ctx, cancel := context.WithTimeout(context.Background(), *flagOperationTimeout)
+	defer cancel()
+	defer db.Disconnect(ctx)
 
 	err = submitLog(*flagAdminEndpoint, log)
 	if err != nil {

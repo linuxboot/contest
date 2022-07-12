@@ -8,7 +8,7 @@ import (
 	"syscall"
 
 	"github.com/linuxboot/contest/cmds/admin_server/server"
-	mongoAdapter "github.com/linuxboot/contest/cmds/admin_server/storage/mongo"
+	mongoStorage "github.com/linuxboot/contest/cmds/admin_server/storage/mongo"
 	"github.com/linuxboot/contest/pkg/logging"
 	"github.com/linuxboot/contest/pkg/xcontext/bundles/logrusctx"
 	"github.com/linuxboot/contest/pkg/xcontext/logger"
@@ -51,7 +51,7 @@ func main() {
 		exitWithError(err, 1)
 	}
 
-	storage, err := mongoAdapter.NewMongoStorage(*flagDBURI)
+	storage, err := mongoStorage.NewMongoStorage(*flagDBURI)
 	if err != nil {
 		exitWithError(err, 1)
 	}
