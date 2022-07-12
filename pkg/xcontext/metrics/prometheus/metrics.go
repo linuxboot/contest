@@ -98,6 +98,11 @@ func (v *GaugeVec) GetMetricWith(labels prometheus.Labels) (prometheus.Gauge, er
 	return v.GaugeVec.GetMetricWith(labelsWithPlaceholders(labels, v.PossibleLabels))
 }
 
+type persistentData struct {
+	storage
+	config
+}
+
 type storage struct {
 	locker     sync.Mutex
 	registerer prometheus.Registerer
@@ -125,20 +130,23 @@ type storage struct {
 // If you need a version of metrics which does not have such flaw, then
 // try `tsmetrics` or `simplemetrics`.
 type Metrics struct {
-	*storage
+	*persistentData
 	labels     prometheus.Labels
 	labelNames []string
 }
 
 // New returns a new instance of Metrics
-func New(registerer prometheus.Registerer, gatherer prometheus.Gatherer) *Metrics {
+func New(registerer prometheus.Registerer, gatherer prometheus.Gatherer, opts ...Option) *Metrics {
 	m := &Metrics{
-		storage: &storage{
-			registerer: registerer,
-			gatherer:   gatherer,
-			count:      map[string]*CounterVec{},
-			gauge:      map[string]*GaugeVec{},
-			intGauge:   map[string]*GaugeVec{},
+		persistentData: &persistentData{
+			storage: storage{
+				registerer: registerer,
+				gatherer:   gatherer,
+				count:      map[string]*CounterVec{},
+				gauge:      map[string]*GaugeVec{},
+				intGauge:   map[string]*GaugeVec{},
+			},
+			config: options(opts).Config(),
 		},
 	}
 	return m
@@ -347,8 +355,12 @@ func (m *Metrics) IntGauge(key string) metrics.IntGauge {
 
 // WithTag implements context.Metrics (see the description in the interface).
 func (m *Metrics) WithTag(key string, value interface{}) metrics.Metrics {
+	if m.config.DisableLabels {
+		return m
+	}
+
 	result := &Metrics{
-		storage: m.storage,
+		persistentData: m.persistentData,
 	}
 
 	result.labels = make(prometheus.Labels, len(m.labels))
@@ -370,8 +382,12 @@ func (m *Metrics) WithTag(key string, value interface{}) metrics.Metrics {
 
 // WithTags implements context.Metrics (see the description in the interface).
 func (m *Metrics) WithTags(tags Fields) metrics.Metrics {
+	if m.config.DisableLabels {
+		return m
+	}
+
 	result := &Metrics{
-		storage: m.storage,
+		persistentData: m.persistentData,
 	}
 	if tags == nil {
 		return result

@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/linuxboot/contest/pkg/xcontext/fields"
 	"github.com/linuxboot/contest/pkg/xcontext/metrics"
 	metricstester "github.com/linuxboot/contest/pkg/xcontext/metrics/test"
 	"github.com/prometheus/client_golang/prometheus"
@@ -127,4 +128,14 @@ func TestMergeSortedStrings(t *testing.T) {
 			})
 		}
 	}
+}
+
+func TestDisabledLabels(t *testing.T) {
+	registry := prometheus.NewRegistry()
+	var m metrics.Metrics = New(registry, nil, OptionDisableLabels(true))
+	m = m.WithTag("1", 2)
+	c := m.Count("someCount")
+	require.Len(t, c.(*Count).labelNames, 0)
+	c = c.WithOverriddenTags(fields.Fields{"3": 4})
+	require.Len(t, c.(*Count).labelNames, 0)
 }
