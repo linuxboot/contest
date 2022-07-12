@@ -41,9 +41,8 @@ import (
 type TestRunner struct {
 	shutdownTimeout time.Duration // Time to wait for steps runners to finish a the end of the run
 
-	steps     []*stepState            // The pipeline, in order of execution
-	targets   map[string]*targetState // Target state lookup map
-	targetsWg sync.WaitGroup          // Tracks all the target handlers
+	steps   []*stepState            // The pipeline, in order of execution
+	targets map[string]*targetState // Target state lookup map
 
 	// One mutex to rule them all, used to serialize access to all the state above.
 	// Could probably be split into several if necessary.
@@ -200,11 +199,9 @@ func (tr *TestRunner) Run(
 
 	for _, tgs := range tr.targets {
 		tgs.handlerRunning = true
-		tr.targetsWg.Add(1)
 
 		go func(state *targetState) {
 			tr.targetHandler(targetsCtx, state)
-			tr.targetsWg.Done()
 		}(tgs)
 	}
 
