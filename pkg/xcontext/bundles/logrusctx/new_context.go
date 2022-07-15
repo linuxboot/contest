@@ -21,7 +21,7 @@ import (
 	prometheusadapter "github.com/linuxboot/contest/pkg/xcontext/metrics/prometheus"
 )
 
-// NewContext is a simple-to-use function to create a context.Context
+// NewContext is a simple-to-use function to create a context.Context with canceling explicitly
 // using logrus as the logger.
 //
 // Note: the upstream "logrus" is in maintenance-mode.
@@ -42,7 +42,7 @@ import (
 // > alternatives have sprung up. Logrus would look like those, had it been
 // > re-designed with what we know about structured logging in Go today.
 // > Check out, for example, Zerolog, Zap, and Apex.
-func NewContext(logLevel logger.Level, opts ...bundles.Option) xcontext.Context {
+func NewContext(logLevel logger.Level, opts ...bundles.Option) (xcontext.Context, context.CancelFunc) {
 	cfg := bundles.GetConfig(opts...)
 	loggerRaw := logrus.New()
 	loggerRaw.SetLevel(logrusadapter.Adapter.Level(logLevel))
@@ -78,11 +78,15 @@ func NewContext(logLevel logger.Level, opts ...bundles.Option) xcontext.Context 
 	}
 
 	prometheusRegistry := prometheus.NewRegistry()
-	ctx := xcontext.NewContext(
-		context.Background(), "",
-		logrusadapter.Adapter.Convert(entry),
-		prometheusadapter.New(prometheusRegistry, prometheusRegistry),
-		cfg.Tracer,
-		nil, nil)
-	return ctx
+	ctx, cancel := xcontext.WithCancel(
+		xcontext.NewContext(
+			context.Background(), "",
+			logrusadapter.Adapter.Convert(entry),
+			prometheusadapter.New(prometheusRegistry, prometheusRegistry),
+			cfg.Tracer,
+			nil, nil,
+		),
+	)
+
+	return ctx, cancel
 }

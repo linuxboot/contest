@@ -39,7 +39,7 @@ import (
 )
 
 var (
-	ctx                = logrusctx.NewContext(logger.LevelDebug)
+	ctx, _             = logrusctx.NewContext(logger.LevelDebug)
 	storageEngineVault = storage.NewSimpleEngineVault()
 )
 

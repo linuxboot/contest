@@ -36,7 +36,7 @@ import (
 // depend on order of checks in validation code, but this is the price of having them all in one package
 
 var (
-	ctx = logrusctx.NewContext(logger.LevelDebug)
+	ctx, _ = logrusctx.NewContext(logger.LevelDebug)
 )
 
 func TestServerID(t *testing.T) {

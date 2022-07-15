@@ -27,7 +27,7 @@ import (
 )
 
 var (
-	ctx = logrusctx.NewContext(logger.LevelDebug)
+	ctx, _ = logrusctx.NewContext(logger.LevelDebug)
 )
 
 func mustBuildQuery(t require.TestingT, queryFields ...testevent.QueryField) *testevent.Query {

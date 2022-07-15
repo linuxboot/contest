@@ -3,6 +3,7 @@
 // This source code is licensed under the MIT license found in the
 // LICENSE file in the root directory of this source tree.
 
+//go:build integration || integration_storage
 // +build integration integration_storage
 
 package test
@@ -52,7 +53,7 @@ var testDescs = `
 `
 
 var (
-	ctx = logrusctx.NewContext(logger.LevelDebug)
+	ctx, _ = logrusctx.NewContext(logger.LevelDebug)
 )
 
 type JobSuite struct {

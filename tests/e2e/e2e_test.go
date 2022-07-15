@@ -58,7 +58,7 @@ import (
 // NB: When adding a test here you need to invoke it explicitly from docker/contest/tests.sh
 
 var (
-	ctx = logrusctx.NewContext(logger.LevelDebug, logging.DefaultOptions()...)
+	ctx, _ = logrusctx.NewContext(logger.LevelDebug, logging.DefaultOptions()...)
 )
 
 type E2ETestSuite struct {
@@ -425,7 +425,7 @@ func (ts *E2ETestSuite) TestRetries() {
 	{ // Verify step output.
 		es := testsCommon.GetJobEventsAsString(ctx, ts.st, jobID, []event.Name{
 			cmd.EventCmdStdout, target.EventTargetAcquired, target.EventTargetReleased,
-			target.EventTargetOut, target.EventTargetErr} )
+			target.EventTargetOut, target.EventTargetErr})
 		ctx.Debugf("%s", es)
 		require.Equal(ts.T(),
 			fmt.Sprintf(`

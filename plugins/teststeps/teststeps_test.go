@@ -53,7 +53,7 @@ func newData() data {
 }
 
 func TestForEachTargetOneTarget(t *testing.T) {
-	ctx := logrusctx.NewContext(logger.LevelDebug)
+	ctx, _ := logrusctx.NewContext(logger.LevelDebug)
 	log := ctx.Logger()
 	d := newData()
 	fn := func(ctx xcontext.Context, tgt *target.Target) error {
@@ -85,7 +85,7 @@ func TestForEachTargetOneTarget(t *testing.T) {
 }
 
 func TestForEachTargetOneTargetAllFail(t *testing.T) {
-	ctx := logrusctx.NewContext(logger.LevelDebug)
+	ctx, _ := logrusctx.NewContext(logger.LevelDebug)
 	log := ctx.Logger()
 	d := newData()
 	fn := func(ctx xcontext.Context, t *target.Target) error {
@@ -383,7 +383,7 @@ func TestForEachTargetCancelBeforeInputChannelClosed(t *testing.T) {
 	assert.Equal(t, int32(numTargets), canceledTargets)
 }
 
-func TestForEachTargetWithResumeAllReturn(t * testing.T) {
+func TestForEachTargetWithResumeAllReturn(t *testing.T) {
 	numTargets := 10
 	d := newData()
 
@@ -423,7 +423,7 @@ type simpleStepData struct {
 	Foo string
 }
 
-func TestForEachTargetWithResumeAllPause(t * testing.T) {
+func TestForEachTargetWithResumeAllPause(t *testing.T) {
 	numTargets := 10
 	targets := make([]target.Target, 10)
 	for i := 0; i < numTargets; i++ {
@@ -447,7 +447,7 @@ func TestForEachTargetWithResumeAllPause(t * testing.T) {
 	testingWg.Add(1)
 	go func() {
 		select {
-		case res := <- d.outCh:
+		case res := <-d.outCh:
 			assert.Fail(t, "unexpected target in out channel", res)
 		case <-outDone:
 			testingWg.Done()
@@ -493,7 +493,7 @@ func TestForEachTargetWithResumeAllPause(t * testing.T) {
 			assert.Equal(t, targets[i].ID, stepData.Foo)
 		}
 		// done monitoring out channels now
-		outDone <-struct{}{}
+		outDone <- struct{}{}
 		testingWg.Done()
 	}()
 

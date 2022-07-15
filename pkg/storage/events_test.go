@@ -32,6 +32,8 @@ func mockTestEventEmitterData() *testEventEmitterFixture {
 		"TestEventAllowed2",
 	}
 
+	ctx, _ := logrusctx.NewContext(logger.LevelDebug)
+
 	return &testEventEmitterFixture{
 		header: testevent.Header{
 			JobID:         types.JobID(123),
@@ -47,7 +49,7 @@ func mockTestEventEmitterData() *testEventEmitterFixture {
 		forbiddenEvents: []event.Name{
 			"TestEventForbidden1",
 		},
-		ctx: logrusctx.NewContext(logger.LevelDebug),
+		ctx: ctx,
 	}
 }
 
@@ -78,8 +80,9 @@ type testEventFetcherFixture struct {
 }
 
 func mockTestEventFetcherData() *testEventFetcherFixture {
+	ctx, _ := logrusctx.NewContext(logger.LevelDebug)
 	return &testEventFetcherFixture{
-		ctx: logrusctx.NewContext(logger.LevelDebug),
+		ctx: ctx,
 	}
 }
 

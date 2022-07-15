@@ -18,7 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var ctx = logrusctx.NewContext(logger.LevelDebug)
+var ctx, _ = logrusctx.NewContext(logger.LevelDebug)
 
 func TestOptions(t *testing.T) {
 	eventTimeout := 3141592654 * time.Second

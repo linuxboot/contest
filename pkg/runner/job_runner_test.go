@@ -51,7 +51,7 @@ func (s *JobRunnerSuite) SetupTest() {
 }
 
 func (s *JobRunnerSuite) TestSimpleJobStartFinish() {
-	ctx, cancel := xcontext.WithCancel(logrusctx.NewContext(logger.LevelDebug))
+	ctx, cancel := logrusctx.NewContext(logger.LevelDebug)
 	defer cancel()
 
 	var mu sync.Mutex
@@ -116,7 +116,7 @@ func (s *JobRunnerSuite) TestSimpleJobStartFinish() {
 }
 
 func (s *JobRunnerSuite) TestJobWithTestRetry() {
-	ctx, cancel := xcontext.WithCancel(logrusctx.NewContext(logger.LevelDebug))
+	ctx, cancel := logrusctx.NewContext(logger.LevelDebug)
 	defer cancel()
 
 	var mu sync.Mutex
@@ -226,7 +226,7 @@ func (s *JobRunnerSuite) TestJobWithTestRetry() {
 }
 
 func (s *JobRunnerSuite) TestJobRetryOnFailedAcquire() {
-	ctx, cancel := xcontext.WithCancel(logrusctx.NewContext(logger.LevelDebug))
+	ctx, cancel := logrusctx.NewContext(logger.LevelDebug)
 	defer cancel()
 
 	var mu sync.Mutex
@@ -319,7 +319,7 @@ func (s *JobRunnerSuite) TestJobRetryOnFailedAcquire() {
 }
 
 func (s *JobRunnerSuite) TestAcquireFailed() {
-	ctx, cancel := xcontext.WithCancel(logrusctx.NewContext(logger.LevelDebug))
+	ctx, cancel := logrusctx.NewContext(logger.LevelDebug)
 	defer cancel()
 
 	tm := stateFullTargetManager{
@@ -394,7 +394,7 @@ func (s *JobRunnerSuite) TestAcquireFailed() {
 }
 
 func (s *JobRunnerSuite) TestResumeStateBadJobId() {
-	ctx, cancel := xcontext.WithCancel(logrusctx.NewContext(logger.LevelDebug))
+	ctx, cancel := logrusctx.NewContext(logger.LevelDebug)
 	defer cancel()
 
 	acquireParameters := targetlist.AcquireParameters{

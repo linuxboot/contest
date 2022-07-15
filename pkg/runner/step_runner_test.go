@@ -37,7 +37,7 @@ func checkStoppedSuccessfully(t *testing.T, resultChan <-chan StepRunnerEvent) {
 }
 
 func (s *StepRunnerSuite) TestRunningStep() {
-	ctx, cancel := xcontext.WithCancel(logrusctx.NewContext(logger.LevelDebug))
+	ctx, cancel := logrusctx.NewContext(logger.LevelDebug)
 	defer cancel()
 
 	targetsReaction := map[string]error{
@@ -114,7 +114,7 @@ func (s *StepRunnerSuite) TestRunningStep() {
 }
 
 func (s *StepRunnerSuite) TestAddSameTargetSequentiallyTimes() {
-	ctx, cancel := xcontext.WithCancel(logrusctx.NewContext(logger.LevelDebug))
+	ctx, cancel := logrusctx.NewContext(logger.LevelDebug)
 	defer cancel()
 
 	const inputTargetID = "input_target_id"
@@ -162,7 +162,7 @@ func (s *StepRunnerSuite) TestAddSameTargetSequentiallyTimes() {
 }
 
 func (s *StepRunnerSuite) TestAddTargetReturnsErrorIfFailsToInput() {
-	ctx, cancel := xcontext.WithCancel(logrusctx.NewContext(logger.LevelDebug))
+	ctx, cancel := logrusctx.NewContext(logger.LevelDebug)
 	defer cancel()
 
 	const inputTargetID = "input_target_id"
@@ -223,7 +223,7 @@ func (s *StepRunnerSuite) TestAddTargetReturnsErrorIfFailsToInput() {
 }
 
 func (s *StepRunnerSuite) TestStepPanics() {
-	ctx, cancel := xcontext.WithCancel(logrusctx.NewContext(logger.LevelDebug))
+	ctx, cancel := logrusctx.NewContext(logger.LevelDebug)
 	defer cancel()
 
 	err := s.RegisterStateFullStep(
@@ -274,7 +274,7 @@ func (s *StepRunnerSuite) TestStepPanics() {
 }
 
 func (s *StepRunnerSuite) TestCornerCases() {
-	ctx, cancel := xcontext.WithCancel(logrusctx.NewContext(logger.LevelDebug))
+	ctx, cancel := logrusctx.NewContext(logger.LevelDebug)
 	defer cancel()
 
 	err := s.RegisterStateFullStep(

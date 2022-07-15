@@ -148,7 +148,7 @@ func Main(pluginConfig *PluginConfig, cmd string, args []string, sigs <-chan os.
 
 	clk := clock.New()
 
-	ctx, cancel := xcontext.WithCancel(logrusctx.NewContext(logLevel, logging.DefaultOptions()...))
+	ctx, cancel := logrusctx.NewContext(logLevel, logging.DefaultOptions()...)
 	ctx, pause := xcontext.WithNotify(ctx, xcontext.ErrPaused)
 	log := ctx.Logger()
 	defer cancel()

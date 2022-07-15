@@ -353,7 +353,7 @@ func (suite *TestJobManagerSuite) initJobManager(instanceTag string) {
 	require.NoError(suite.T(), err)
 
 	suite.jm = jm
-	suite.jmCtx, suite.jmCancel = xcontext.WithCancel(logrusctx.NewContext(logger.LevelDebug, logging.DefaultOptions()...))
+	suite.jmCtx, suite.jmCancel = logrusctx.NewContext(logger.LevelDebug, logging.DefaultOptions()...)
 	suite.jmCtx, suite.jmPause = xcontext.WithNotify(suite.jmCtx, xcontext.ErrPaused)
 }
 
