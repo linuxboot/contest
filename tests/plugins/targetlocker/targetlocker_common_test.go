@@ -33,7 +33,7 @@ var (
 	twoTargets = []*target.Target{target1[0], target2[0]}
 	allTargets = []*target.Target{target1[0], target2[0], &target.Target{ID: "003"}, &target.Target{ID: "004"}}
 
-	ctx = logrusctx.NewContext(logger.LevelDebug, logging.DefaultOptions()...)
+	ctx, _ = logrusctx.NewContext(logger.LevelDebug, logging.DefaultOptions()...)
 )
 
 type TargetLockerTestSuite struct {

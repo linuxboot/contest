@@ -77,7 +77,7 @@ func main() {
 	if *flagDebug {
 		logLevel = logger.LevelDebug
 	}
-	var ctx = logrusctx.NewContext(logLevel)
+	var ctx, _ = logrusctx.NewContext(logLevel)
 	ctx.Logger().OriginalLogger().(*logrus.Entry).Logger.SetOutput(os.Stdout)
 
 	if *flagDir == "" {

@@ -20,7 +20,7 @@ import (
 )
 
 var (
-	ctx = logrusctx.NewContext(logger.LevelDebug)
+	ctx, _ = logrusctx.NewContext(logger.LevelDebug)
 )
 
 // Definition of two dummy TestSteps to be used to test the PluginRegistry

@@ -23,9 +23,10 @@ type testJobStorageManagerFixture struct {
 
 func mockJobStorageManagerData() *testJobStorageManagerFixture {
 	query, _ := BuildJobQuery()
+	ctx, _ := logrusctx.NewContext(logger.LevelDebug)
 
 	return &testJobStorageManagerFixture{
-		ctx:      logrusctx.NewContext(logger.LevelDebug),
+		ctx:      ctx,
 		jobID:    types.JobID(0),
 		jobQuery: query,
 	}

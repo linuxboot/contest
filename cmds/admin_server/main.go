@@ -9,7 +9,6 @@ import (
 
 	"github.com/linuxboot/contest/cmds/admin_server/server"
 	"github.com/linuxboot/contest/pkg/logging"
-	"github.com/linuxboot/contest/pkg/xcontext"
 	"github.com/linuxboot/contest/pkg/xcontext/bundles/logrusctx"
 	"github.com/linuxboot/contest/pkg/xcontext/logger"
 )
@@ -49,7 +48,7 @@ func main() {
 		exitWithError(err, 1)
 	}
 
-	ctx, cancel := xcontext.WithCancel(logrusctx.NewContext(logLevel, logging.DefaultOptions()...))
+	ctx, cancel := logrusctx.NewContext(logLevel, logging.DefaultOptions()...)
 	defer cancel()
 
 	go func() {

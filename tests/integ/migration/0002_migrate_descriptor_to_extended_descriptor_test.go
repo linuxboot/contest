@@ -3,6 +3,7 @@
 // This source code is licensed under the MIT license found in the
 // LICENSE file in the root directory of this source tree.
 
+//go:build integration_storage
 // +build integration_storage
 
 package test
@@ -80,7 +81,8 @@ func (suite *TestDescriptorMigrationSuite) TearDownTest() {
 // TestFetchJobs tests that jobs are fetched correctly from the db
 func (suite *TestDescriptorMigrationSuite) TestUpMigratesToExtendedDescriptor() {
 
-	ctx := logrusctx.NewContext(logger.LevelDebug).WithTag("test", "TestDescriptorMigrationSuite")
+	ctx, _ := logrusctx.NewContext(logger.LevelDebug)
+	ctx = ctx.WithTag("test", "TestDescriptorMigrationSuite")
 
 	extendedDescriptorMigration := migration.NewDescriptorMigration(ctx)
 	err := extendedDescriptorMigration.Up(suite.tx)

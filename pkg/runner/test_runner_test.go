@@ -133,7 +133,7 @@ func (s *TestRunnerSuite) runWithTimeout(ctx xcontext.Context,
 
 // Simple case: one target, one step, success.
 func (s *TestRunnerSuite) Test1Step1Success() {
-	ctx, cancel := xcontext.WithCancel(logrusctx.NewContext(logger.LevelDebug))
+	ctx, cancel := logrusctx.NewContext(logger.LevelDebug)
 	defer cancel()
 
 	tr := newTestRunner()
@@ -163,7 +163,7 @@ func (s *TestRunnerSuite) Test1Step1Success() {
 // Simple case: one target, one step that blocks for a bit, success.
 // We block for longer than the shutdown timeout of the test runner.
 func (s *TestRunnerSuite) Test1StepLongerThanShutdown1Success() {
-	ctx, cancel := xcontext.WithCancel(logrusctx.NewContext(logger.LevelDebug))
+	ctx, cancel := logrusctx.NewContext(logger.LevelDebug)
 	defer cancel()
 
 	tr := NewTestRunnerWithTimeouts(100 * time.Millisecond)
@@ -192,7 +192,7 @@ func (s *TestRunnerSuite) Test1StepLongerThanShutdown1Success() {
 
 // Simple case: one target, one step, failure.
 func (s *TestRunnerSuite) Test1Step1Fail() {
-	ctx, cancel := xcontext.WithCancel(logrusctx.NewContext(logger.LevelDebug))
+	ctx, cancel := logrusctx.NewContext(logger.LevelDebug)
 	defer cancel()
 
 	tr := newTestRunner()
@@ -220,7 +220,7 @@ func (s *TestRunnerSuite) Test1Step1Fail() {
 
 // One step pipeline with two targets - one fails, one succeeds.
 func (s *TestRunnerSuite) Test1Step1Success1Fail() {
-	ctx, cancel := xcontext.WithCancel(logrusctx.NewContext(logger.LevelDebug))
+	ctx, cancel := logrusctx.NewContext(logger.LevelDebug)
 	defer cancel()
 
 	tr := newTestRunner()
@@ -252,7 +252,7 @@ func (s *TestRunnerSuite) Test1Step1Success1Fail() {
 // Three-step pipeline, two targets: T1 fails at step 1, T2 fails at step 2,
 // step 3 is not reached and not even run.
 func (s *TestRunnerSuite) Test3StepsNotReachedStepNotRun() {
-	ctx, cancel := xcontext.WithCancel(logrusctx.NewContext(logger.LevelDebug))
+	ctx, cancel := logrusctx.NewContext(logger.LevelDebug)
 	defer cancel()
 
 	tr := newTestRunner()
@@ -295,7 +295,7 @@ func (s *TestRunnerSuite) Test3StepsNotReachedStepNotRun() {
 // A misbehaving step that fails to shut down properly after processing targets
 // and does not return.
 func (s *TestRunnerSuite) TestNoReturnStepWithCorrectTargetForwarding() {
-	ctx, cancel := xcontext.WithCancel(logrusctx.NewContext(logger.LevelDebug))
+	ctx, cancel := logrusctx.NewContext(logger.LevelDebug)
 	defer cancel()
 
 	tr := NewTestRunnerWithTimeouts(200 * time.Millisecond)
@@ -312,7 +312,7 @@ func (s *TestRunnerSuite) TestNoReturnStepWithCorrectTargetForwarding() {
 
 // A misbehaving step that panics.
 func (s *TestRunnerSuite) TestStepPanics() {
-	ctx, cancel := xcontext.WithCancel(logrusctx.NewContext(logger.LevelDebug))
+	ctx, cancel := logrusctx.NewContext(logger.LevelDebug)
 	defer cancel()
 
 	tr := newTestRunner()
@@ -330,7 +330,7 @@ func (s *TestRunnerSuite) TestStepPanics() {
 
 // A misbehaving step that closes its output channel.
 func (s *TestRunnerSuite) TestStepClosesChannels() {
-	ctx, cancel := xcontext.WithCancel(logrusctx.NewContext(logger.LevelDebug))
+	ctx, cancel := logrusctx.NewContext(logger.LevelDebug)
 	defer cancel()
 
 	tr := newTestRunner()
@@ -353,7 +353,7 @@ func (s *TestRunnerSuite) TestStepClosesChannels() {
 
 // A misbehaving step that yields a result for a target that does not exist.
 func (s *TestRunnerSuite) TestStepYieldsResultForNonexistentTarget() {
-	ctx, cancel := xcontext.WithCancel(logrusctx.NewContext(logger.LevelDebug))
+	ctx, cancel := logrusctx.NewContext(logger.LevelDebug)
 	defer cancel()
 
 	tr := newTestRunner()
@@ -373,7 +373,7 @@ func (s *TestRunnerSuite) TestStepYieldsResultForNonexistentTarget() {
 
 // A misbehaving step that yields a duplicate result for a target.
 func (s *TestRunnerSuite) TestStepYieldsDuplicateResult() {
-	ctx, cancel := xcontext.WithCancel(logrusctx.NewContext(logger.LevelDebug))
+	ctx, cancel := logrusctx.NewContext(logger.LevelDebug)
 	defer cancel()
 
 	tr := newTestRunner()
@@ -392,7 +392,7 @@ func (s *TestRunnerSuite) TestStepYieldsDuplicateResult() {
 
 // A misbehaving step that loses targets.
 func (s *TestRunnerSuite) TestStepLosesTargets() {
-	ctx, cancel := xcontext.WithCancel(logrusctx.NewContext(logger.LevelDebug))
+	ctx, cancel := logrusctx.NewContext(logger.LevelDebug)
 	defer cancel()
 
 	tr := newTestRunner()
@@ -410,7 +410,7 @@ func (s *TestRunnerSuite) TestStepLosesTargets() {
 // A misbehaving step that yields a result for a target that does exist
 // but is not currently waiting for it.
 func (s *TestRunnerSuite) TestStepYieldsResultForUnexpectedTarget() {
-	ctx, cancel := xcontext.WithCancel(logrusctx.NewContext(logger.LevelDebug))
+	ctx, cancel := logrusctx.NewContext(logger.LevelDebug)
 	defer cancel()
 
 	tr := newTestRunner()
@@ -429,7 +429,7 @@ func (s *TestRunnerSuite) TestStepYieldsResultForUnexpectedTarget() {
 
 // Larger, randomized test - a number of steps, some targets failing, some succeeding.
 func (s *TestRunnerSuite) TestRandomizedMultiStep() {
-	ctx, cancel := xcontext.WithCancel(logrusctx.NewContext(logger.LevelDebug))
+	ctx, cancel := logrusctx.NewContext(logger.LevelDebug)
 	defer cancel()
 
 	tr := newTestRunner()
@@ -469,7 +469,7 @@ func (s *TestRunnerSuite) TestRandomizedMultiStep() {
 // Test pausing/resuming a naive step that does not cooperate.
 // In this case we drain input, wait for all targets to emerge and exit gracefully.
 func (s *TestRunnerSuite) TestPauseResumeSimple() {
-	ctx, cancel := xcontext.WithCancel(logrusctx.NewContext(logger.LevelDebug))
+	ctx, cancel := logrusctx.NewContext(logger.LevelDebug)
 	defer cancel()
 
 	var err error

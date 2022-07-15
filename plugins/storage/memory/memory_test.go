@@ -17,7 +17,7 @@ import (
 )
 
 var (
-	ctx = logrusctx.NewContext(logger.LevelDebug)
+	ctx, _ = logrusctx.NewContext(logger.LevelDebug)
 )
 
 func TestMemory_GetTestEvents(t *testing.T) {
