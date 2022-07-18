@@ -8,6 +8,7 @@ import (
 	"syscall"
 
 	"github.com/linuxboot/contest/cmds/admin_server/server"
+	mongoAdapter "github.com/linuxboot/contest/cmds/admin_server/storage/mongo"
 	"github.com/linuxboot/contest/pkg/logging"
 	"github.com/linuxboot/contest/pkg/xcontext/bundles/logrusctx"
 	"github.com/linuxboot/contest/pkg/xcontext/logger"
@@ -16,12 +17,14 @@ import (
 var (
 	flagSet      *flag.FlagSet
 	flagPort     *int
+	flagDBURI    *string
 	flagLogLevel *string
 )
 
 func initFlags(cmd string) {
 	flagSet = flag.NewFlagSet(cmd, flag.ContinueOnError)
-	flagPort = flagSet.Int("port", 8080, "Port to init the admin server on")
+	flagPort = flagSet.Int("port", 8000, "Port to init the admin server on")
+	flagDBURI = flagSet.String("dbURI", "mongodb://localhost:27017", "Database URI")
 	flagLogLevel = flagSet.String("logLevel", "debug", "A log level, possible values: debug, info, warning, error, panic, fatal")
 
 }
@@ -48,6 +51,12 @@ func main() {
 		exitWithError(err, 1)
 	}
 
+	storage, err := mongoAdapter.NewMongoStorage(*flagDBURI)
+	if err != nil {
+		exitWithError(err, 1)
+	}
+	defer storage.Close()
+
 	ctx, cancel := logrusctx.NewContext(logLevel, logging.DefaultOptions()...)
 	defer cancel()
 
@@ -56,7 +65,7 @@ func main() {
 		cancel()
 	}()
 
-	if err := server.Serve(ctx, *flagPort); err != nil {
+	if err := server.Serve(ctx, *flagPort, storage); err != nil {
 		exitWithError(fmt.Errorf("server err: %w", err), 1)
 	}
 }

@@ -70,12 +70,21 @@ func (opt OptionTimestampFormat) apply(cfg *Config) {
 	cfg.TimestampFormat = string(opt)
 }
 
+// OptionHttpLoggerAddr is used to create a logger hook to send logs via http
+// to admin server
+type OptionHttpLoggerAddr string
+
+func (opt OptionHttpLoggerAddr) apply(cfg *Config) {
+	cfg.HttpLoggerAddr = string(opt)
+}
+
 // Config is a configuration state resulted from Option-s.
 type Config struct {
 	LoggerReportCaller bool
 	TracerReportCaller bool
 	TimestampFormat    string
 	VerboseCaller      bool
+	HttpLoggerAddr     string
 	Tracer             xcontext.Tracer
 	Format             LogFormat
 }
