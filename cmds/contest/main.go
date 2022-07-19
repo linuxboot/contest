@@ -30,6 +30,7 @@ import (
 	// the teststep plugins
 	ts_cmd "github.com/linuxboot/contest/plugins/teststeps/cmd"
 	cpucmd "github.com/linuxboot/contest/plugins/teststeps/cpucmd"
+	dutctl "github.com/linuxboot/contest/plugins/teststeps/dutctl"
 	echo "github.com/linuxboot/contest/plugins/teststeps/echo"
 	exec "github.com/linuxboot/contest/plugins/teststeps/exec"
 	randecho "github.com/linuxboot/contest/plugins/teststeps/randecho"
@@ -54,6 +55,7 @@ func getPluginConfig() *server.PluginConfig {
 	pc.TestStepLoaders = append(pc.TestStepLoaders, randecho.Load)
 	pc.TestStepLoaders = append(pc.TestStepLoaders, sleep.Load)
 	pc.TestStepLoaders = append(pc.TestStepLoaders, sshcmd.Load)
+	pc.TestStepLoaders = append(pc.TestStepLoaders, dutctl.Load)
 	pc.ReporterLoaders = append(pc.ReporterLoaders, noop.Load)
 	pc.ReporterLoaders = append(pc.ReporterLoaders, targetsuccess.Load)
 
