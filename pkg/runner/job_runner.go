@@ -321,6 +321,7 @@ func (jr *JobRunner) acquireTargets(
 		return nil, false, fmt.Errorf("target locking failed: %w", err)
 	}
 
+	ctx.Infof("%d Targets acquired", len(targets))
 	// when the targets are acquired, update the counter
 	if metrics := ctx.Metrics(); metrics != nil {
 		metrics.IntGauge(perf.ACQUIRED_TARGETS).Add(int64(len(targets)))
@@ -488,6 +489,7 @@ func (jr *JobRunner) runTest(ctx xcontext.Context,
 		// Ignore cancellation here, we want release and unlock to happen in that case.
 	}
 
+	ctx.Infof("%d Targets released", len(targets))
 	// If the targets are released, update the counter
 	if metrics := ctx.Metrics(); metrics != nil {
 		metrics.IntGauge(perf.ACQUIRED_TARGETS).Add(-int64(len(targets)))
