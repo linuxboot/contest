@@ -1,8 +1,7 @@
 import React from 'react';
-import '../styles/app.scss';
+import './app.scss';
+import SearchLogs from './search_logs/search_logs';
 
-function App() {
-    return <h1>Context is not Contest</h1>;
+export default function App() {
+    return <SearchLogs />;
 }
-
-export default App;
