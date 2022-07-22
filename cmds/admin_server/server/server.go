@@ -7,6 +7,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/gin-gonic/contrib/static"
 	"github.com/gin-gonic/gin"
 	"github.com/linuxboot/contest/cmds/admin_server/storage"
 	"github.com/linuxboot/contest/pkg/xcontext"
@@ -120,6 +121,9 @@ func initRouter(ctx xcontext.Context, rh RouteHandler) *gin.Engine {
 
 	r := gin.New()
 	r.Use(gin.Logger())
+
+	// serve the frontend app
+	r.Use(static.Serve("/", static.LocalFile("./frontend/dist", true)))
 
 	r.GET("/status", rh.status)
 	r.POST("/log", rh.addLog)
