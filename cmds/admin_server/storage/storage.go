@@ -8,11 +8,17 @@ import (
 var (
 	ErrReadOnlyStorage = errors.New("error read only storage")
 	ErrInsert          = errors.New("error inserting into the db")
+	ErrConstructQuery  = errors.New("error forming db query from api query")
+	ErrQuery           = errors.New("error querying from the database")
+)
+
+var (
+	DefaultTimestampFormat = "2006-01-02T15:04:05.000Z07:00"
 )
 
 type Storage interface {
 	StoreLog(Log) error
-	GetLogs(Query) ([]Log, error)
+	GetLogs(Query) (*Result, error)
 
 	Close() error
 }
@@ -27,9 +33,18 @@ type Log struct {
 
 // Query defines the different options to filter with
 type Query struct {
-	Text      string
-	LogLevel  string
-	StartDate string
-	EndDate   string
-	Page      int
+	Text      *string
+	LogLevel  *string
+	StartDate *time.Time
+	EndDate   *time.Time
+	PageSize  uint
+	Page      uint
+}
+
+//Result defines the expected result returned from the db
+type Result struct {
+	Logs     []Log  `json:"logs"`
+	Count    uint64 `json:"count"`
+	Page     uint   `json:"page"`
+	PageSize uint   `json:"pageSize"`
 }
