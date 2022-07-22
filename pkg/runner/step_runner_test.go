@@ -50,7 +50,8 @@ func (s *StepRunnerSuite) TestRunningStep() {
 	var obtainedResumeState json.RawMessage
 
 	err := s.RegisterStateFullStep(
-		func(ctx xcontext.Context, ch test.TestStepChannels, params test.TestStepParameters, ev testevent.Emitter, resumeState json.RawMessage) (json.RawMessage, error) {
+		func(ctx xcontext.Context, ch test.TestStepChannels, ev testevent.Emitter,
+			stepsVars test.StepsVariables, params test.TestStepParameters, resumeState json.RawMessage) (json.RawMessage, error) {
 			obtainedResumeState = resumeState
 			_, err := teststeps.ForEachTarget(stateFullStepName, ctx, ch, func(ctx xcontext.Context, target *target.Target) error {
 				require.NotNil(s.T(), target)
@@ -78,6 +79,7 @@ func (s *StepRunnerSuite) TestRunningStep() {
 	inputResumeState := json.RawMessage("{\"some_input\": 42}")
 	resultChan, addTarget, err := stepRunner.Run(ctx,
 		s.NewStep(ctx, "test_step_label", stateFullStepName, nil),
+		newStepsVariablesMock(nil, nil),
 		emitter,
 		inputResumeState,
 		nil,
@@ -120,7 +122,8 @@ func (s *StepRunnerSuite) TestAddSameTargetSequentiallyTimes() {
 	const inputTargetID = "input_target_id"
 
 	err := s.RegisterStateFullStep(
-		func(ctx xcontext.Context, ch test.TestStepChannels, params test.TestStepParameters, ev testevent.Emitter, resumeState json.RawMessage) (json.RawMessage, error) {
+		func(ctx xcontext.Context, ch test.TestStepChannels, ev testevent.Emitter,
+			stepsVars test.StepsVariables, params test.TestStepParameters, resumeState json.RawMessage) (json.RawMessage, error) {
 			_, err := teststeps.ForEachTarget(stateFullStepName, ctx, ch, func(ctx xcontext.Context, target *target.Target) error {
 				require.NotNil(s.T(), target)
 				require.Equal(s.T(), inputTargetID, target.ID)
@@ -142,6 +145,7 @@ func (s *StepRunnerSuite) TestAddSameTargetSequentiallyTimes() {
 
 	resultChan, addTarget, err := stepRunner.Run(ctx,
 		s.NewStep(ctx, "test_step_label", stateFullStepName, nil),
+		newStepsVariablesMock(nil, nil),
 		emitter,
 		nil,
 		nil,
@@ -176,7 +180,8 @@ func (s *StepRunnerSuite) TestAddTargetReturnsErrorIfFailsToInput() {
 		}
 	}()
 	err := s.RegisterStateFullStep(
-		func(ctx xcontext.Context, ch test.TestStepChannels, params test.TestStepParameters, ev testevent.Emitter, resumeState json.RawMessage) (json.RawMessage, error) {
+		func(ctx xcontext.Context, ch test.TestStepChannels, ev testevent.Emitter,
+			stepsVars test.StepsVariables, params test.TestStepParameters, resumeState json.RawMessage) (json.RawMessage, error) {
 			<-hangCh
 			for range ch.In {
 				require.Fail(s.T(), "unexpected input")
@@ -196,6 +201,7 @@ func (s *StepRunnerSuite) TestAddTargetReturnsErrorIfFailsToInput() {
 
 	resultChan, addTarget, err := stepRunner.Run(ctx,
 		s.NewStep(ctx, "test_step_label", stateFullStepName, nil),
+		newStepsVariablesMock(nil, nil),
 		emitter,
 		nil,
 		nil,
@@ -227,7 +233,8 @@ func (s *StepRunnerSuite) TestStepPanics() {
 	defer cancel()
 
 	err := s.RegisterStateFullStep(
-		func(ctx xcontext.Context, ch test.TestStepChannels, params test.TestStepParameters, ev testevent.Emitter, resumeState json.RawMessage) (json.RawMessage, error) {
+		func(ctx xcontext.Context, ch test.TestStepChannels, ev testevent.Emitter,
+			stepsVars test.StepsVariables, params test.TestStepParameters, resumeState json.RawMessage) (json.RawMessage, error) {
 			panic("panic")
 		},
 		nil,
@@ -240,6 +247,7 @@ func (s *StepRunnerSuite) TestStepPanics() {
 
 	resultChan, addTarget, err := stepRunner.Run(ctx,
 		s.NewStep(ctx, "test_step_label", stateFullStepName, nil),
+		newStepsVariablesMock(nil, nil),
 		NewTestStepEventsEmitterFactory(
 			s.MemoryStorage.StorageEngineVault,
 			1,
@@ -278,7 +286,8 @@ func (s *StepRunnerSuite) TestCornerCases() {
 	defer cancel()
 
 	err := s.RegisterStateFullStep(
-		func(ctx xcontext.Context, ch test.TestStepChannels, params test.TestStepParameters, ev testevent.Emitter, resumeState json.RawMessage) (json.RawMessage, error) {
+		func(ctx xcontext.Context, ch test.TestStepChannels, ev testevent.Emitter,
+			stepsVars test.StepsVariables, params test.TestStepParameters, resumeState json.RawMessage) (json.RawMessage, error) {
 			_, err := teststeps.ForEachTarget(stateFullStepName, ctx, ch, func(ctx xcontext.Context, target *target.Target) error {
 				return fmt.Errorf("should not be called")
 			})
@@ -298,6 +307,7 @@ func (s *StepRunnerSuite) TestCornerCases() {
 
 		resultChan, addTarget, err := stepRunner.Run(ctx,
 			s.NewStep(ctx, "test_step_label", stateFullStepName, nil),
+			newStepsVariablesMock(nil, nil),
 			emitter,
 			nil,
 			nil,
@@ -317,6 +327,7 @@ func (s *StepRunnerSuite) TestCornerCases() {
 
 		resultChan, _, err := stepRunner.Run(ctx,
 			s.NewStep(ctx, "test_step_label", stateFullStepName, nil),
+			newStepsVariablesMock(nil, nil),
 			emitter,
 			nil,
 			nil,
@@ -326,6 +337,7 @@ func (s *StepRunnerSuite) TestCornerCases() {
 
 		resultChan2, _, err2 := stepRunner.Run(ctx,
 			s.NewStep(ctx, "test_step_label", stateFullStepName, nil),
+			newStepsVariablesMock(nil, nil),
 			emitter,
 			nil,
 			nil,
@@ -341,6 +353,7 @@ func (s *StepRunnerSuite) TestCornerCases() {
 
 		resultChan, _, err := stepRunner.Run(ctx,
 			s.NewStep(ctx, "test_step_label", stateFullStepName, nil),
+			newStepsVariablesMock(nil, nil),
 			emitter,
 			nil,
 			nil,
@@ -361,6 +374,7 @@ func (s *StepRunnerSuite) TestCornerCases() {
 		stepRunner.Stop()
 		resultChan, _, err := stepRunner.Run(ctx,
 			s.NewStep(ctx, "test_step_label", stateFullStepName, nil),
+			newStepsVariablesMock(nil, nil),
 			emitter,
 			nil,
 			nil,
@@ -369,4 +383,27 @@ func (s *StepRunnerSuite) TestCornerCases() {
 		require.NotNil(s.T(), resultChan)
 		checkStoppedSuccessfully(s.T(), resultChan)
 	})
+}
+
+type stepsVariablesMock struct {
+	add func(tgtID string, name string, value interface{}) error
+	get func(tgtID string, stepLabel, name string, value interface{}) error
+}
+
+func (sm *stepsVariablesMock) Add(tgtID string, name string, value interface{}) error {
+	return sm.add(tgtID, name, value)
+}
+
+func (sm *stepsVariablesMock) Get(tgtID string, stepLabel, name string, value interface{}) error {
+	return sm.get(tgtID, stepLabel, name, value)
+}
+
+func newStepsVariablesMock(
+	add func(tgtID string, name string, value interface{}) error,
+	get func(tgtID string, stepLabel, name string, value interface{}) error,
+) *stepsVariablesMock {
+	return &stepsVariablesMock{
+		add: add,
+		get: get,
+	}
 }

@@ -29,7 +29,14 @@ func (ts *noreturnStep) Name() string {
 }
 
 // Run executes a step that never returns.
-func (ts *noreturnStep) Run(ctx xcontext.Context, ch test.TestStepChannels, params test.TestStepParameters, ev testevent.Emitter, resumeState json.RawMessage) (json.RawMessage, error) {
+func (ts *noreturnStep) Run(
+	ctx xcontext.Context,
+	ch test.TestStepChannels,
+	ev testevent.Emitter,
+	stepsVars test.StepsVariables,
+	inputParams test.TestStepParameters,
+	resumeState json.RawMessage,
+) (json.RawMessage, error) {
 	for target := range ch.In {
 		ch.Out <- test.TestStepResult{Target: target}
 	}

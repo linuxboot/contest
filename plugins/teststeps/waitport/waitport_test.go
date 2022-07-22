@@ -75,7 +75,7 @@ func TestWaitForTCPPort(t *testing.T) {
 	}
 
 	plugin := &WaitPort{}
-	if _, err = plugin.Run(ctx, testStepChannels, params, ev, nil); err != nil {
+	if _, err = plugin.Run(ctx, testStepChannels, ev, nil, params, nil); err != nil {
 		t.Errorf("Plugin run failed: '%v'", err)
 	}
 	wg.Wait()

@@ -7,7 +7,6 @@ package pluginregistry
 
 import (
 	"fmt"
-
 	"github.com/linuxboot/contest/pkg/job"
 	"github.com/linuxboot/contest/pkg/target"
 	"github.com/linuxboot/contest/pkg/test"
@@ -28,9 +27,13 @@ func (r *PluginRegistry) NewTestStepBundle(ctx xcontext.Context, testStepDescrip
 		return nil, err
 	}
 	label := testStepDescriptor.Label
-	if label == "" {
+	if len(label) == 0 {
 		return nil, ErrStepLabelIsMandatory{TestStepDescriptor: testStepDescriptor}
 	}
+	if err := test.CheckIdentifier(label); err != nil {
+		return nil, ErrInvalidStepLabelFormat{InvalidName: label, Err: err}
+	}
+
 	testStepBundle := test.TestStepBundle{
 		TestStep:      testStep,
 		TestStepLabel: label,

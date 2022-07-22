@@ -44,6 +44,8 @@ type TestRunner struct {
 	steps   []*stepState            // The pipeline, in order of execution
 	targets map[string]*targetState // Target state lookup map
 
+	stepOutputs *testStepsVariables // contains emitted steps variables
+
 	// One mutex to rule them all, used to serialize access to all the state above.
 	// Could probably be split into several if necessary.
 	mu          sync.Mutex
@@ -80,14 +82,18 @@ const (
 	targetStepPhaseEnd                           // (5) Finished running a step.
 )
 
+// stepVariables represents the emitted variables of the steps
+type stepVariables map[string]json.RawMessage
+
 // targetState contains state associated with one target progressing through the pipeline.
 type targetState struct {
 	tgt *target.Target
 
 	// This part of state gets serialized into JSON for resumption.
-	CurStep  int             `json:"S,omitempty"` // Current step number.
-	CurPhase targetStepPhase `json:"P,omitempty"` // Current phase of step execution.
-	Res      *xjson.Error    `json:"R,omitempty"` // Final result, if reached the end state.
+	CurStep        int                      `json:"S,omitempty"` // Current step number.
+	CurPhase       targetStepPhase          `json:"P,omitempty"` // Current phase of step execution.
+	Res            *xjson.Error             `json:"R,omitempty"` // Final result, if reached the end state.
+	StepsVariables map[string]stepVariables `json:"V,omitempty"` // maps steps onto emitted variables of each
 
 	handlerRunning bool
 	resCh          chan error // Channel used to communicate result by the step runner.
@@ -161,6 +167,20 @@ func (tr *TestRunner) Run(
 
 		if tgs.CurStep < minStep {
 			minStep = tgs.CurStep
+		}
+	}
+
+	var err error
+	tr.stepOutputs, err = newTestStepsVariables(t.TestStepsBundles)
+	if err != nil {
+		ctx.Errorf("Failed to initialise test steps variables: %v", err)
+		return nil, nil, err
+	}
+
+	for targetID, targetState := range tr.targets {
+		if err := tr.stepOutputs.initTargetStepsVariables(targetID, targetState.StepsVariables); err != nil {
+			ctx.Errorf("Failed to initialise test steps variables for target: %s: %v", targetID, err)
+			return nil, nil, err
 		}
 	}
 
@@ -238,6 +258,11 @@ func (tr *TestRunner) Run(
 	numInFlightTargets := 0
 	for i, tgt := range targets {
 		tgs := tr.targets[tgt.ID]
+		tgs.StepsVariables, err = tr.stepOutputs.getTargetStepsVariables(tgt.ID)
+		if err != nil {
+			ctx.Errorf("Failed to get steps variables: %v", err)
+			return nil, nil, err
+		}
 		stepErr := tr.steps[tgs.CurStep].runErr
 		if tgs.CurPhase == targetStepPhaseRun {
 			numInFlightTargets++
@@ -520,7 +545,8 @@ func (tr *TestRunner) runStepIfNeeded(ss *stepState) error {
 	resumeState := ss.resumeState
 	ss.resumeState = nil
 
-	resultCh, addTarget, err := ss.stepRunner.Run(ss.ctx, ss.sb, ss.ev, resumeState, ss.resumeStateTargets)
+	sva := newStepVariablesAccessor(ss.sb.TestStepLabel, tr.stepOutputs)
+	resultCh, addTarget, err := ss.stepRunner.Run(ss.ctx, ss.sb, sva, ss.ev, resumeState, ss.resumeStateTargets)
 	if err != nil {
 		return fmt.Errorf("failed to stert a step runner for '%s': %v", ss.sb.TestStepLabel, err)
 	}

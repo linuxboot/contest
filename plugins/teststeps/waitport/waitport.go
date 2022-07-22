@@ -44,7 +44,14 @@ func (ts *WaitPort) Name() string {
 }
 
 // Run executes the cmd step.
-func (ts *WaitPort) Run(ctx xcontext.Context, ch test.TestStepChannels, inputParams test.TestStepParameters, ev testevent.Emitter, resumeState json.RawMessage) (json.RawMessage, error) {
+func (ts *WaitPort) Run(
+	ctx xcontext.Context,
+	ch test.TestStepChannels,
+	ev testevent.Emitter,
+	stepsVars test.StepsVariables,
+	inputParams test.TestStepParameters,
+	resumeState json.RawMessage,
+) (json.RawMessage, error) {
 	params, err := parseParameters(inputParams)
 	if err != nil {
 		return nil, err

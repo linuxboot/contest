@@ -18,3 +18,17 @@ type ErrStepLabelIsMandatory struct {
 func (err ErrStepLabelIsMandatory) Error() string {
 	return fmt.Sprintf("step has no label, but it is mandatory (step: %+v)", err.TestStepDescriptor)
 }
+
+// ErrInvalidStepLabelFormat tells that a variable name doesn't fit the variable name format (alphanum + '_')
+type ErrInvalidStepLabelFormat struct {
+	InvalidName string
+	Err         error
+}
+
+func (err ErrInvalidStepLabelFormat) Error() string {
+	return fmt.Sprintf("'%s' doesn't match variable name format: %v", err.InvalidName, err.Err)
+}
+
+func (err ErrInvalidStepLabelFormat) Unwrap() error {
+	return err.Err
+}

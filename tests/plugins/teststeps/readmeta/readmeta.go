@@ -37,7 +37,14 @@ func (ts *readmeta) Name() string {
 }
 
 // Run executes a step that reads the job metadata that must be in the context and panics if it is missing.
-func (ts *readmeta) Run(ctx xcontext.Context, ch test.TestStepChannels, params test.TestStepParameters, ev testevent.Emitter, resumeState json.RawMessage) (json.RawMessage, error) {
+func (ts *readmeta) Run(
+	ctx xcontext.Context,
+	ch test.TestStepChannels,
+	ev testevent.Emitter,
+	stepsVars test.StepsVariables,
+	inputParams test.TestStepParameters,
+	resumeState json.RawMessage,
+) (json.RawMessage, error) {
 	return teststeps.ForEachTarget(Name, ctx, ch, func(ctx xcontext.Context, t *target.Target) error {
 		jobID, ok1 := types.JobIDFromContext(ctx)
 		if jobID == 0 || !ok1 {

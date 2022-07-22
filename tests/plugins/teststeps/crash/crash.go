@@ -30,7 +30,14 @@ func (ts *crash) Name() string {
 }
 
 // Run executes a step which returns an error
-func (ts *crash) Run(ctx xcontext.Context, ch test.TestStepChannels, params test.TestStepParameters, ev testevent.Emitter, resumeState json.RawMessage) (json.RawMessage, error) {
+func (ts *crash) Run(
+	ctx xcontext.Context,
+	ch test.TestStepChannels,
+	ev testevent.Emitter,
+	stepsVars test.StepsVariables,
+	inputParams test.TestStepParameters,
+	resumeState json.RawMessage,
+) (json.RawMessage, error) {
 	return nil, fmt.Errorf("TestStep crashed")
 }
 

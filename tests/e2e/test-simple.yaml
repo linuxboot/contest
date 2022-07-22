@@ -15,14 +15,14 @@ TestDescriptors:
           TestName: Test 1
           Steps:
               - name: cmd
-                label: Test 1 Step 1
+                label: Test1Step1
                 parameters:
                     executable: [echo]
                     args: ["Test 1, Step 1, target {{ .ID }}"]
                     emit_stdout: [true]
                     emit_stderr: [true]
               - name: cmd
-                label: Test 1 Step 2
+                label: Test1Step2
                 parameters:
                     executable: [echo]
                     args: ["Test 1, Step 2, target {{ .ID }}"]
@@ -38,14 +38,14 @@ TestDescriptors:
           TestName: Test 2
           Steps:
               - name: cmd
-                label: Test 2 Step 1
+                label: Test2Step1
                 parameters:
                     executable: [echo]
                     args: ["Test 2, Step 1, target {{ .ID }}"]
                     emit_stdout: [true]
                     emit_stderr: [true]
               - name: cmd
-                label: Test 2 Step 2
+                label: Test2Step2
                 parameters:
                     executable: [echo]
                     args: ["Test 2, Step 2, target {{ .ID }}"]

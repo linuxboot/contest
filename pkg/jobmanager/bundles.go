@@ -99,5 +99,6 @@ func newStepBundles(ctx xcontext.Context, descriptors test.TestStepsDescriptors,
 		}
 		labels[bundle.TestStepLabel] = true
 	}
+	// TODO: verify that test variables refer to existing steps
 	return testStepBundles, nil
 }
