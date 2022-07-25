@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"time"
 
 	"github.com/linuxboot/contest/cmds/admin_server/storage"
+	"github.com/linuxboot/contest/pkg/xcontext"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -18,9 +18,8 @@ var (
 	/*
 		DefaultDB and DefaultCollection refere to the database and collection initiated by docker/mongo/initdb.js file
 	*/
-	DefaultDB                = "admin-server-db"
-	DefaultCollection        = "logs"
-	DefaultConnectionTimeout = 10 * time.Second
+	DefaultDB         = "admin-server-db"
+	DefaultCollection = "logs"
 )
 
 type MongoStorage struct {
@@ -28,14 +27,11 @@ type MongoStorage struct {
 	collection *mongo.Collection
 }
 
-func NewMongoStorage(uri string) (storage.Storage, error) {
+func NewMongoStorage(ctx xcontext.Context, uri string) (storage.Storage, error) {
 	client, err := mongo.NewClient(options.Client().ApplyURI(uri))
 	if err != nil {
 		return nil, err
 	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), DefaultConnectionTimeout)
-	defer cancel()
 
 	err = client.Connect(ctx)
 	if err != nil {
@@ -103,11 +99,7 @@ func toMongoQuery(query storage.Query) bson.D {
 	return q
 }
 
-func (s *MongoStorage) StoreLog(log storage.Log) error {
-
-	ctx, cancel := context.WithTimeout(context.Background(), DefaultConnectionTimeout)
-	defer cancel()
-
+func (s *MongoStorage) StoreLog(ctx xcontext.Context, log storage.Log) error {
 	_, err := s.collection.InsertOne(ctx, log)
 	if err != nil {
 		// for better debugging
@@ -117,13 +109,11 @@ func (s *MongoStorage) StoreLog(log storage.Log) error {
 	return nil
 }
 
-func (s *MongoStorage) GetLogs(query storage.Query) (*storage.Result, error) {
+func (s *MongoStorage) GetLogs(ctx xcontext.Context, query storage.Query) (*storage.Result, error) {
 
 	q := toMongoQuery(query)
 
 	//get the count of the logs
-	ctx, cancel := context.WithTimeout(context.Background(), DefaultConnectionTimeout)
-	defer cancel()
 	count, err := s.collection.CountDocuments(ctx, q)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error while performing count query: %v", err)
@@ -134,8 +124,6 @@ func (s *MongoStorage) GetLogs(query storage.Query) (*storage.Result, error) {
 	opts.SetSkip(int64(int(query.PageSize) * int(query.Page)))
 	opts.SetLimit(int64(query.PageSize))
 
-	ctx, cancel = context.WithTimeout(context.Background(), DefaultConnectionTimeout)
-	defer cancel()
 	cur, err := s.collection.Find(ctx, q, opts)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error while querying logs from db: %v", err)
@@ -143,8 +131,6 @@ func (s *MongoStorage) GetLogs(query storage.Query) (*storage.Result, error) {
 	}
 
 	var logs []storage.Log
-	ctx, cancel = context.WithTimeout(context.Background(), DefaultConnectionTimeout)
-	defer cancel()
 	err = cur.All(ctx, &logs)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error while reading query result from db: %v", err)
@@ -159,6 +145,6 @@ func (s *MongoStorage) GetLogs(query storage.Query) (*storage.Result, error) {
 	}, nil
 }
 
-func (s *MongoStorage) Close() error {
-	return s.dbClient.Disconnect(context.Background())
+func (s *MongoStorage) Close(ctx xcontext.Context) error {
+	return s.dbClient.Disconnect(ctx)
 }

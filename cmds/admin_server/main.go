@@ -6,10 +6,12 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/linuxboot/contest/cmds/admin_server/server"
 	mongoStorage "github.com/linuxboot/contest/cmds/admin_server/storage/mongo"
 	"github.com/linuxboot/contest/pkg/logging"
+	"github.com/linuxboot/contest/pkg/xcontext"
 	"github.com/linuxboot/contest/pkg/xcontext/bundles/logrusctx"
 	"github.com/linuxboot/contest/pkg/xcontext/logger"
 )
@@ -51,14 +53,19 @@ func main() {
 		exitWithError(err, 1)
 	}
 
-	storage, err := mongoStorage.NewMongoStorage(*flagDBURI)
+	ctx, cancel := logrusctx.NewContext(logLevel, logging.DefaultOptions()...)
+	defer cancel()
+
+	storageCtx, cancel := xcontext.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
+	storage, err := mongoStorage.NewMongoStorage(storageCtx, *flagDBURI)
 	if err != nil {
 		exitWithError(err, 1)
 	}
-	defer storage.Close()
-
-	ctx, cancel := logrusctx.NewContext(logLevel, logging.DefaultOptions()...)
+	closeCtx, cancel := xcontext.WithTimeout(xcontext.Background(), 10*time.Second)
 	defer cancel()
+	defer storage.Close(closeCtx)
 
 	go func() {
 		<-sigs
