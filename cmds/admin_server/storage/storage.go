@@ -3,6 +3,8 @@ package storage
 import (
 	"errors"
 	"time"
+
+	"github.com/linuxboot/contest/pkg/xcontext"
 )
 
 var (
@@ -17,10 +19,10 @@ var (
 )
 
 type Storage interface {
-	StoreLog(Log) error
-	GetLogs(Query) (*Result, error)
+	StoreLog(ctx xcontext.Context, entry Log) error
+	GetLogs(ctx xcontext.Context, query Query) (*Result, error)
 
-	Close() error
+	Close(ctx xcontext.Context) error
 }
 
 // Log defines the basic log info pushed by the server

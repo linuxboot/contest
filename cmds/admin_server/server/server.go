@@ -13,8 +13,9 @@ import (
 )
 
 var (
-	MaxPageSize uint = 100
-	DefaultPage uint = 0
+	MaxPageSize            uint          = 100
+	DefaultPage            uint          = 0
+	DefaultDBAccessTimeout time.Duration = 10 * time.Second
 )
 
 type Query struct {
@@ -83,7 +84,9 @@ func (r *RouteHandler) addLog(c *gin.Context) {
 		return
 	}
 
-	err := r.storage.StoreLog(log.ToStorageLog())
+	ctx, cancel := xcontext.WithTimeout(xcontext.Background(), DefaultDBAccessTimeout)
+	defer cancel()
+	err := r.storage.StoreLog(ctx, log.ToStorageLog())
 	if err != nil {
 		switch {
 		case errors.Is(err, storage.ErrInsert):
@@ -107,7 +110,9 @@ func (r *RouteHandler) getLogs(c *gin.Context) {
 		return
 	}
 
-	result, err := r.storage.GetLogs(query.ToStorageQuery())
+	ctx, cancel := xcontext.WithTimeout(xcontext.Background(), DefaultDBAccessTimeout)
+	defer cancel()
+	result, err := r.storage.GetLogs(ctx, query.ToStorageQuery())
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"status": "err", "msg": "error while getting the logs"})
 		return
