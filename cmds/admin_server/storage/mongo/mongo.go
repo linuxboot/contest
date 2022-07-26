@@ -3,7 +3,6 @@ package mongo
 import (
 	"context"
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/linuxboot/contest/cmds/admin_server/storage"
@@ -103,20 +102,18 @@ func (s *MongoStorage) StoreLog(ctx xcontext.Context, log storage.Log) error {
 	_, err := s.collection.InsertOne(ctx, log)
 	if err != nil {
 		// for better debugging
-		fmt.Fprintf(os.Stderr, "Error while inserting into the db: %v", err)
+		ctx.Errorf("Error while inserting into the db: %v", err)
 		return storage.ErrInsert
 	}
 	return nil
 }
 
 func (s *MongoStorage) GetLogs(ctx xcontext.Context, query storage.Query) (*storage.Result, error) {
-
 	q := toMongoQuery(query)
-
 	//get the count of the logs
 	count, err := s.collection.CountDocuments(ctx, q)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error while performing count query: %v", err)
+		ctx.Errorf("Error while performing count query: %v", err)
 		return nil, storage.ErrQuery
 	}
 
@@ -126,14 +123,14 @@ func (s *MongoStorage) GetLogs(ctx xcontext.Context, query storage.Query) (*stor
 
 	cur, err := s.collection.Find(ctx, q, opts)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error while querying logs from db: %v", err)
+		ctx.Errorf("Error while querying logs from db: %v", err)
 		return nil, storage.ErrQuery
 	}
 
 	var logs []storage.Log
 	err = cur.All(ctx, &logs)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error while reading query result from db: %v", err)
+		ctx.Errorf("Error while reading query result from db: %v", err)
 		return nil, storage.ErrQuery
 	}
 

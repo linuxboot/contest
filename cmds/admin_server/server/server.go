@@ -4,12 +4,12 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"os"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/linuxboot/contest/cmds/admin_server/storage"
 	"github.com/linuxboot/contest/pkg/xcontext"
+	"github.com/linuxboot/contest/pkg/xcontext/logger"
 )
 
 var (
@@ -68,6 +68,7 @@ func (l *Log) ToStorageLog() storage.Log {
 
 type RouteHandler struct {
 	storage storage.Storage
+	log     logger.Logger
 }
 
 // status is a simple endpoint to check if the serves is alive
@@ -77,15 +78,17 @@ func (r *RouteHandler) status(c *gin.Context) {
 
 // addLog inserts a new log entry inside the database
 func (r *RouteHandler) addLog(c *gin.Context) {
+
 	var log Log
 	if err := c.Bind(&log); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"status": "err", "msg": "badly formatted log"})
-		fmt.Fprintf(os.Stderr, "Err while binding request body %v", err)
+		r.log.Errorf("Err while binding request body %v", err)
 		return
 	}
 
 	ctx, cancel := xcontext.WithTimeout(xcontext.Background(), DefaultDBAccessTimeout)
 	defer cancel()
+	ctx = ctx.WithLogger(r.log)
 	err := r.storage.StoreLog(ctx, log.ToStorageLog())
 	if err != nil {
 		switch {
@@ -107,11 +110,13 @@ func (r *RouteHandler) getLogs(c *gin.Context) {
 	var query Query
 	if err := c.BindQuery(&query); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"status": "err", "msg": fmt.Sprintf("bad formatted query %v", err)})
+		r.log.Errorf("Err while binding request body %v", err)
 		return
 	}
 
 	ctx, cancel := xcontext.WithTimeout(xcontext.Background(), DefaultDBAccessTimeout)
 	defer cancel()
+	ctx = ctx.WithLogger(r.log)
 	result, err := r.storage.GetLogs(ctx, query.ToStorageQuery())
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"status": "err", "msg": "error while getting the logs"})
@@ -134,10 +139,9 @@ func initRouter(ctx xcontext.Context, rh RouteHandler) *gin.Engine {
 }
 
 func Serve(ctx xcontext.Context, port int, storage storage.Storage) error {
-	log := ctx.Logger()
-
 	routeHandler := RouteHandler{
 		storage: storage,
+		log:     ctx.Logger(),
 	}
 	router := initRouter(ctx, routeHandler)
 	server := &http.Server{
@@ -148,9 +152,9 @@ func Serve(ctx xcontext.Context, port int, storage storage.Storage) error {
 	go func() {
 		<-ctx.Done()
 		// on cancel close the server
-		log.Debugf("Closing the server")
+		ctx.Debugf("Closing the server")
 		if err := server.Close(); err != nil {
-			fmt.Fprintf(os.Stderr, "Error closing the server: %v", err)
+			ctx.Errorf("Error closing the server: %v", err)
 		}
 	}()
 
