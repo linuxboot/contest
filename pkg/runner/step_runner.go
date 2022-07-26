@@ -16,11 +16,11 @@ import (
 	"github.com/linuxboot/contest/pkg/xcontext"
 )
 
-type ResultNotifier interface {
-	ResultCh() <-chan error
+type ChanNotifier interface {
+	NotifyCh() <-chan error
 }
 
-type AddTargetToStep func(ctx xcontext.Context, tgt *target.Target) (ResultNotifier, error)
+type AddTargetToStep func(ctx xcontext.Context, tgt *target.Target) (ChanNotifier, error)
 
 type StepResult struct {
 	Err         error
@@ -54,11 +54,11 @@ func newResultNotifier() *resultNotifier {
 	}
 }
 
-func (str *resultNotifier) ResultCh() <-chan error {
+func (str *resultNotifier) NotifyCh() <-chan error {
 	return str.resultCh
 }
 
-func (str *resultNotifier) addResult(err error) {
+func (str *resultNotifier) postResult(err error) {
 	str.resultCh <- err
 	close(str.resultCh)
 }
@@ -93,7 +93,7 @@ func (sr *StepRunner) Run(
 	ev testevent.Emitter,
 	resumeState json.RawMessage,
 	resumeStateTargets []target.Target,
-) (AddTargetToStep, []ResultNotifier, ResultNotifier, error) {
+) (AddTargetToStep, []ChanNotifier, ChanNotifier, error) {
 	sr.mu.Lock()
 	defer sr.mu.Unlock()
 
@@ -101,7 +101,7 @@ func (sr *StepRunner) Run(
 		return nil, nil, nil, &cerrors.ErrAlreadyDone{}
 	}
 
-	var resumedTargetsResults []ResultNotifier
+	var resumedTargetsResults []ChanNotifier
 	for _, resumeTarget := range resumeStateTargets {
 		targetInfo := &stepTargetInfo{
 			targetInEmitted: true,
@@ -121,7 +121,7 @@ func (sr *StepRunner) Run(
 		close(sr.finishedCh)
 		// if an error occurred we already sent notification
 		if sr.resultErr == nil {
-			sr.notifyStopped.addResult(nil)
+			sr.notifyStopped.postResult(nil)
 		}
 		sr.mu.Unlock()
 
@@ -143,7 +143,7 @@ func (sr *StepRunner) Run(
 	}()
 
 	sr.started = true
-	return func(ctx xcontext.Context, tgt *target.Target) (ResultNotifier, error) {
+	return func(ctx xcontext.Context, tgt *target.Target) (ChanNotifier, error) {
 		return sr.addTarget(ctx, bundle, ev, tgt)
 	}, resumedTargetsResults, sr.notifyStopped, nil
 }
@@ -153,7 +153,7 @@ func (sr *StepRunner) addTarget(
 	bundle test.TestStepBundle,
 	ev testevent.Emitter,
 	tgt *target.Target,
-) (ResultNotifier, error) {
+) (ChanNotifier, error) {
 	if tgt == nil {
 		return nil, fmt.Errorf("target should not be nil")
 	}
@@ -368,7 +368,7 @@ func (sr *StepRunner) outputLoop(
 				sr.setErr(ctx, err)
 				return
 			}
-			targetResult.addResult(res.Err)
+			targetResult.postResult(res.Err)
 		case <-ctx.Done():
 			ctx.Debugf("IO loop detected context canceled")
 			return
@@ -434,7 +434,7 @@ func (sr *StepRunner) setErrLocked(ctx xcontext.Context, err error) {
 	ctx.Errorf("err: %v", err)
 	sr.resultErr = err
 
-	sr.notifyStopped.addResult(err)
+	sr.notifyStopped.postResult(err)
 }
 
 func (sr *StepRunner) getErr() error {

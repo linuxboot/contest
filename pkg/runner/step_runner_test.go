@@ -27,19 +27,19 @@ type StepRunnerSuite struct {
 	BaseTestSuite
 }
 
-func checkSuccessfulResult(t *testing.T, result ResultNotifier) {
-	err, ok := <-result.ResultCh()
+func checkSuccessfulResult(t *testing.T, result ChanNotifier) {
+	err, ok := <-result.NotifyCh()
 	require.True(t, ok)
 	require.NoError(t, err)
-	_, ok = <-result.ResultCh()
+	_, ok = <-result.NotifyCh()
 	require.False(t, ok)
 }
 
-func checkErrorResult(t *testing.T, result ResultNotifier) {
-	err, ok := <-result.ResultCh()
+func checkErrorResult(t *testing.T, result ChanNotifier) {
+	err, ok := <-result.NotifyCh()
 	require.True(t, ok)
 	require.Error(t, err)
-	_, ok = <-result.ResultCh()
+	_, ok = <-result.NotifyCh()
 	require.False(t, ok)
 }
 
@@ -277,9 +277,9 @@ func (s *StepRunnerSuite) TestStepPanics() {
 	var expectedErrType *cerrors.ErrTestStepPaniced
 	require.ErrorAs(s.T(), gotError, &expectedErrType)
 
-	runErr := <-runResult.ResultCh()
+	runErr := <-runResult.NotifyCh()
 	require.ErrorAs(s.T(), runErr, &expectedErrType)
-	_, ok := <-runResult.ResultCh()
+	_, ok := <-runResult.NotifyCh()
 	require.False(s.T(), ok)
 }
 

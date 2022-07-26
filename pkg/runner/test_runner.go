@@ -63,10 +63,10 @@ type stepState struct {
 	addTarget  AddTargetToStep
 	stopped    chan struct{}
 
-	resumeState          json.RawMessage           // Resume state passed to and returned by the Run method.
-	resumeStateTargets   []target.Target           // Targets that were being processed during pause.
-	resumeTargetsResults map[string]ResultNotifier // resumeStateTargets targets results
-	runErr               error                     // Runner error, returned from Run() or an error condition detected by the reader.
+	resumeState            json.RawMessage         // Resume state passed to and returned by the Run method.
+	resumeStateTargets     []target.Target         // Targets that were being processed during pause.
+	resumeTargetsNotifiers map[string]ChanNotifier // resumeStateTargets targets results
+	runErr                 error                   // Runner error, returned from Run() or an error condition detected by the reader.
 }
 
 // targetStepPhase denotes progression of a target through a step
@@ -336,7 +336,7 @@ func (tr *TestRunner) waitStepRunners(ctx xcontext.Context) error {
 	return resultErr
 }
 
-func (tr *TestRunner) injectTarget(ctx xcontext.Context, tgs *targetState, ss *stepState) (ResultNotifier, error) {
+func (tr *TestRunner) injectTarget(ctx xcontext.Context, tgs *targetState, ss *stepState) (ChanNotifier, error) {
 	ctx.Debugf("%s: injecting into %s", tgs, ss)
 
 	tgt := tgs.tgt
@@ -397,19 +397,19 @@ loop:
 		// Make sure we have a step runner active. If not, start one.
 		err := tr.runStepIfNeeded(ss)
 		// Inject the target.
-		var targetResult ResultNotifier
+		var targetNotifier ChanNotifier
 		if err == nil {
 			if inject {
-				targetResult, err = tr.injectTarget(ctx, tgs, ss)
+				targetNotifier, err = tr.injectTarget(ctx, tgs, ss)
 			} else {
-				targetResult = ss.resumeTargetsResults[tgs.tgt.ID]
+				targetNotifier = ss.resumeTargetsNotifiers[tgs.tgt.ID]
 			}
 		}
 		// Await result. It will be communicated to us by the step runner
 		// and returned in tgs.res.
 		if err == nil {
 			select {
-			case res := <-targetResult.ResultCh():
+			case res := <-targetNotifier.NotifyCh():
 				ctx.Debugf("Got target result: '%v'", err)
 				tr.mu.Lock()
 				if res != nil {
@@ -473,14 +473,14 @@ func (tr *TestRunner) runStepIfNeeded(ss *stepState) error {
 	resumeState := ss.resumeState
 	ss.resumeState = nil
 
-	addTarget, resumeTargetsResults, stepRunResult, err := ss.stepRunner.Run(ss.ctx, ss.sb, ss.ev, resumeState, ss.resumeStateTargets)
+	addTarget, resumeTargetsNotifiers, stepRunResult, err := ss.stepRunner.Run(ss.ctx, ss.sb, ss.ev, resumeState, ss.resumeStateTargets)
 	if err != nil {
 		return fmt.Errorf("failed to stert a step runner for '%s': %v", ss.sb.TestStepLabel, err)
 	}
 	ss.addTarget = addTarget
-	ss.resumeTargetsResults = make(map[string]ResultNotifier)
+	ss.resumeTargetsNotifiers = make(map[string]ChanNotifier)
 	for i := 0; i < len(ss.resumeStateTargets); i++ {
-		ss.resumeTargetsResults[ss.resumeStateTargets[i].ID] = resumeTargetsResults[i]
+		ss.resumeTargetsNotifiers[ss.resumeStateTargets[i].ID] = resumeTargetsNotifiers[i]
 	}
 
 	go func() {
@@ -490,7 +490,7 @@ func (tr *TestRunner) runStepIfNeeded(ss *stepState) error {
 		}()
 
 		select {
-		case stepErr := <-stepRunResult.ResultCh():
+		case stepErr := <-stepRunResult.NotifyCh():
 			tr.mu.Lock()
 			ss.setErrLocked(stepErr)
 			tr.mu.Unlock()
