@@ -15,6 +15,7 @@ import (
 	"math/rand"
 	"net/http"
 	"net/url"
+	"strconv"
 	"testing"
 	"time"
 
@@ -100,23 +101,26 @@ func queryLogsEndpoint(query server.Query, retrieveAll bool) (*storage.Result, i
 		var tmp storage.Result
 
 		q := u.Query()
+		if query.JobID != nil {
+			q.Set("job_id", strconv.FormatUint(*query.JobID, 10))
+		}
 		if query.Text != nil {
 			q.Set("text", *query.Text)
 		}
 		if query.StartDate != nil {
-			q.Set("startDate", query.StartDate.Format(storage.DefaultTimestampFormat))
+			q.Set("start_date", query.StartDate.Format(storage.DefaultTimestampFormat))
 		}
 		if query.EndDate != nil {
-			q.Set("endDate", query.EndDate.Format(storage.DefaultTimestampFormat))
+			q.Set("end_date", query.EndDate.Format(storage.DefaultTimestampFormat))
 		}
 		if query.LogLevel != nil {
-			q.Set("logLevel", *query.LogLevel)
+			q.Set("log_level", *query.LogLevel)
 		}
 		if query.Page != nil {
-			q.Set("page", fmt.Sprint(currentPage))
+			q.Set("page", strconv.FormatUint(uint64(currentPage), 10))
 		}
 		if query.PageSize != nil {
-			q.Set("pageSize", fmt.Sprint(*query.PageSize))
+			q.Set("page_size", strconv.FormatUint(uint64(*query.PageSize), 10))
 		}
 
 		u.RawQuery = q.Encode()
@@ -196,6 +200,7 @@ func TestLogQuery(t *testing.T) {
 		endDate                = time.Now().Add(1 * time.Second)
 		searchText      string = "a"
 		emptySearchText string = ""
+		jobID           uint64 = 3
 		page            uint   = 0
 		pageSize        uint   = 20
 		logLevel        string = "info"
@@ -207,6 +212,17 @@ func TestLogQuery(t *testing.T) {
 		apiQuery server.Query
 		dbQuery  bson.M
 	}{
+		{
+			name: "jobID-search",
+			apiQuery: server.Query{
+				JobID:    &jobID,
+				Page:     &page,
+				PageSize: &pageSize,
+			},
+			dbQuery: bson.M{
+				"jobid": jobID,
+			},
+		},
 		{
 			name: "text-search",
 			apiQuery: server.Query{
