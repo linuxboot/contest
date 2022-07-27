@@ -27,12 +27,19 @@ type StepRunnerSuite struct {
 	BaseTestSuite
 }
 
-func checkStoppedSuccessfully(t *testing.T, resultChan <-chan StepRunnerEvent) {
-	ev := <-resultChan
-	require.NotNil(t, ev)
-	require.Nil(t, ev.Target)
-	require.NoError(t, ev.Err)
-	_, ok := <-resultChan
+func checkSuccessfulResult(t *testing.T, result ChanNotifier) {
+	err, ok := <-result.NotifyCh()
+	require.True(t, ok)
+	require.NoError(t, err)
+	_, ok = <-result.NotifyCh()
+	require.False(t, ok)
+}
+
+func checkErrorResult(t *testing.T, result ChanNotifier) {
+	err, ok := <-result.NotifyCh()
+	require.True(t, ok)
+	require.Error(t, err)
+	_, ok = <-result.NotifyCh()
 	require.False(t, ok)
 }
 
@@ -76,29 +83,29 @@ func (s *StepRunnerSuite) TestRunningStep() {
 	emitter := emitterFactory.New("test_step_label")
 
 	inputResumeState := json.RawMessage("{\"some_input\": 42}")
-	resultChan, addTarget, err := stepRunner.Run(ctx,
+	addTarget, resumedTargetsResults, runResult, err := stepRunner.Run(ctx,
 		s.NewStep(ctx, "test_step_label", stateFullStepName, nil),
 		emitter,
 		inputResumeState,
 		nil,
 	)
 	require.NoError(s.T(), err)
-	require.NotNil(s.T(), resultChan)
+	require.NotNil(s.T(), addTarget)
+	require.Empty(s.T(), resumedTargetsResults)
+	require.NotNil(s.T(), runResult)
 
-	require.NoError(s.T(), addTarget(ctx, tgt("TSucc")))
-	ev, ok := <-resultChan
-	require.True(s.T(), ok)
-	require.Equal(s.T(), tgt("TSucc"), ev.Target)
-	require.NoError(s.T(), ev.Err)
+	tgtResult, err := addTarget(ctx, tgt("TSucc"))
+	require.NoError(s.T(), err)
+	require.NotNil(s.T(), tgtResult)
+	checkSuccessfulResult(s.T(), tgtResult)
 
-	require.NoError(s.T(), addTarget(ctx, tgt("TFail")))
-	ev, ok = <-resultChan
-	require.True(s.T(), ok)
-	require.Equal(s.T(), tgt("TFail"), ev.Target)
-	require.Error(s.T(), ev.Err)
+	tgtResult, err = addTarget(ctx, tgt("TFail"))
+	require.NoError(s.T(), err)
+	require.NotNil(s.T(), tgtResult)
+	checkErrorResult(s.T(), tgtResult)
 
 	stepRunner.Stop()
-	checkStoppedSuccessfully(s.T(), resultChan)
+	checkSuccessfulResult(s.T(), runResult)
 
 	closedCtx, closedCtxCancel := xcontext.WithCancel(ctx)
 	closedCtxCancel()
@@ -140,25 +147,22 @@ func (s *StepRunnerSuite) TestAddSameTargetSequentiallyTimes() {
 	require.NotNil(s.T(), stepRunner)
 	defer stepRunner.Stop()
 
-	resultChan, addTarget, err := stepRunner.Run(ctx,
+	addTarget, _, runResult, err := stepRunner.Run(ctx,
 		s.NewStep(ctx, "test_step_label", stateFullStepName, nil),
 		emitter,
 		nil,
 		nil,
 	)
 	require.NoError(s.T(), err)
-	require.NotNil(s.T(), resultChan)
+	require.NotNil(s.T(), runResult)
 
 	for i := 0; i < 10; i++ {
-		require.NoError(s.T(), addTarget(ctx, tgt(inputTargetID)))
-		ev := <-resultChan
-		require.NotNil(s.T(), ev)
-		require.NotNil(s.T(), ev.Target)
-		require.Equal(s.T(), inputTargetID, ev.Target.ID)
-		require.NoError(s.T(), ev.Err)
+		tgtResult, err := addTarget(ctx, tgt(inputTargetID))
+		require.NoError(s.T(), err)
+		checkSuccessfulResult(s.T(), tgtResult)
 	}
 	stepRunner.Stop()
-	checkStoppedSuccessfully(s.T(), resultChan)
+	checkSuccessfulResult(s.T(), runResult)
 }
 
 func (s *StepRunnerSuite) TestAddTargetReturnsErrorIfFailsToInput() {
@@ -194,19 +198,24 @@ func (s *StepRunnerSuite) TestAddTargetReturnsErrorIfFailsToInput() {
 	require.NotNil(s.T(), stepRunner)
 	defer stepRunner.Stop()
 
-	resultChan, addTarget, err := stepRunner.Run(ctx,
+	addTarget, resumedTargetsResults, runResult, err := stepRunner.Run(ctx,
 		s.NewStep(ctx, "test_step_label", stateFullStepName, nil),
 		emitter,
 		nil,
 		nil,
 	)
 	require.NoError(s.T(), err)
-	require.NotNil(s.T(), resultChan)
+	require.NotNil(s.T(), addTarget)
+	require.Empty(s.T(), resumedTargetsResults)
+	require.NotNil(s.T(), runResult)
 
 	s.Run("input_context_cancelled", func() {
 		cancelCtx, cncl := xcontext.WithCancel(ctx)
 		cncl()
-		require.Error(s.T(), addTarget(cancelCtx, tgt(inputTargetID)))
+
+		tgtResult, err := addTarget(cancelCtx, tgt(inputTargetID))
+		require.Error(s.T(), err)
+		require.Nil(s.T(), tgtResult)
 	})
 
 	s.Run("sopped_during_input", func() {
@@ -214,12 +223,14 @@ func (s *StepRunnerSuite) TestAddTargetReturnsErrorIfFailsToInput() {
 			<-time.After(time.Millisecond)
 			stepRunner.Stop()
 		}()
-		require.Error(s.T(), addTarget(ctx, tgt(inputTargetID)))
+		tgtResult, err := addTarget(ctx, tgt(inputTargetID))
+		require.Error(s.T(), err)
+		require.Nil(s.T(), tgtResult)
 	})
 
 	close(hangCh)
 	stepRunner.Stop()
-	checkStoppedSuccessfully(s.T(), resultChan)
+	checkSuccessfulResult(s.T(), runResult)
 }
 
 func (s *StepRunnerSuite) TestStepPanics() {
@@ -238,7 +249,7 @@ func (s *StepRunnerSuite) TestStepPanics() {
 	require.NotNil(s.T(), stepRunner)
 	defer stepRunner.Stop()
 
-	resultChan, addTarget, err := stepRunner.Run(ctx,
+	addTarget, resumedTargetsResults, runResult, err := stepRunner.Run(ctx,
 		s.NewStep(ctx, "test_step_label", stateFullStepName, nil),
 		NewTestStepEventsEmitterFactory(
 			s.MemoryStorage.StorageEngineVault,
@@ -251,25 +262,24 @@ func (s *StepRunnerSuite) TestStepPanics() {
 		nil,
 	)
 	require.NoError(s.T(), err)
-	require.NotNil(s.T(), resultChan)
+	require.NotNil(s.T(), addTarget)
+	require.Empty(s.T(), resumedTargetsResults)
+	require.NotNil(s.T(), runResult)
 
 	// some of AddTarget may succeed as it takes some time for a step to panic
 	var gotError error
 	for i := 0; i < 10; i++ {
 		time.Sleep(time.Millisecond)
-		if err := addTarget(ctx, tgt("target-id")); err != nil {
+		if _, err := addTarget(ctx, tgt("target-id")); err != nil {
 			gotError = err
 		}
 	}
 	var expectedErrType *cerrors.ErrTestStepPaniced
 	require.ErrorAs(s.T(), gotError, &expectedErrType)
 
-	ev := <-resultChan
-	require.NotNil(s.T(), ev)
-	require.Nil(s.T(), ev.Target)
-
-	require.ErrorAs(s.T(), ev.Err, &expectedErrType)
-	_, ok := <-resultChan
+	runErr := <-runResult.NotifyCh()
+	require.ErrorAs(s.T(), runErr, &expectedErrType)
+	_, ok := <-runResult.NotifyCh()
 	require.False(s.T(), ok)
 }
 
@@ -296,18 +306,22 @@ func (s *StepRunnerSuite) TestCornerCases() {
 		require.NotNil(s.T(), stepRunner)
 		defer stepRunner.Stop()
 
-		resultChan, addTarget, err := stepRunner.Run(ctx,
+		addTarget, _, runResult, err := stepRunner.Run(ctx,
 			s.NewStep(ctx, "test_step_label", stateFullStepName, nil),
 			emitter,
 			nil,
 			nil,
 		)
 		require.NoError(s.T(), err)
-		require.NotNil(s.T(), resultChan)
+		require.NotNil(s.T(), addTarget)
+		require.NotNil(s.T(), runResult)
 
 		stepRunner.Stop()
-		require.Error(s.T(), addTarget(ctx, tgt("dummy_target")))
-		checkStoppedSuccessfully(s.T(), resultChan)
+
+		tgtResult, err := addTarget(ctx, tgt("dummy_target"))
+		require.Error(s.T(), err)
+		require.Nil(s.T(), tgtResult)
+		checkSuccessfulResult(s.T(), runResult)
 	})
 
 	s.Run("run_twice", func() {
@@ -315,23 +329,25 @@ func (s *StepRunnerSuite) TestCornerCases() {
 		require.NotNil(s.T(), stepRunner)
 		defer stepRunner.Stop()
 
-		resultChan, _, err := stepRunner.Run(ctx,
+		addTarget, _, runResult, err := stepRunner.Run(ctx,
 			s.NewStep(ctx, "test_step_label", stateFullStepName, nil),
 			emitter,
 			nil,
 			nil,
 		)
 		require.NoError(s.T(), err)
-		require.NotNil(s.T(), resultChan)
+		require.NotNil(s.T(), addTarget)
+		require.NotNil(s.T(), runResult)
 
-		resultChan2, _, err2 := stepRunner.Run(ctx,
+		addTarget2, _, runResult2, err2 := stepRunner.Run(ctx,
 			s.NewStep(ctx, "test_step_label", stateFullStepName, nil),
 			emitter,
 			nil,
 			nil,
 		)
 		require.Error(s.T(), err2)
-		require.Nil(s.T(), resultChan2)
+		require.Nil(s.T(), addTarget2)
+		require.Nil(s.T(), runResult2)
 	})
 
 	s.Run("stop_twice", func() {
@@ -339,18 +355,19 @@ func (s *StepRunnerSuite) TestCornerCases() {
 		require.NotNil(s.T(), stepRunner)
 		defer stepRunner.Stop()
 
-		resultChan, _, err := stepRunner.Run(ctx,
+		addTarget, _, runResult, err := stepRunner.Run(ctx,
 			s.NewStep(ctx, "test_step_label", stateFullStepName, nil),
 			emitter,
 			nil,
 			nil,
 		)
 		require.NoError(s.T(), err)
-		require.NotNil(s.T(), resultChan)
+		require.NotNil(s.T(), addTarget)
+		require.NotNil(s.T(), runResult)
 
 		stepRunner.Stop()
 		stepRunner.Stop()
-		checkStoppedSuccessfully(s.T(), resultChan)
+		checkSuccessfulResult(s.T(), runResult)
 	})
 
 	s.Run("stop_before_run", func() {
@@ -359,14 +376,15 @@ func (s *StepRunnerSuite) TestCornerCases() {
 		defer stepRunner.Stop()
 
 		stepRunner.Stop()
-		resultChan, _, err := stepRunner.Run(ctx,
+		addTarget, _, runResult, err := stepRunner.Run(ctx,
 			s.NewStep(ctx, "test_step_label", stateFullStepName, nil),
 			emitter,
 			nil,
 			nil,
 		)
 		require.NoError(s.T(), err)
-		require.NotNil(s.T(), resultChan)
-		checkStoppedSuccessfully(s.T(), resultChan)
+		require.NotNil(s.T(), addTarget)
+		require.NotNil(s.T(), runResult)
+		checkSuccessfulResult(s.T(), runResult)
 	})
 }
