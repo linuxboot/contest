@@ -18,6 +18,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/linuxboot/contest/cmds/admin_server/server"
 	"github.com/linuxboot/contest/cmds/admin_server/storage"
 	mongoStorage "github.com/linuxboot/contest/cmds/admin_server/storage/mongo"
 	"github.com/stretchr/testify/require"
@@ -46,7 +47,7 @@ func setupCleanDB(uri string) (*mongo.Client, error) {
 	return client, err
 }
 
-func submitLog(addr string, log storage.Log) error {
+func submitLog(addr string, log server.Log) error {
 	logJson, err := json.Marshal(log)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Marshal Err: %v", err)
@@ -83,7 +84,7 @@ func TestLogPush(t *testing.T) {
 		loglevel = "info"
 		logDate  = time.Now()
 	)
-	log := storage.Log{
+	log := server.Log{
 		LogData:  logData,
 		LogLevel: loglevel,
 		Date:     logDate,
