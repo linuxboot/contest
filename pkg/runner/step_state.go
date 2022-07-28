@@ -1,0 +1,175 @@
+package runner
+
+import (
+	"encoding/json"
+	"fmt"
+	"strconv"
+	"sync"
+
+	"github.com/linuxboot/contest/pkg/event/testevent"
+	"github.com/linuxboot/contest/pkg/target"
+	"github.com/linuxboot/contest/pkg/test"
+	"github.com/linuxboot/contest/pkg/xcontext"
+)
+
+// stepState contains state associated with one state of the pipeline in TestRunner.
+type stepState struct {
+	mu     sync.Mutex
+	cancel xcontext.CancelFunc
+
+	stepIndex int                 // Index of this step in the pipeline.
+	sb        test.TestStepBundle // The test bundle.
+
+	ev         testevent.Emitter
+	stepRunner *StepRunner
+	addTarget  AddTargetToStep
+	stopped    chan struct{}
+
+	resumeState            json.RawMessage         // Resume state passed to and returned by the Run method.
+	resumeStateTargets     []target.Target         // Targets that were being processed during pause.
+	resumeTargetsNotifiers map[string]ChanNotifier // resumeStateTargets targets results
+	runErr                 error                   // Runner error, returned from Run() or an error condition detected by the reader.
+	onError                func(err error)
+}
+
+func newStepState(
+	stepIndex int,
+	sb test.TestStepBundle,
+	emitterFactory TestStepEventsEmitterFactory,
+	resumeState json.RawMessage,
+	resumeStateTargets []target.Target,
+	onError func(err error),
+) *stepState {
+	return &stepState{
+		stepIndex:          stepIndex,
+		sb:                 sb,
+		ev:                 emitterFactory.New(sb.TestStepLabel),
+		stepRunner:         NewStepRunner(),
+		stopped:            make(chan struct{}),
+		resumeState:        resumeState,
+		resumeStateTargets: resumeStateTargets,
+		onError:            onError,
+	}
+}
+
+func (ss *stepState) Started() bool {
+	return ss.stepRunner.Started()
+}
+
+func (ss *stepState) Stop() {
+	ss.stepRunner.Stop()
+}
+
+func (ss *stepState) ForceStop() {
+	ss.mu.Lock()
+	defer ss.mu.Unlock()
+
+	if ss.cancel != nil {
+		ss.cancel()
+	} else {
+		close(ss.stopped)
+	}
+}
+
+func (ss *stepState) GetInitResumeState() json.RawMessage {
+	return ss.resumeState
+}
+
+func (ss *stepState) GetTestStepLabel() string {
+	return ss.sb.TestStepLabel
+}
+
+func (ss *stepState) Run(ctx xcontext.Context) error {
+	ss.mu.Lock()
+	defer ss.mu.Unlock()
+
+	select {
+	case <-ss.stopped:
+		return fmt.Errorf("stopped")
+	default:
+	}
+
+	if ss.stepRunner.Started() {
+		return nil
+	}
+
+	stepCtx, cancel := xcontext.WithCancel(ctx)
+	stepCtx = stepCtx.WithField("step_index", strconv.Itoa(ss.stepIndex))
+	stepCtx = stepCtx.WithField("step_label", ss.sb.TestStepLabel)
+
+	addTarget, resumeTargetsNotifiers, stepRunResult, err := ss.stepRunner.Run(stepCtx, ss.sb, ss.ev, ss.resumeState, ss.resumeStateTargets)
+	if err != nil {
+		return fmt.Errorf("failed to launch step runner: %v", err)
+	}
+	ss.cancel = cancel
+	ss.addTarget = addTarget
+	ss.resumeTargetsNotifiers = make(map[string]ChanNotifier)
+	for i := 0; i < len(ss.resumeStateTargets); i++ {
+		ss.resumeTargetsNotifiers[ss.resumeStateTargets[i].ID] = resumeTargetsNotifiers[i]
+	}
+
+	go func() {
+		defer func() {
+			close(ss.stopped)
+			stepCtx.Debugf("StepRunner fully stopped")
+		}()
+
+		select {
+		case stepErr := <-stepRunResult.NotifyCh():
+			ss.SetError(stepCtx, stepErr)
+		case <-stepCtx.Done():
+			stepCtx.Debugf("Cancelled step context during waiting for step run result")
+		}
+	}()
+	return nil
+}
+
+func (ss *stepState) InjectTarget(ctx xcontext.Context, tgt *target.Target) (ChanNotifier, error) {
+	ss.mu.Lock()
+	defer ss.mu.Unlock()
+
+	if !ss.stepRunner.Started() {
+		return nil, fmt.Errorf("step was not started")
+	}
+	if notifier := ss.resumeTargetsNotifiers[tgt.ID]; notifier != nil {
+		return notifier, nil
+	}
+	return ss.addTarget(ctx, tgt)
+}
+
+func (ss *stepState) NotifyStopped() <-chan struct{} {
+	return ss.stopped
+}
+
+func (ss *stepState) GetError() error {
+	ss.mu.Lock()
+	defer ss.mu.Unlock()
+
+	return ss.runErr
+}
+
+func (ss *stepState) String() string {
+	return fmt.Sprintf("[#%d %s]", ss.stepIndex, ss.sb.TestStepLabel)
+}
+
+func (ss *stepState) SetError(ctx xcontext.Context, err error) {
+	ss.mu.Lock()
+	defer ss.mu.Unlock()
+
+	if err == nil || ss.runErr != nil {
+		return
+	}
+	ctx.Errorf("Step '%s' failed with error: %v", ss.sb.TestStepLabel, err)
+	ss.runErr = err
+
+	if ss.runErr != xcontext.ErrPaused && ss.runErr != xcontext.ErrCanceled {
+		if err := emitEvent(ctx, ss.ev, EventTestError, nil, err.Error()); err != nil {
+			ctx.Errorf("failed to emit event: %s", err)
+		}
+	}
+
+	// notify last as callback may use GetError or cancel context
+	go func() {
+		ss.onError(err)
+	}()
+}
