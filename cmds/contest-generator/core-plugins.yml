@@ -15,6 +15,7 @@ teststeps:
   - path: github.com/linuxboot/contest/plugins/teststeps/exec
   - path: github.com/linuxboot/contest/plugins/teststeps/echo
   - path: github.com/linuxboot/contest/plugins/teststeps/randecho
+  - path: github.com/linuxboot/contest/plugins/teststeps/gathercmd
 
 reporters:
   - path: github.com/linuxboot/contest/plugins/reporters/targetsuccess
