@@ -1,0 +1,39 @@
+name: Web UI Build
+on:
+  push:
+    paths:
+      - 'cmds/admin_server/ui/**'
+  pull_request:
+    paths:
+      - 'cmds/admin_server/ui/**'
+jobs:
+  build:
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-go@v2
+        with:
+          stable: "false"
+          go-version: "1.16.2"
+      - uses: actions/setup-node@v2
+        with:
+          node-version: "16.15.1"
+      - name: Build npm ui
+        run: |
+          cd ./cmds/admin_server/ui
+          npm install
+          npm run build
+      - name: Embed web/ui into go file
+        run: |
+          set -exu
+          cd ./cmds/admin_server/ui/dist
+          go get -u github.com/mjibson/esc
+          go install github.com/mjibson/esc
+          export PATH=$PATH:$(go env GOPATH)/bin
+          # setting modtime to a dummy fixed value to avoid unnecessary commits
+          esc -o ../../server/static.go -pkg=server -modtime=0 -prefix=/ ./
+      - uses: EndBug/add-and-commit@v9
+        with:
+          message: 'embed web/ui into go file'
+          default_author: github_actions
+          add: '-f ./cmds/admin_server/server/static.go'
