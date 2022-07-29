@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/linuxboot/contest/cmds/admin_server/storage"
+	"github.com/linuxboot/contest/cmds/admin_server/server"
 	"github.com/linuxboot/contest/pkg/types"
 	"github.com/sirupsen/logrus"
 )
@@ -23,7 +23,7 @@ var (
 
 type HttpHook struct {
 	Addr      string
-	logChan   chan storage.Log
+	logChan   chan server.Log
 	closeChan chan struct{}
 }
 
@@ -37,7 +37,7 @@ func NewHttpHook(addr string) (*HttpHook, error) {
 
 	hh := HttpHook{
 		Addr:      url.String(),
-		logChan:   make(chan storage.Log, DefaultBufferSize),
+		logChan:   make(chan server.Log, DefaultBufferSize),
 		closeChan: make(chan struct{}),
 	}
 
@@ -66,7 +66,7 @@ func (hh *HttpHook) Fire(entry *logrus.Entry) error {
 		jobIdInt = 0
 	}
 
-	log := storage.Log{
+	log := server.Log{
 		LogData:  msg,
 		JobID:    uint64(jobIdInt),
 		LogLevel: entry.Level.String(),
