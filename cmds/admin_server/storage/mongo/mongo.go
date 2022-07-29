@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/linuxboot/contest/cmds/admin_server/storage"
 	"github.com/linuxboot/contest/pkg/xcontext"
@@ -63,7 +64,7 @@ func toMongoQuery(query storage.Query) bson.D {
 
 	if query.Text != nil {
 		q = append(q, bson.E{
-			Key: "logdata",
+			Key: "log_data",
 			Value: bson.M{
 				"$regex": primitive.Regex{Pattern: *query.Text, Options: "ig"},
 			},
@@ -94,7 +95,7 @@ func toMongoQuery(query storage.Query) bson.D {
 		levels := strings.Split(*query.LogLevel, ",")
 		q = append(q,
 			bson.E{
-				Key: "loglevel",
+				Key: "log_level",
 				Value: bson.M{
 					"$in": levels,
 				},
@@ -106,7 +107,8 @@ func toMongoQuery(query storage.Query) bson.D {
 }
 
 func (s *MongoStorage) StoreLog(ctx xcontext.Context, log storage.Log) error {
-	_, err := s.collection.InsertOne(ctx, log)
+	mongoLog := toMongoLog(&log)
+	_, err := s.collection.InsertOne(ctx, mongoLog)
 	if err != nil {
 		// for better debugging
 		ctx.Errorf("Error while inserting into the db: %v", err)
@@ -134,15 +136,20 @@ func (s *MongoStorage) GetLogs(ctx xcontext.Context, query storage.Query) (*stor
 		return nil, storage.ErrQuery
 	}
 
-	var logs []storage.Log
+	var logs []Log
 	err = cur.All(ctx, &logs)
 	if err != nil {
 		ctx.Errorf("Error while reading query result from db: %v", err)
 		return nil, storage.ErrQuery
 	}
+	// convert to storage logs
+	storageLogs := make([]storage.Log, 0, len(logs))
+	for _, log := range logs {
+		storageLogs = append(storageLogs, log.toStorageLog())
+	}
 
 	return &storage.Result{
-		Logs:     logs,
+		Logs:     storageLogs,
 		Count:    uint64(count),
 		Page:     query.Page,
 		PageSize: query.PageSize,
@@ -151,4 +158,29 @@ func (s *MongoStorage) GetLogs(ctx xcontext.Context, query storage.Query) (*stor
 
 func (s *MongoStorage) Close(ctx xcontext.Context) error {
 	return s.dbClient.Disconnect(ctx)
+}
+
+type Log struct {
+	JobID    uint64    `bson:"job_id"`
+	LogData  string    `bson:"log_data"`
+	Date     time.Time `bson:"date"`
+	LogLevel string    `bson:"log_level"`
+}
+
+func (l *Log) toStorageLog() storage.Log {
+	return storage.Log{
+		JobID:    l.JobID,
+		LogData:  l.LogData,
+		Date:     l.Date,
+		LogLevel: l.LogLevel,
+	}
+}
+
+func toMongoLog(l *storage.Log) Log {
+	return Log{
+		JobID:    l.JobID,
+		LogData:  l.LogData,
+		Date:     l.Date,
+		LogLevel: l.LogLevel,
+	}
 }
