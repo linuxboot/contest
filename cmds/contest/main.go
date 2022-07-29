@@ -32,6 +32,7 @@ import (
 	cpucmd "github.com/linuxboot/contest/plugins/teststeps/cpucmd"
 	echo "github.com/linuxboot/contest/plugins/teststeps/echo"
 	exec "github.com/linuxboot/contest/plugins/teststeps/exec"
+	gathercmd "github.com/linuxboot/contest/plugins/teststeps/gathercmd"
 	randecho "github.com/linuxboot/contest/plugins/teststeps/randecho"
 	sleep "github.com/linuxboot/contest/plugins/teststeps/sleep"
 	sshcmd "github.com/linuxboot/contest/plugins/teststeps/sshcmd"
@@ -51,6 +52,7 @@ func getPluginConfig() *server.PluginConfig {
 	pc.TestStepLoaders = append(pc.TestStepLoaders, cpucmd.Load)
 	pc.TestStepLoaders = append(pc.TestStepLoaders, echo.Load)
 	pc.TestStepLoaders = append(pc.TestStepLoaders, exec.Load)
+	pc.TestStepLoaders = append(pc.TestStepLoaders, gathercmd.Load)
 	pc.TestStepLoaders = append(pc.TestStepLoaders, randecho.Load)
 	pc.TestStepLoaders = append(pc.TestStepLoaders, sleep.Load)
 	pc.TestStepLoaders = append(pc.TestStepLoaders, sshcmd.Load)
