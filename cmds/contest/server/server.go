@@ -58,7 +58,7 @@ func initFlags(cmd string) {
 	flagSet = flag.NewFlagSet(cmd, flag.ContinueOnError)
 	flagDBURI = flagSet.String("dbURI", config.DefaultDBURI, "Database URI")
 	flagListenAddr = flagSet.String("listenAddr", ":8080", "Listen address and port")
-	flagAdminServerAddr = flagSet.String("adminServerAddr", "http://localhost:8000", "Addr of the admin server to connect to")
+	flagAdminServerAddr = flagSet.String("adminServerAddr", "", "Addr of the admin server to connect to")
 	flagServerID = flagSet.String("serverID", "", "Set a static server ID, e.g. the host name or another unique identifier. If unset, will use the listener's default")
 	flagProcessTimeout = flagSet.Duration("processTimeout", api.DefaultEventTimeout, "API request processing timeout")
 	flagTargetLocker = flagSet.String("targetLocker", "auto", "Target locker implementation to use, \"auto\" follows DBURI setting")
@@ -153,7 +153,7 @@ func Main(pluginConfig *PluginConfig, cmd string, args []string, sigs <-chan os.
 
 	logrusOpts := logging.DefaultOptions()
 
-	if flagAdminServerAddr != nil {
+	if *flagAdminServerAddr != "" {
 		logrusOpts = append(logrusOpts, bundles.OptionHttpLoggerAddr(*flagAdminServerAddr))
 	}
 
