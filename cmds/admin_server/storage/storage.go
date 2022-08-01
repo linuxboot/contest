@@ -27,10 +27,10 @@ type Storage interface {
 
 // Log defines the basic log info pushed by the server
 type Log struct {
-	JobID    uint64    `json:"jobID"`
-	LogData  string    `json:"logData"`
-	Date     time.Time `json:"date"`
-	LogLevel string    `json:"logLevel"`
+	JobID    uint64
+	LogData  string
+	Date     time.Time
+	LogLevel string
 }
 
 // Query defines the different options to filter with
@@ -46,8 +46,8 @@ type Query struct {
 
 //Result defines the expected result returned from the db
 type Result struct {
-	Logs     []Log  `json:"logs"`
-	Count    uint64 `json:"count"`
-	Page     uint   `json:"page"`
-	PageSize uint   `json:"pageSize"`
+	Logs     []Log
+	Count    uint64
+	Page     uint
+	PageSize uint
 }

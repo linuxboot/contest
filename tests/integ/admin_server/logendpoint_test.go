@@ -19,7 +19,6 @@ import (
 	"time"
 
 	"github.com/linuxboot/contest/cmds/admin_server/server"
-	"github.com/linuxboot/contest/cmds/admin_server/storage"
 	mongoStorage "github.com/linuxboot/contest/cmds/admin_server/storage/mongo"
 	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/bson"
@@ -58,7 +57,7 @@ func submitLog(addr string, log server.Log) error {
 	return err
 }
 
-func getAllLogs(t *testing.T, db *mongo.Client) []storage.Log {
+func getAllLogs(t *testing.T, db *mongo.Client) []mongoStorage.Log {
 	cur, err := db.Database(mongoStorage.DefaultDB).
 		Collection(mongoStorage.DefaultCollection).
 		Find(context.Background(), bson.D{{}})
@@ -66,9 +65,9 @@ func getAllLogs(t *testing.T, db *mongo.Client) []storage.Log {
 		t.Fatal(err)
 	}
 
-	var dbLogs []storage.Log
+	var dbLogs []mongoStorage.Log
 	for cur.Next(context.Background()) {
-		var log storage.Log
+		var log mongoStorage.Log
 		err := cur.Decode(&log)
 		if err != nil {
 			t.Fatal(err)

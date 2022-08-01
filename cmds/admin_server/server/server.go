@@ -68,6 +68,34 @@ func (l *Log) ToStorageLog() storage.Log {
 	}
 }
 
+func toServerLog(l *storage.Log) Log {
+	return Log{
+		JobID:    l.JobID,
+		LogData:  l.LogData,
+		Date:     l.Date,
+		LogLevel: l.LogLevel,
+	}
+}
+
+type Result struct {
+	Logs     []Log  `json:"logs"`
+	Count    uint64 `json:"count"`
+	Page     uint   `json:"page"`
+	PageSize uint   `json:"page_size"`
+}
+
+func toServerResult(r *storage.Result) Result {
+	var result Result
+	result.Count = r.Count
+	result.Page = r.Page
+	result.PageSize = r.PageSize
+
+	for _, log := range r.Logs {
+		result.Logs = append(result.Logs, toServerLog(&log))
+	}
+	return result
+}
+
 type RouteHandler struct {
 	storage storage.Storage
 	log     logger.Logger
@@ -125,7 +153,7 @@ func (r *RouteHandler) getLogs(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, result)
+	c.JSON(http.StatusOK, toServerResult(result))
 }
 
 func initRouter(ctx xcontext.Context, rh RouteHandler) *gin.Engine {

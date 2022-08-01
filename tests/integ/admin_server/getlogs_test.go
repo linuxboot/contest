@@ -55,7 +55,7 @@ func generateRandomLogs(db *mongo.Client, count int) error {
 		level := logLevels[rand.Intn(len(logLevels))]
 		data := randomText()
 
-		logs = append(logs, storage.Log{
+		logs = append(logs, mongoStorage.Log{
 			JobID:    uint64(jobID),
 			LogLevel: level,
 			LogData:  data,
@@ -231,7 +231,7 @@ func TestLogQuery(t *testing.T) {
 				PageSize: &pageSize,
 			},
 			dbQuery: bson.M{
-				"logdata": bson.M{"$regex": primitive.Regex{Pattern: "a", Options: "ig"}},
+				"log_data": bson.M{"$regex": primitive.Regex{Pattern: "a", Options: "ig"}},
 			},
 		},
 		{
@@ -243,7 +243,7 @@ func TestLogQuery(t *testing.T) {
 				PageSize: &pageSize,
 			},
 			dbQuery: bson.M{
-				"loglevel": "info",
+				"log_level": "info",
 			},
 		},
 		{
@@ -255,7 +255,7 @@ func TestLogQuery(t *testing.T) {
 				PageSize: &pageSize,
 			},
 			dbQuery: bson.M{
-				"loglevel": bson.M{"$in": []string{"info", "debug"}},
+				"log_level": bson.M{"$in": []string{"info", "debug"}},
 			},
 		},
 		{
@@ -313,12 +313,12 @@ func TestLogQuery(t *testing.T) {
 				PageSize:  &pageSize,
 			},
 			dbQuery: bson.M{
-				"logdata": bson.M{"$regex": primitive.Regex{Pattern: "a", Options: "ig"}},
+				"log_data": bson.M{"$regex": primitive.Regex{Pattern: "a", Options: "ig"}},
 				"date": bson.M{
 					"$lte": primitive.NewDateTimeFromTime(endDate),
 					"$gte": primitive.NewDateTimeFromTime(startDate),
 				},
-				"loglevel": "info",
+				"log_level": "info",
 			},
 		},
 	}
