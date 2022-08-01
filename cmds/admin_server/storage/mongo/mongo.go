@@ -54,6 +54,13 @@ func NewMongoStorage(ctx xcontext.Context, uri string) (storage.Storage, error) 
 func toMongoQuery(query storage.Query) bson.D {
 	q := bson.D{}
 
+	if query.JobID != nil {
+		q = append(q, bson.E{
+			Key:   "jobid",
+			Value: *query.JobID,
+		})
+	}
+
 	if query.Text != nil {
 		q = append(q, bson.E{
 			Key: "logdata",

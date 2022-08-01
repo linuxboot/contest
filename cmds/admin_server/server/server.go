@@ -19,11 +19,12 @@ var (
 )
 
 type Query struct {
+	JobID     *uint64    `form:"job_id"`
 	Text      *string    `form:"text"`
-	LogLevel  *string    `form:"logLevel"`
-	StartDate *time.Time `form:"startDate" time_format:"2006-01-02T15:04:05.000Z07:00"`
-	EndDate   *time.Time `form:"endDate" time_format:"2006-01-02T15:04:05.000Z07:00"`
-	PageSize  *uint      `form:"pageSize"`
+	LogLevel  *string    `form:"log_level"`
+	StartDate *time.Time `form:"start_date" time_format:"2006-01-02T15:04:05.000Z07:00"`
+	EndDate   *time.Time `form:"end_date" time_format:"2006-01-02T15:04:05.000Z07:00"`
+	PageSize  *uint      `form:"page_size"`
 	Page      *uint      `form:"page"`
 }
 
@@ -34,6 +35,7 @@ func (q *Query) ToStorageQuery() storage.Query {
 		PageSize: MaxPageSize,
 	}
 
+	storageQuery.JobID = q.JobID
 	storageQuery.Text = q.Text
 	storageQuery.LogLevel = q.LogLevel
 	storageQuery.StartDate = q.StartDate
@@ -51,10 +53,10 @@ func (q *Query) ToStorageQuery() storage.Query {
 }
 
 type Log struct {
-	JobID    uint64    `json:"jobID"`
-	LogData  string    `json:"logData"`
+	JobID    uint64    `json:"job_id"`
+	LogData  string    `json:"log_data"`
 	Date     time.Time `json:"date"`
-	LogLevel string    `json:"logLevel"`
+	LogLevel string    `json:"log_level"`
 }
 
 func (l *Log) ToStorageLog() storage.Log {

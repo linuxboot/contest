@@ -35,6 +35,7 @@ type Log struct {
 
 // Query defines the different options to filter with
 type Query struct {
+	JobID     *uint64
 	Text      *string
 	LogLevel  *string
 	StartDate *time.Time
