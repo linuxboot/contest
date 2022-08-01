@@ -57,7 +57,7 @@ func toMongoQuery(query storage.Query) bson.D {
 
 	if query.JobID != nil {
 		q = append(q, bson.E{
-			Key:   "jobid",
+			Key:   "job_id",
 			Value: *query.JobID,
 		})
 	}

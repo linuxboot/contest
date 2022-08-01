@@ -80,14 +80,14 @@ func generateRandomLogs(db *mongo.Client, count int) error {
 	return nil
 }
 
-func queryLogsEndpoint(query server.Query, retrieveAll bool) (*storage.Result, int, error) {
+func queryLogsEndpoint(query server.Query, retrieveAll bool) (*server.Result, int, error) {
 	u, err := url.Parse(*flagAdminEndpoint)
 	if err != nil {
 		return nil, 0, err
 	}
 
 	var (
-		result           storage.Result
+		result           server.Result
 		statusCode       int
 		currentPage      uint = 0
 		continueRetrieve bool = true
@@ -98,7 +98,7 @@ func queryLogsEndpoint(query server.Query, retrieveAll bool) (*storage.Result, i
 	}
 
 	for continueRetrieve {
-		var tmp storage.Result
+		var tmp server.Result
 
 		q := u.Query()
 		if query.JobID != nil {
@@ -148,7 +148,7 @@ func queryLogsEndpoint(query server.Query, retrieveAll bool) (*storage.Result, i
 
 // assertEqualResults checks that the db and api results
 // have the same length and contains the same logdata
-func assertEqualResults(t *testing.T, expected []storage.Log, actual []storage.Log) {
+func assertEqualResults(t *testing.T, expected []mongoStorage.Log, actual []server.Log) {
 	// check length
 	if len(expected) != len(actual) {
 		t.Fatal(fmt.Errorf("api and db results dose not have the same length: %d != %d", len(expected), len(actual)))
@@ -220,7 +220,7 @@ func TestLogQuery(t *testing.T) {
 				PageSize: &pageSize,
 			},
 			dbQuery: bson.M{
-				"jobid": jobID,
+				"job_id": jobID,
 			},
 		},
 		{
@@ -331,7 +331,7 @@ func TestLogQuery(t *testing.T) {
 				tt.Fatal(err)
 			}
 			// get logs from database
-			var dbLogs []storage.Log
+			var dbLogs []mongoStorage.Log
 			ctx, cancel := context.WithTimeout(context.Background(), *flagOperationTimeout)
 			defer cancel()
 			cur, err := collection.Find(ctx, testCase.dbQuery)
