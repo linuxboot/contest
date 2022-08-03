@@ -40,6 +40,8 @@ services:
             # then we run admin_server from the cmds
             dockerfile: docker/contest/Dockerfile
         command: bash -c "cd /go/src/github.com/linuxboot/contest/cmds/admin_server/ && go run . -port 8000 -dbURI 'mongodb://mongostorage:27017'"
+        ports:
+            - 8000:8000
         healthcheck:
             test: curl --fail -X GET http://localhost:8000/status || exit 1
             interval: 5s
