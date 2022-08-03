@@ -9,7 +9,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strconv"
 	"sync"
 	"time"
 
@@ -48,25 +47,6 @@ type TestRunner struct {
 	// Could probably be split into several if necessary.
 	mu          sync.Mutex
 	monitorCond *sync.Cond // Used to notify the monitor about changes
-}
-
-// stepState contains state associated with one state of the pipeline:
-type stepState struct {
-	ctx    xcontext.Context
-	cancel xcontext.CancelFunc
-
-	stepIndex int                 // Index of this step in the pipeline.
-	sb        test.TestStepBundle // The test bundle.
-
-	ev         testevent.Emitter
-	stepRunner *StepRunner
-	addTarget  AddTargetToStep
-	stopped    chan struct{}
-
-	resumeState            json.RawMessage         // Resume state passed to and returned by the Run method.
-	resumeStateTargets     []target.Target         // Targets that were being processed during pause.
-	resumeTargetsNotifiers map[string]ChanNotifier // resumeStateTargets targets results
-	runErr                 error                   // Runner error, returned from Run() or an error condition detected by the reader.
 }
 
 // targetStepPhase denotes progression of a target through a step
@@ -118,10 +98,8 @@ func (tr *TestRunner) Run(
 ) (json.RawMessage, map[string]error, error) {
 
 	// Peel off contexts used for steps and target handlers.
-	stepsCtx, stepsCancel := xcontext.WithCancel(ctx)
-	defer stepsCancel()
-	targetsCtx, targetsCancel := xcontext.WithCancel(ctx)
-	defer targetsCancel()
+	runCtx, runCancel := xcontext.WithCancel(ctx)
+	defer runCancel()
 
 	// If we have state to resume, parse it.
 	var rs resumeStateStruct
@@ -162,10 +140,6 @@ func (tr *TestRunner) Run(
 
 	// Set up the pipeline
 	for i, sb := range t.TestStepsBundles {
-		stepCtx, stepCancel := xcontext.WithCancel(stepsCtx)
-		stepCtx = stepCtx.WithField("step_index", strconv.Itoa(i))
-		stepCtx = stepCtx.WithField("step_label", sb.TestStepLabel)
-
 		var srs json.RawMessage
 		if i < len(rs.StepResumeState) && string(rs.StepResumeState[i]) != "null" {
 			srs = rs.StepResumeState[i]
@@ -179,26 +153,17 @@ func (tr *TestRunner) Run(
 			}
 		}
 
-		ss := &stepState{
-			ctx:                stepCtx,
-			cancel:             stepCancel,
-			stepIndex:          i,
-			sb:                 sb,
-			ev:                 emitterFactory.New(sb.TestStepLabel),
-			stepRunner:         NewStepRunner(),
-			stopped:            make(chan struct{}),
-			resumeState:        srs,
-			resumeStateTargets: resumeStateTargets,
-		}
 		// Step handlers will be started from target handlers as targets reach them.
-		tr.steps = append(tr.steps, ss)
+		tr.steps = append(tr.steps, newStepState(i, sb, emitterFactory, srs, resumeStateTargets, func(err error) {
+			tr.monitorCond.Signal()
+		}))
 	}
 
 	for _, tgs := range tr.targets {
 		tgs.handlerRunning = true
 
 		go func(state *targetState) {
-			tr.targetHandler(targetsCtx, state)
+			tr.targetHandler(runCtx, state)
 		}(tgs)
 	}
 
@@ -206,19 +171,20 @@ func (tr *TestRunner) Run(
 	runErr := tr.runMonitor(ctx, minStep)
 	if runErr != nil {
 		ctx.Errorf("monitor returned error: %q, canceling", runErr)
-		stepsCancel()
-	}
-
-	// Wait for step runners and readers to exit.
-	if err := tr.waitStepRunners(ctx); err != nil {
-		if runErr == nil {
-			runErr = err
+		for _, ss := range tr.steps {
+			ss.ForceStop()
 		}
 	}
 
-	// There will be no more results, reel in all the target handlers (if any).
+	// Wait for step runners and readers to exit.
+	stepResumeStates, err := tr.waitSteps(ctx)
+	if err != nil && runErr == nil {
+		runErr = err
+	}
+
+	// There will be no more results cancel everything
 	ctx.Debugf("cancel target handlers")
-	targetsCancel()
+	runCancel()
 
 	// Has the run been canceled? If so, ignore whatever happened, it doesn't matter.
 	select {
@@ -231,11 +197,11 @@ func (tr *TestRunner) Run(
 	ctx.Debugf("leaving, err %v, target states:", runErr)
 	tr.mu.Lock()
 	defer tr.mu.Unlock()
-	resumeOk := (runErr == nil)
+	resumeOk := runErr == nil
 	numInFlightTargets := 0
 	for i, tgt := range targets {
 		tgs := tr.targets[tgt.ID]
-		stepErr := tr.steps[tgs.CurStep].runErr
+		stepErr := tr.steps[tgs.CurStep].GetError()
 		if tgs.CurPhase == targetStepPhaseRun {
 			numInFlightTargets++
 			if stepErr != xcontext.ErrPaused {
@@ -250,8 +216,7 @@ func (tr *TestRunner) Run(
 	ctx.Debugf("- %d in flight, ok to resume? %t", numInFlightTargets, resumeOk)
 	ctx.Debugf("step states:")
 	for i, ss := range tr.steps {
-		ctx.Debugf("  %d %s %t %t %s",
-			i, ss, ss.stepRunner.Started(), ss.runErr, ss.resumeState)
+		ctx.Debugf("  %d %s %t %t %s", i, ss, ss.stepRunner.Started(), ss.GetError(), stepResumeStates[i])
 	}
 
 	// Is there a useful error to report?
@@ -267,17 +232,16 @@ func (tr *TestRunner) Run(
 			break
 		}
 		rs := &resumeStateStruct{
-			Version: resumeStateStructVersion,
-			Targets: tr.targets,
-		}
-		for _, ss := range tr.steps {
-			rs.StepResumeState = append(rs.StepResumeState, ss.resumeState)
+			Version:         resumeStateStructVersion,
+			Targets:         tr.targets,
+			StepResumeState: stepResumeStates,
 		}
 		resumeState, runErr = json.Marshal(rs)
 		if runErr != nil {
 			ctx.Errorf("unable to serialize the state: %s", runErr)
 			return nil, nil, runErr
 		}
+		ctx.Debugf("resume state: %s", resumeState)
 		runErr = xcontext.ErrPaused
 	default:
 	}
@@ -293,69 +257,49 @@ func (tr *TestRunner) Run(
 	return resumeState, targetsResults, runErr
 }
 
-func (tr *TestRunner) waitStepRunners(ctx xcontext.Context) error {
+func (tr *TestRunner) waitSteps(ctx xcontext.Context) ([]json.RawMessage, error) {
 	ctx.Debugf("waiting for step runners to finish")
 
 	shutdownCtx, cancel := context.WithTimeout(ctx, tr.shutdownTimeout)
 	defer cancel()
 
 	var stepsNeverReturned []string
+	var resumeStates []json.RawMessage
+	var resultErr error
 	for _, ss := range tr.steps {
-		if !ss.stepRunner.Started() {
+		if !ss.Started() {
+			resumeStates = append(resumeStates, ss.GetInitResumeState())
 			continue
 		}
 		result, err := ss.stepRunner.WaitResults(shutdownCtx)
 		if err != nil {
-			result.Err = &cerrors.ErrTestStepsNeverReturned{StepNames: []string{ss.sb.TestStepLabel}}
-			stepsNeverReturned = append(stepsNeverReturned, ss.sb.TestStepLabel)
-			// Cancel this step's context, this will help release the reader.
-			ss.cancel()
+			stepsNeverReturned = append(stepsNeverReturned, ss.GetTestStepLabel())
+			ss.SetError(ctx, &cerrors.ErrTestStepsNeverReturned{StepNames: []string{ss.GetTestStepLabel()}})
+			// Stop step context, this will help release the reader.
+			ss.ForceStop()
+		} else if resultErr == nil && result.Err != nil && result.Err != xcontext.ErrPaused {
+			resultErr = result.Err
 		}
-		tr.mu.Lock()
-		ss.resumeState = result.ResumeState
-		ss.setErrLocked(result.Err)
-		tr.mu.Unlock()
+		resumeStates = append(resumeStates, result.ResumeState)
 	}
 
-	for _, ss := range tr.steps {
-		tr.mu.Lock()
-		stepErr := ss.runErr
-		tr.mu.Unlock()
-
-		if stepErr != nil && stepErr != xcontext.ErrPaused && stepErr != xcontext.ErrCanceled {
-			if err := emitEvent(ctx, ss.ev, EventTestError, nil, stepErr.Error()); err != nil {
-				ctx.Errorf("failed to emit event: %s", err)
-			}
-		}
-	}
-
-	resultErr := tr.checkStepRunnersFailed()
 	if len(stepsNeverReturned) > 0 && resultErr == nil {
 		resultErr = &cerrors.ErrTestStepsNeverReturned{StepNames: stepsNeverReturned}
 	}
-	return resultErr
-}
-
-func (tr *TestRunner) injectTarget(ctx xcontext.Context, tgs *targetState, ss *stepState) (ChanNotifier, error) {
-	ctx.Debugf("%s: injecting into %s", tgs, ss)
-
-	tgt := tgs.tgt
-	targetResult, err := ss.addTarget(ctx, tgt)
-	if err == nil {
-		tr.mu.Lock()
-		// By the time we get here the target could have been processed and result posted already, hence the check.
-		if tgs.CurPhase == targetStepPhaseBegin {
-			tgs.CurPhase = targetStepPhaseRun
-		}
-		tr.mu.Unlock()
-	}
-	tr.monitorCond.Signal()
-	return targetResult, err
+	return resumeStates, resultErr
 }
 
 // targetHandler takes a single target through each step of the pipeline in sequence.
 // It injects the target, waits for the result, then moves on to the next step.
 func (tr *TestRunner) targetHandler(ctx xcontext.Context, tgs *targetState) {
+	defer func() {
+		tr.mu.Lock()
+		tgs.handlerRunning = false
+		tr.mu.Unlock()
+		tr.monitorCond.Signal()
+		ctx.Debugf("%s: target handler finished", tgs)
+	}()
+
 	ctx = ctx.WithField("target", tgs.tgt.ID)
 	ctx.Debugf("%s: target handler active", tgs)
 	// NB: CurStep may be non-zero on entry if resumed
@@ -373,18 +317,14 @@ loop:
 		}
 		tr.mu.Lock()
 		ss := tr.steps[i]
-		var inject bool
 		switch tgs.CurPhase {
 		case targetStepPhaseInit:
 			// Normal case, inject and wait for result.
-			inject = true
 			tgs.CurPhase = targetStepPhaseBegin
 		case targetStepPhaseBegin:
 			// Paused before injection.
-			inject = true
 		case targetStepPhaseRun:
 			// Resumed in running state, skip injection.
-			inject = false
 		case targetStepPhaseEnd:
 			// Resumed in terminal state, we are done.
 			tr.mu.Unlock()
@@ -395,15 +335,22 @@ loop:
 		}
 		tr.mu.Unlock()
 		// Make sure we have a step runner active. If not, start one.
-		err := tr.runStepIfNeeded(ss)
-		// Inject the target.
+		err := ss.Run(ctx)
+
 		var targetNotifier ChanNotifier
 		if err == nil {
-			if inject {
-				targetNotifier, err = tr.injectTarget(ctx, tgs, ss)
-			} else {
-				targetNotifier = ss.resumeTargetsNotifiers[tgs.tgt.ID]
+			// Inject the target.
+			ctx.Debugf("%s: injecting into %s", tgs, ss)
+			targetNotifier, err = ss.InjectTarget(ctx, tgs.tgt)
+		}
+		if err == nil {
+			tr.mu.Lock()
+			// By the time we get here the target could have been processed and result posted already, hence the check.
+			if tgs.CurPhase == targetStepPhaseBegin {
+				tgs.CurPhase = targetStepPhaseRun
 			}
+			tr.mu.Unlock()
+			tr.monitorCond.Signal()
 		}
 		// Await result. It will be communicated to us by the step runner
 		// and returned in tgs.res.
@@ -419,30 +366,30 @@ loop:
 				tr.mu.Unlock()
 				tr.monitorCond.Signal()
 				err = nil
-			case <-ss.stopped:
-				tr.mu.Lock()
-				err = ss.runErr
-				tr.mu.Unlock()
+			case <-ss.NotifyStopped():
+				err = ss.GetError()
 				ctx.Debugf("step runner stopped: '%v'", err)
 			case <-ctx.Done():
 				ctx.Debugf("Canceled target context during waiting for target result")
 				err = ctx.Err()
 			}
 		}
-		tr.mu.Lock()
 		if err != nil {
-			ctx.Errorf("%s", err)
+			ctx.Errorf("Target handler failed: %v", err)
 			switch err {
 			case xcontext.ErrPaused:
 				ctx.Debugf("%s: paused 1", tgs)
 			case xcontext.ErrCanceled:
 				ctx.Debugf("%s: canceled 1", tgs)
 			default:
-				ss.setErrLocked(err)
+				// TODO: this is a logical error. The step might not have failed.
+				// targetHandler should return an error instead that should be tracked in runMonitor
+				ss.SetError(ctx, err)
 			}
-			tr.mu.Unlock()
 			break
 		}
+
+		tr.mu.Lock()
 		if tgs.Res != nil {
 			tr.mu.Unlock()
 			break
@@ -454,70 +401,16 @@ loop:
 		}
 		tr.mu.Unlock()
 	}
-	tr.mu.Lock()
-	ctx.Debugf("%s: target handler finished", tgs)
-	tgs.handlerRunning = false
-	tr.monitorCond.Signal()
-	tr.mu.Unlock()
-}
-
-// runStepIfNeeded starts the step runner goroutine if not already running.
-func (tr *TestRunner) runStepIfNeeded(ss *stepState) error {
-	tr.mu.Lock()
-	defer tr.mu.Unlock()
-
-	if ss.stepRunner.Started() {
-		return nil
-	}
-
-	resumeState := ss.resumeState
-	ss.resumeState = nil
-
-	addTarget, resumeTargetsNotifiers, stepRunResult, err := ss.stepRunner.Run(ss.ctx, ss.sb, ss.ev, resumeState, ss.resumeStateTargets)
-	if err != nil {
-		return fmt.Errorf("failed to stert a step runner for '%s': %v", ss.sb.TestStepLabel, err)
-	}
-	ss.addTarget = addTarget
-	ss.resumeTargetsNotifiers = make(map[string]ChanNotifier)
-	for i := 0; i < len(ss.resumeStateTargets); i++ {
-		ss.resumeTargetsNotifiers[ss.resumeStateTargets[i].ID] = resumeTargetsNotifiers[i]
-	}
-
-	go func() {
-		defer func() {
-			close(ss.stopped)
-			ss.ctx.Debugf("StepRunner fully stopped")
-		}()
-
-		select {
-		case stepErr := <-stepRunResult.NotifyCh():
-			tr.mu.Lock()
-			ss.setErrLocked(stepErr)
-			tr.mu.Unlock()
-			tr.monitorCond.Signal()
-		case <-ss.ctx.Done():
-			ss.ctx.Debugf("Cancelled step context during waiting for step run result")
-		}
-	}()
-	return nil
-}
-
-// setErrLocked sets step runner error unless already set.
-func (ss *stepState) setErrLocked(err error) {
-	if err == nil || ss.runErr != nil {
-		return
-	}
-	ss.ctx.Errorf("setErrLocked: %v", err)
-	ss.runErr = err
 }
 
 // checkStepRunnersFailed checks if any step runner has encountered an error.
 func (tr *TestRunner) checkStepRunnersFailed() error {
 	for _, ss := range tr.steps {
-		switch ss.runErr {
+		runErr := ss.GetError()
+		switch runErr {
 		case nil, xcontext.ErrPaused:
 		default:
-			return ss.runErr
+			return runErr
 		}
 	}
 	return nil
@@ -568,7 +461,7 @@ func (tr *TestRunner) runMonitor(ctx xcontext.Context, minStep int) error {
 			}
 			// All targets ok, close the step's input channel.
 			ctx.Debugf("monitor pass %d: %s: no more targets, closing input channel", pass, ss)
-			ss.stepRunner.Stop()
+			ss.Stop()
 			step++
 		}
 		return runErr
@@ -593,7 +486,7 @@ tgtLoop:
 		for _, tgs := range tr.targets {
 			ctx.Debugf("monitor pass %d: %s", pass, tgs)
 			if tgs.handlerRunning && (tgs.CurStep < len(tr.steps) || tgs.CurPhase != targetStepPhaseEnd) {
-				if tgs.CurPhase == targetStepPhaseRun && tr.steps[tgs.CurStep].runErr == xcontext.ErrPaused {
+				if tgs.CurPhase == targetStepPhaseRun && tr.steps[tgs.CurStep].GetError() == xcontext.ErrPaused {
 					// It's been paused, this is fine.
 					continue
 				}
@@ -639,10 +532,6 @@ func (tph targetStepPhase) String() string {
 		return "end"
 	}
 	return fmt.Sprintf("???(%d)", tph)
-}
-
-func (ss *stepState) String() string {
-	return fmt.Sprintf("[#%d %s]", ss.stepIndex, ss.sb.TestStepLabel)
 }
 
 func (tgs *targetState) String() string {
