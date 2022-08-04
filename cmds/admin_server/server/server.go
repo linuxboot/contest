@@ -1,6 +1,7 @@
 package server
 
 import (
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"net/http"
@@ -156,10 +157,15 @@ func (r *RouteHandler) getLogs(c *gin.Context) {
 	c.JSON(http.StatusOK, toServerResult(result))
 }
 
-func initRouter(ctx xcontext.Context, rh RouteHandler) *gin.Engine {
+func initRouter(ctx xcontext.Context, rh RouteHandler, middlewares []gin.HandlerFunc) *gin.Engine {
 
 	r := gin.New()
 	r.Use(gin.Logger())
+
+	// add the middlewares
+	for _, hf := range middlewares {
+		r.Use(hf)
+	}
 
 	r.GET("/status", rh.status)
 	r.POST("/log", rh.addLog)
@@ -171,15 +177,16 @@ func initRouter(ctx xcontext.Context, rh RouteHandler) *gin.Engine {
 	return r
 }
 
-func Serve(ctx xcontext.Context, port int, storage storage.Storage) error {
+func Serve(ctx xcontext.Context, port int, storage storage.Storage, middlewares []gin.HandlerFunc, tlsConfig *tls.Config) error {
 	routeHandler := RouteHandler{
 		storage: storage,
 		log:     ctx.Logger(),
 	}
-	router := initRouter(ctx, routeHandler)
+	router := initRouter(ctx, routeHandler, middlewares)
 	server := &http.Server{
-		Addr:    fmt.Sprintf(":%d", port),
-		Handler: router,
+		Addr:      fmt.Sprintf(":%d", port),
+		Handler:   router,
+		TLSConfig: tlsConfig,
 	}
 
 	go func() {
@@ -191,7 +198,14 @@ func Serve(ctx xcontext.Context, port int, storage storage.Storage) error {
 		}
 	}()
 
-	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+	var err error
+	if tlsConfig != nil {
+		err = server.ListenAndServeTLS("", "")
+	} else {
+		err = server.ListenAndServe()
+	}
+
+	if err != nil && err != http.ErrServerClosed {
 		return err
 	}
 
