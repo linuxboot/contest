@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/tls"
 	"flag"
 	"fmt"
 	"os"
@@ -20,6 +21,8 @@ var (
 	flagSet      *flag.FlagSet
 	flagPort     *int
 	flagDBURI    *string
+	flagTLSCert  *string
+	flagTLSKey   *string
 	flagLogLevel *string
 )
 
@@ -27,6 +30,8 @@ func initFlags(cmd string) {
 	flagSet = flag.NewFlagSet(cmd, flag.ContinueOnError)
 	flagPort = flagSet.Int("port", 8000, "Port to init the admin server on")
 	flagDBURI = flagSet.String("dbURI", "mongodb://localhost:27017", "Database URI")
+	flagTLSCert = flagSet.String("tlsCert", "", "Path to the tls cert file")
+	flagTLSKey = flagSet.String("tlsKey", "", "Path to the tls key file")
 	flagLogLevel = flagSet.String("logLevel", "debug", "A log level, possible values: debug, info, warning, error, panic, fatal")
 
 }
@@ -72,7 +77,18 @@ func main() {
 		cancel()
 	}()
 
-	if err := server.Serve(ctx, *flagPort, storage); err != nil {
+	var tlsConfig *tls.Config
+	if *flagTLSCert != "" && *flagTLSKey != "" {
+		cert, err := tls.LoadX509KeyPair(*flagTLSCert, *flagTLSKey)
+		if err != nil {
+			exitWithError(err, 1)
+		}
+		tlsConfig = &tls.Config{
+			Certificates: []tls.Certificate{cert},
+		}
+	}
+
+	if err := server.Serve(ctx, *flagPort, storage, nil, tlsConfig); err != nil {
 		exitWithError(fmt.Errorf("server err: %w", err), 1)
 	}
 }
