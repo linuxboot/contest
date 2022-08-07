@@ -43,8 +43,6 @@ type TestRunner struct {
 	steps   []*stepState            // The pipeline, in order of execution
 	targets map[string]*targetState // Target state lookup map
 
-	stepOutputs *testStepsVariables // contains emitted steps variables
-
 	// One mutex to rule them all, used to serialize access to all the state above.
 	// Could probably be split into several if necessary.
 	mu          sync.Mutex
@@ -144,15 +142,14 @@ func (tr *TestRunner) Run(
 		}
 	}
 
-	var err error
-	tr.stepOutputs, err = newTestStepsVariables(t.TestStepsBundles)
+	stepOutputs, err := newTestStepsVariables(t.TestStepsBundles)
 	if err != nil {
 		ctx.Errorf("Failed to initialise test steps variables: %v", err)
 		return nil, nil, err
 	}
 
 	for targetID, targetState := range tr.targets {
-		if err := tr.stepOutputs.initTargetStepsVariables(targetID, targetState.StepsVariables); err != nil {
+		if err := stepOutputs.initTargetStepsVariables(targetID, targetState.StepsVariables); err != nil {
 			ctx.Errorf("Failed to initialise test steps variables for target: %s: %v", targetID, err)
 			return nil, nil, err
 		}
@@ -174,7 +171,7 @@ func (tr *TestRunner) Run(
 		}
 
 		// Step handlers will be started from target handlers as targets reach them.
-		tr.steps = append(tr.steps, newStepState(i, sb, emitterFactory, srs, resumeStateTargets, func(err error) {
+		tr.steps = append(tr.steps, newStepState(i, sb, emitterFactory, stepOutputs, srs, resumeStateTargets, func(err error) {
 			tr.monitorCond.Signal()
 		}))
 	}
@@ -221,7 +218,7 @@ func (tr *TestRunner) Run(
 	numInFlightTargets := 0
 	for i, tgt := range targets {
 		tgs := tr.targets[tgt.ID]
-		tgs.StepsVariables, err = tr.stepOutputs.getTargetStepsVariables(tgt.ID)
+		tgs.StepsVariables, err = stepOutputs.getTargetStepsVariables(tgt.ID)
 		if err != nil {
 			ctx.Errorf("Failed to get steps variables: %v", err)
 			return nil, nil, err

@@ -22,6 +22,7 @@ type stepState struct {
 	sb        test.TestStepBundle // The test bundle.
 
 	ev         testevent.Emitter
+	tsv        *testStepsVariables
 	stepRunner *StepRunner
 	addTarget  AddTargetToStep
 	stopped    chan struct{}
@@ -37,6 +38,7 @@ func newStepState(
 	stepIndex int,
 	sb test.TestStepBundle,
 	emitterFactory TestStepEventsEmitterFactory,
+	tsv *testStepsVariables,
 	resumeState json.RawMessage,
 	resumeStateTargets []target.Target,
 	onError func(err error),
@@ -45,6 +47,7 @@ func newStepState(
 		stepIndex:          stepIndex,
 		sb:                 sb,
 		ev:                 emitterFactory.New(sb.TestStepLabel),
+		tsv:                tsv,
 		stepRunner:         NewStepRunner(),
 		stopped:            make(chan struct{}),
 		resumeState:        resumeState,
@@ -113,7 +116,10 @@ func (ss *stepState) Run(ctx xcontext.Context) error {
 	stepCtx = stepCtx.WithField("step_index", strconv.Itoa(ss.stepIndex))
 	stepCtx = stepCtx.WithField("step_label", ss.sb.TestStepLabel)
 
-	addTarget, resumeTargetsNotifiers, stepRunResult, err := ss.stepRunner.Run(stepCtx, ss.sb, ss.ev, ss.resumeState, ss.resumeStateTargets)
+	addTarget, resumeTargetsNotifiers, stepRunResult, err := ss.stepRunner.Run(
+		stepCtx, ss.sb, newStepVariablesAccessor(ss.sb.TestStepLabel, ss.tsv), ss.ev, ss.resumeState,
+		ss.resumeStateTargets,
+	)
 	if err != nil {
 		return fmt.Errorf("failed to launch step runner: %v", err)
 	}

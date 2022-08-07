@@ -156,7 +156,7 @@ func CheckIdentifier(s string) error {
 		return fmt.Errorf("empty identifier")
 	}
 	match := identifierRegexPattern.FindString(s)
-	if match != s {
+	if len(match) != len(s) {
 		return fmt.Errorf("identifier should be an non-empty string that matches: %s", identifierRegexPattern.String())
 	}
 	return nil
