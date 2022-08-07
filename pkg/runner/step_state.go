@@ -1,6 +1,7 @@
 package runner
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"strconv"
@@ -54,6 +55,21 @@ func newStepState(
 
 func (ss *stepState) Started() bool {
 	return ss.stepRunner.Started()
+}
+
+func (ss *stepState) WaitResults(ctx context.Context) (stepResult StepResult, err error) {
+	// should wait for stepState to process a possible error code from stepRunner
+	select {
+	case <-ctx.Done():
+		// Give priority to success path
+		select {
+		case <-ss.stopped:
+		default:
+			return StepResult{}, ctx.Err()
+		}
+	case <-ss.stopped:
+	}
+	return ss.stepRunner.WaitResults(ctx)
 }
 
 func (ss *stepState) Stop() {
@@ -152,24 +168,24 @@ func (ss *stepState) String() string {
 	return fmt.Sprintf("[#%d %s]", ss.stepIndex, ss.sb.TestStepLabel)
 }
 
-func (ss *stepState) SetError(ctx xcontext.Context, err error) {
+func (ss *stepState) SetError(ctx xcontext.Context, runErr error) {
 	ss.mu.Lock()
 	defer ss.mu.Unlock()
 
-	if err == nil || ss.runErr != nil {
+	if runErr == nil || ss.runErr != nil {
 		return
 	}
-	ctx.Errorf("Step '%s' failed with error: %v", ss.sb.TestStepLabel, err)
-	ss.runErr = err
+	ctx.Errorf("Step '%s' failed with error: %v", ss.sb.TestStepLabel, runErr)
+	ss.runErr = runErr
 
 	if ss.runErr != xcontext.ErrPaused && ss.runErr != xcontext.ErrCanceled {
-		if err := emitEvent(ctx, ss.ev, EventTestError, nil, err.Error()); err != nil {
+		if err := emitEvent(ctx, ss.ev, EventTestError, nil, runErr.Error()); err != nil {
 			ctx.Errorf("failed to emit event: %s", err)
 		}
 	}
 
 	// notify last as callback may use GetError or cancel context
 	go func() {
-		ss.onError(err)
+		ss.onError(runErr)
 	}()
 }
