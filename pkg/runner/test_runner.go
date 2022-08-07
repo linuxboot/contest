@@ -223,7 +223,7 @@ func (tr *TestRunner) Run(
 			ctx.Errorf("Failed to get steps variables: %v", err)
 			return nil, nil, err
 		}
-		stepErr := tr.steps[tgs.CurStep].runErr
+		stepErr := tr.steps[tgs.CurStep].GetError()
 		if tgs.CurPhase == targetStepPhaseRun {
 			numInFlightTargets++
 			if stepErr != xcontext.ErrPaused {
