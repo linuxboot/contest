@@ -13,13 +13,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/insomniacslk/termhook"
 	"github.com/linuxboot/contest/pkg/event"
 	"github.com/linuxboot/contest/pkg/event/testevent"
 	"github.com/linuxboot/contest/pkg/target"
 	"github.com/linuxboot/contest/pkg/test"
 	"github.com/linuxboot/contest/pkg/xcontext"
 	"github.com/linuxboot/contest/plugins/teststeps"
-	"github.com/insomniacslk/termhook"
 )
 
 // Name is the name used to look this plugin up.
@@ -54,7 +54,14 @@ func match(match string, log xcontext.Logger) termhook.LineHandler {
 }
 
 // Run executes the terminal step.
-func (ts *TerminalExpect) Run(ctx xcontext.Context, ch test.TestStepChannels, params test.TestStepParameters, ev testevent.Emitter, resumeState json.RawMessage) (json.RawMessage, error) {
+func (ts *TerminalExpect) Run(
+	ctx xcontext.Context,
+	ch test.TestStepChannels,
+	ev testevent.Emitter,
+	stepsVars test.StepsVariables,
+	params test.TestStepParameters,
+	resumeState json.RawMessage,
+) (json.RawMessage, error) {
 	log := ctx.Logger()
 
 	if err := ts.validateAndPopulate(params); err != nil {

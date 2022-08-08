@@ -61,14 +61,18 @@ const (
 	targetStepPhaseEnd                      // (5) Finished running a step.
 )
 
+// stepVariables represents the emitted variables of the steps
+type stepVariables map[string]json.RawMessage
+
 // targetState contains state associated with one target progressing through the pipeline.
 type targetState struct {
 	tgt *target.Target
 
 	// This part of state gets serialized into JSON for resumption.
-	CurStep  int             `json:"S,omitempty"` // Current step number.
-	CurPhase targetStepPhase `json:"P,omitempty"` // Current phase of step execution.
-	Res      *xjson.Error    `json:"R,omitempty"` // Final result, if reached the end state.
+	CurStep        int                      `json:"S,omitempty"` // Current step number.
+	CurPhase       targetStepPhase          `json:"P,omitempty"` // Current phase of step execution.
+	Res            *xjson.Error             `json:"R,omitempty"` // Final result, if reached the end state.
+	StepsVariables map[string]stepVariables `json:"V,omitempty"` // maps steps onto emitted variables of each
 
 	handlerRunning bool
 }
@@ -138,6 +142,19 @@ func (tr *TestRunner) Run(
 		}
 	}
 
+	stepOutputs, err := newTestStepsVariables(t.TestStepsBundles)
+	if err != nil {
+		ctx.Errorf("Failed to initialise test steps variables: %v", err)
+		return nil, nil, err
+	}
+
+	for targetID, targetState := range tr.targets {
+		if err := stepOutputs.initTargetStepsVariables(targetID, targetState.StepsVariables); err != nil {
+			ctx.Errorf("Failed to initialise test steps variables for target: %s: %v", targetID, err)
+			return nil, nil, err
+		}
+	}
+
 	// Set up the pipeline
 	for i, sb := range t.TestStepsBundles {
 		var srs json.RawMessage
@@ -154,7 +171,7 @@ func (tr *TestRunner) Run(
 		}
 
 		// Step handlers will be started from target handlers as targets reach them.
-		tr.steps = append(tr.steps, newStepState(i, sb, emitterFactory, srs, resumeStateTargets, func(err error) {
+		tr.steps = append(tr.steps, newStepState(i, sb, emitterFactory, stepOutputs, srs, resumeStateTargets, func(err error) {
 			tr.monitorCond.Signal()
 		}))
 	}
@@ -201,6 +218,11 @@ func (tr *TestRunner) Run(
 	numInFlightTargets := 0
 	for i, tgt := range targets {
 		tgs := tr.targets[tgt.ID]
+		tgs.StepsVariables, err = stepOutputs.getTargetStepsVariables(tgt.ID)
+		if err != nil {
+			ctx.Errorf("Failed to get steps variables: %v", err)
+			return nil, nil, err
+		}
 		stepErr := tr.steps[tgs.CurStep].GetError()
 		if tgs.CurPhase == targetStepPhaseRun {
 			numInFlightTargets++

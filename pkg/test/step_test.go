@@ -47,3 +47,11 @@ func TestTestStepParametersUnmarshalNested(t *testing.T) {
 	require.Equal(t, "bar", substruct.Val2)
 	require.Equal(t, "baz", substruct.More_nesting["foobar"])
 }
+
+func TestCheckVariableName(t *testing.T) {
+	require.NoError(t, CheckIdentifier("Abc123_XYZ"))
+	require.Error(t, CheckIdentifier(""))
+	require.Error(t, CheckIdentifier("1AAA"))
+	require.Error(t, CheckIdentifier("a b"))
+	require.Error(t, CheckIdentifier("a()+b"))
+}

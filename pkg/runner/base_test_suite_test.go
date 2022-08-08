@@ -73,9 +73,9 @@ func (s *BaseTestSuite) TearDownTest() {
 }
 
 func (s *BaseTestSuite) RegisterStateFullStep(
-	runFunction func(
-		ctx xcontext.Context, ch test.TestStepChannels, params test.TestStepParameters,
-		ev testevent.Emitter, resumeState json.RawMessage) (json.RawMessage, error),
+	runFunction func(ctx xcontext.Context, ch test.TestStepChannels, ev testevent.Emitter,
+		stepsVars test.StepsVariables, params test.TestStepParameters,
+		resumeState json.RawMessage) (json.RawMessage, error),
 	validateFunction func(ctx xcontext.Context, params test.TestStepParameters) error) error {
 
 	return s.PluginRegistry.RegisterTestStep(stateFullStepName, func() test.TestStep {
@@ -86,7 +86,11 @@ func (s *BaseTestSuite) RegisterStateFullStep(
 	}, nil)
 }
 
-func (s *BaseTestSuite) NewStep(ctx xcontext.Context, label, name string, params test.TestStepParameters) test.TestStepBundle {
+func (s *BaseTestSuite) NewStep(
+	ctx xcontext.Context,
+	label, name string,
+	params test.TestStepParameters,
+) test.TestStepBundle {
 	td := test.TestStepDescriptor{
 		Name:       name,
 		Label:      label,

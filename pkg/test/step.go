@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"regexp"
 	"strconv"
 
 	"github.com/linuxboot/contest/pkg/event"
@@ -78,9 +79,10 @@ type TestStepsDescriptors struct {
 // TestStepDescriptor is the definition of a test step matching a test step
 // configuration.
 type TestStepDescriptor struct {
-	Name       string
-	Label      string
-	Parameters TestStepParameters
+	Name             string
+	Label            string
+	Parameters       TestStepParameters
+	VariablesMapping map[string]string
 }
 
 // TestStepBundle bundles the selected TestStep together with its parameters as
@@ -107,15 +109,55 @@ type TestStepChannels struct {
 	Out chan<- TestStepResult
 }
 
+// StepsVariables represents a read/write access for step variables
+// Example:
+// var sv StepsVariables
+// intVar := 42
+// sv.Add("dummy-target-id", "varname", intVar)
+//
+// var recvIntVar int
+// sv.Get(("dummy-target-id", "varname", &recvIntVar)
+// assert recvIntVar == 42
+type StepsVariables interface {
+	// Add adds a new or replaces existing variable associated with current test step and target
+	Add(tgtID string, name string, in interface{}) error
+
+	// Get obtains existing variable by a mappedName which should be specified in variables mapping
+	Get(tgtID string, stepLabel, name string, out interface{}) error
+}
+
 // TestStep is the interface that all steps need to implement to be executed
 // by the TestRunner
 type TestStep interface {
 	// Name returns the name of the step
 	Name() string
 	// Run runs the test step. The test step is expected to be synchronous.
-	Run(ctx xcontext.Context, ch TestStepChannels, params TestStepParameters, ev testevent.Emitter,
+	Run(ctx xcontext.Context, ch TestStepChannels, ev testevent.Emitter,
+		stepsVars StepsVariables, params TestStepParameters,
 		resumeState json.RawMessage) (json.RawMessage, error)
 	// ValidateParameters checks that the parameters are correct before passing
 	// them to Run.
 	ValidateParameters(ctx xcontext.Context, params TestStepParameters) error
+}
+
+var identifierRegexPattern *regexp.Regexp
+
+func init() {
+	var err error
+	identifierRegexPattern, err = regexp.Compile(`[a-zA-Z]\w*`)
+	if err != nil {
+		panic(fmt.Sprintf("invalid identifier matching regexp expression: %v", err))
+	}
+}
+
+// CheckIdentifier checks that input argument forms a valid identifier name
+func CheckIdentifier(s string) error {
+	if len(s) == 0 {
+		return fmt.Errorf("empty identifier")
+	}
+	match := identifierRegexPattern.FindString(s)
+	if len(match) != len(s) {
+		return fmt.Errorf("identifier should be an non-empty string that matches: %s", identifierRegexPattern.String())
+	}
+	return nil
 }

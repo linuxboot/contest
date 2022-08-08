@@ -90,6 +90,7 @@ func NewStepRunner() *StepRunner {
 func (sr *StepRunner) Run(
 	ctx xcontext.Context,
 	bundle test.TestStepBundle,
+	stepsVariables test.StepsVariables,
 	ev testevent.Emitter,
 	resumeState json.RawMessage,
 	resumeStateTargets []target.Target,
@@ -132,7 +133,7 @@ func (sr *StepRunner) Run(
 	stepOut := make(chan test.TestStepResult)
 	go func() {
 		defer finish()
-		sr.runningLoop(ctx, sr.input, stepOut, bundle, ev, resumeState)
+		sr.runningLoop(ctx, sr.input, stepOut, bundle, stepsVariables, ev, resumeState)
 		ctx.Debugf("Running loop finished")
 	}()
 
@@ -381,6 +382,7 @@ func (sr *StepRunner) runningLoop(
 	stepIn <-chan *target.Target,
 	stepOut chan test.TestStepResult,
 	bundle test.TestStepBundle,
+	stepsVariables test.StepsVariables,
 	ev testevent.Emitter,
 	resumeState json.RawMessage,
 ) {
@@ -410,9 +412,9 @@ func (sr *StepRunner) runningLoop(
 		}()
 
 		inChannels := test.TestStepChannels{In: stepIn, Out: stepOut}
-		return bundle.TestStep.Run(ctx, inChannels, bundle.Parameters, ev, resumeState)
+		return bundle.TestStep.Run(ctx, inChannels, ev, stepsVariables, bundle.Parameters, resumeState)
 	}()
-	ctx.Debugf("TestStep finished '%v', rs %s", err, string(resultResumeState))
+	ctx.Debugf("TestStep finished '%v', rs: '%s'", err, string(resultResumeState))
 
 	sr.mu.Lock()
 	sr.setErrLocked(ctx, err)

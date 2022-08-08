@@ -126,7 +126,14 @@ func (ts *GatherCmd) returnTargets(ctx xcontext.Context, ch test.TestStepChannel
 }
 
 // Run executes the step
-func (ts *GatherCmd) Run(ctx xcontext.Context, ch test.TestStepChannels, params test.TestStepParameters, emitter testevent.Emitter, resumeState json.RawMessage) (json.RawMessage, error) {
+func (ts *GatherCmd) Run(
+	ctx xcontext.Context,
+	ch test.TestStepChannels,
+	emitter testevent.Emitter,
+	stepsVars test.StepsVariables,
+	params test.TestStepParameters,
+	resumeState json.RawMessage,
+) (json.RawMessage, error) {
 	log := ctx.Logger()
 
 	if err := ts.setParams(params); err != nil {

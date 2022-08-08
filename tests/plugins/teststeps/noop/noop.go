@@ -31,7 +31,14 @@ func (ts *noop) Name() string {
 }
 
 // Run executes a step that does nothing and returns targets with success.
-func (ts *noop) Run(ctx xcontext.Context, ch test.TestStepChannels, params test.TestStepParameters, ev testevent.Emitter, resumeState json.RawMessage) (json.RawMessage, error) {
+func (ts *noop) Run(
+	ctx xcontext.Context,
+	ch test.TestStepChannels,
+	ev testevent.Emitter,
+	stepsVars test.StepsVariables,
+	inputParams test.TestStepParameters,
+	resumeState json.RawMessage,
+) (json.RawMessage, error) {
 	return teststeps.ForEachTarget(Name, ctx, ch, func(ctx xcontext.Context, t *target.Target) error {
 		return nil
 	})

@@ -80,7 +80,14 @@ func (e *Step) ValidateParameters(_ xcontext.Context, params test.TestStepParame
 }
 
 // Run executes the step
-func (e *Step) Run(ctx xcontext.Context, ch test.TestStepChannels, params test.TestStepParameters, ev testevent.Emitter, resumeState json.RawMessage) (json.RawMessage, error) {
+func (e *Step) Run(
+	ctx xcontext.Context,
+	ch test.TestStepChannels,
+	ev testevent.Emitter,
+	stepsVars test.StepsVariables,
+	params test.TestStepParameters,
+	resumeState json.RawMessage,
+) (json.RawMessage, error) {
 	sleep, err := sleepTime(params.GetOne("sleep").String())
 	if err != nil {
 		return nil, err

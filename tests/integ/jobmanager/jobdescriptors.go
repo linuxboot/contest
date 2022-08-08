@@ -289,15 +289,15 @@ var jobDescriptorSlowEcho2 = descriptorMust2(jobDescriptorTemplate, &templateDat
        "Steps": [
            {
                "name": "slowecho",
-               "label": "Step 1",
+               "label": "Step1",
                "parameters": {
                  "sleep": ["0.5"],
-                 "text": ["Hello step 1"]
+                 "text": ["Hello step1"]
                }
            },
            {
                "name": "slowecho",
-               "label": "Step 2",
+               "label": "Step2",
                "parameters": {
                  "sleep": ["0"],
                  "text": ["Hello step 2"]

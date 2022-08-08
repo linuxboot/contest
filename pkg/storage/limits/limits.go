@@ -43,7 +43,7 @@ func (v *Validator) ValidateTestName(testName string) error {
 // MaxTestStepLabelLen is a max length of test step label field
 const MaxTestStepLabelLen = 32
 
-// ValidateTestStepLabel retruns error if the test step label does not match storage limitations
+// ValidateTestStepLabel returns error if the test step label does not match storage limitations
 func (v *Validator) ValidateTestStepLabel(testStepLabel string) error {
 	return v.validate(testStepLabel, "Test step label", MaxTestStepLabelLen)
 }
