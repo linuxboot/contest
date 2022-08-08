@@ -65,7 +65,7 @@ func (e Step) Run(
 			if !ok {
 				return nil, nil
 			}
-			output, err := params.GetOne("text").Expand(target)
+			output, err := params.GetOne("text").Expand(target, stepsVars)
 			if err != nil {
 				return nil, err
 			}

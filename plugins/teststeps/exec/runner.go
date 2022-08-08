@@ -21,11 +21,12 @@ import (
 type outcome error
 
 type TargetRunner struct {
-	ts *TestStep
-	ev testevent.Emitter
+	ts        *TestStep
+	ev        testevent.Emitter
+	stepsVars test.StepsVariablesReader
 }
 
-func NewTargetRunner(ts *TestStep, ev testevent.Emitter) *TargetRunner {
+func NewTargetRunner(ts *TestStep, ev testevent.Emitter, stepsVars test.StepsVariablesReader) *TargetRunner {
 	return &TargetRunner{
 		ts: ts,
 		ev: ev,
@@ -127,7 +128,7 @@ func (r *TargetRunner) Run(ctx xcontext.Context, target *target.Target) error {
 		defer cancel()
 	}
 
-	pe := test.NewParamExpander(target)
+	pe := test.NewParamExpander(target, r.stepsVars)
 
 	var params stepParams
 	if err := pe.ExpandObject(r.ts.stepParams, &params); err != nil {

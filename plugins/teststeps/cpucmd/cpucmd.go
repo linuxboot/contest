@@ -99,7 +99,7 @@ func (ts *CPUCmd) Run(
 		// 	return fmt.Errorf("cannot expand user parameter: %v", err)
 		// }
 
-		host, err := ts.Host.Expand(target)
+		host, err := ts.Host.Expand(target, stepsVars)
 		if err != nil {
 			return fmt.Errorf("cannot expand host parameter: %v", err)
 		}
@@ -120,7 +120,7 @@ func (ts *CPUCmd) Run(
 			return fmt.Errorf("host value is empty")
 		}
 
-		portStr, err := ts.Port.Expand(target)
+		portStr, err := ts.Port.Expand(target, stepsVars)
 		if err != nil {
 			return fmt.Errorf("cannot expand port parameter: %v", err)
 		}
@@ -130,7 +130,7 @@ func (ts *CPUCmd) Run(
 		if err != nil {
 			return fmt.Errorf("Can not expand %q:%q to a cpu port", host, portStr)
 		}
-		timeoutStr, err := ts.Timeout.Expand(target)
+		timeoutStr, err := ts.Timeout.Expand(target, stepsVars)
 		if err != nil {
 			return fmt.Errorf("cannot expand timeout parameter %s: %v", timeoutStr, err)
 		}
@@ -142,12 +142,12 @@ func (ts *CPUCmd) Run(
 
 		timeTimeout := time.Now().Add(timeout)
 
-		privKeyFile, err := ts.PrivateKeyFile.Expand(target)
+		privKeyFile, err := ts.PrivateKeyFile.Expand(target, stepsVars)
 		if err != nil {
 			return fmt.Errorf("cannot expand private key file parameter: %v", err)
 		}
 
-		executable, err := ts.Executable.Expand(target)
+		executable, err := ts.Executable.Expand(target, stepsVars)
 		if err != nil {
 			return fmt.Errorf("cannot expand executable parameter: %v", err)
 		}
@@ -155,7 +155,7 @@ func (ts *CPUCmd) Run(
 		// apply functions to the command args, if any
 		args := []string{executable}
 		for _, arg := range ts.Args {
-			earg, err := arg.Expand(target)
+			earg, err := arg.Expand(target, stepsVars)
 			if err != nil {
 				return fmt.Errorf("cannot expand command argument '%s': %v", arg, err)
 			}

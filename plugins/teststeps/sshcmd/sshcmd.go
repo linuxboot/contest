@@ -93,12 +93,12 @@ func (ts *SSHCmd) Run(
 
 	f := func(ctx xcontext.Context, target *target.Target) error {
 		// apply filters and substitutions to user, host, private key, and command args
-		user, err := ts.User.Expand(target)
+		user, err := ts.User.Expand(target, stepsVars)
 		if err != nil {
 			return fmt.Errorf("cannot expand user parameter: %v", err)
 		}
 
-		host, err := ts.Host.Expand(target)
+		host, err := ts.Host.Expand(target, stepsVars)
 		if err != nil {
 			return fmt.Errorf("cannot expand host parameter: %v", err)
 		}
@@ -120,7 +120,7 @@ func (ts *SSHCmd) Run(
 			}
 		}
 
-		portStr, err := ts.Port.Expand(target)
+		portStr, err := ts.Port.Expand(target, stepsVars)
 		if err != nil {
 			return fmt.Errorf("cannot expand port parameter: %v", err)
 		}
@@ -129,7 +129,7 @@ func (ts *SSHCmd) Run(
 			return fmt.Errorf("failed to convert port parameter to integer: %v", err)
 		}
 
-		timeoutStr, err := ts.Timeout.Expand(target)
+		timeoutStr, err := ts.Timeout.Expand(target, stepsVars)
 		if err != nil {
 			return fmt.Errorf("cannot expand timeout parameter %s: %v", timeoutStr, err)
 		}
@@ -143,7 +143,7 @@ func (ts *SSHCmd) Run(
 
 		// apply functions to the private key, if any
 		var signer ssh.Signer
-		privKeyFile, err := ts.PrivateKeyFile.Expand(target)
+		privKeyFile, err := ts.PrivateKeyFile.Expand(target, stepsVars)
 		if err != nil {
 			return fmt.Errorf("cannot expand private key file parameter: %v", err)
 		}
@@ -159,7 +159,7 @@ func (ts *SSHCmd) Run(
 			}
 		}
 
-		password, err := ts.Password.Expand(target)
+		password, err := ts.Password.Expand(target, stepsVars)
 		if err != nil {
 			return fmt.Errorf("cannot expand password parameter: %v", err)
 		}
@@ -180,7 +180,7 @@ func (ts *SSHCmd) Run(
 			HostKeyCallback: ssh.InsecureIgnoreHostKey(),
 		}
 
-		executable, err := ts.Executable.Expand(target)
+		executable, err := ts.Executable.Expand(target, stepsVars)
 		if err != nil {
 			return fmt.Errorf("cannot expand executable parameter: %v", err)
 		}
@@ -188,7 +188,7 @@ func (ts *SSHCmd) Run(
 		// apply functions to the command args, if any
 		var args []string
 		for _, arg := range ts.Args {
-			earg, err := arg.Expand(target)
+			earg, err := arg.Expand(target, stepsVars)
 			if err != nil {
 				return fmt.Errorf("cannot expand command argument '%s': %v", arg, err)
 			}

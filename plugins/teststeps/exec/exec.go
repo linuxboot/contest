@@ -64,7 +64,7 @@ func (ts *TestStep) Run(
 		return nil, err
 	}
 
-	tr := NewTargetRunner(ts, ev)
+	tr := NewTargetRunner(ts, ev, stepsVars)
 	return teststeps.ForEachTarget(Name, ctx, ch, tr.Run)
 }
 
