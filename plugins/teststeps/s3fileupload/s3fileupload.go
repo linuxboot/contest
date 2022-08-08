@@ -97,11 +97,11 @@ func (ts *FileUpload) Run(
 	}
 	f := func(ctx xcontext.Context, target *target.Target) error {
 		// expand args
-		path, err := ts.localPath.Expand(target)
+		path, err := ts.localPath.Expand(target, stepsVars)
 		if err != nil {
 			return fmt.Errorf("failed to expand argument '%s': %v", ts.localPath, err)
 		}
-		filename, err := ts.fileName.Expand(target)
+		filename, err := ts.fileName.Expand(target, stepsVars)
 		if err != nil {
 			return fmt.Errorf("failed to expand argument dir '%s': %v", ts.fileName, err)
 		}

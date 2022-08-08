@@ -6,7 +6,9 @@
 package test
 
 import (
+	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -24,7 +26,7 @@ func TestParameterExpand(t *testing.T) {
 	}
 	for _, x := range validExprs {
 		p := NewParam(x[0])
-		res, err := p.Expand(&target.Target{FQDN: x[1], ID: x[2]})
+		res, err := p.Expand(&target.Target{FQDN: x[1], ID: x[2]}, nil)
 		require.NoError(t, err, x[0])
 		require.Equal(t, x[3], res, x[0])
 	}
@@ -46,10 +48,91 @@ func TestParameterExpandUserFunctions(t *testing.T) {
 	}
 	for _, x := range validExprs {
 		p := NewParam(x[0])
-		res, err := p.Expand(&target.Target{FQDN: x[1], ID: x[2]})
+		res, err := p.Expand(&target.Target{FQDN: x[1], ID: x[2]}, nil)
 		require.NoError(t, err, x[0])
 		require.Equal(t, x[3], res, x[0])
 	}
 	require.NoError(t, UnregisterFunction("CustomFunc"))
 	require.Error(t, UnregisterFunction("NoSuchFunction"))
+}
+
+func TestStepVariablesExpand(t *testing.T) {
+	p := NewParam("{{ StringVar \"step1.string_var\" }}: {{ IntVar \"step1.int_var\" }}")
+	svm := newStepsVariablesMock()
+
+	tgt := target.Target{ID: "1"}
+	require.NoError(t, svm.add(tgt.ID, "step1", "string_var", "Hello"))
+	require.NoError(t, svm.add(tgt.ID, "step1", "int_var", 42))
+
+	res, err := p.Expand(&tgt, svm)
+	require.NoError(t, err)
+	require.Equal(t, "Hello: 42", res)
+}
+
+func TestInvalidStepVariablesExpand(t *testing.T) {
+	t.Run("no_dot", func(t *testing.T) {
+		p := NewParam("{{ StringVar \"step1string_var\" }}")
+		_, err := p.Expand(&target.Target{ID: "1"}, newStepsVariablesMock())
+		require.Error(t, err)
+	})
+
+	t.Run("just_variable_name", func(t *testing.T) {
+		p := NewParam("{{ StringVar \"string_var\" }}")
+
+		svm := newStepsVariablesMock()
+		tgt := target.Target{ID: "1"}
+		require.NoError(t, svm.add(tgt.ID, "step1", "string_var", "Hello"))
+
+		_, err := p.Expand(&tgt, svm)
+		require.Error(t, err)
+	})
+
+	t.Run("invalid_variable_name", func(t *testing.T) {
+		p := NewParam("{{ StringVar \"step1.22string_var\" }}")
+
+		svm := newStepsVariablesMock()
+		tgt := target.Target{ID: "1"}
+		// we can add invalid values to our mock
+		require.NoError(t, svm.add(tgt.ID, "step1", "22string_var", "Hello"))
+
+		_, err := p.Expand(&tgt, svm)
+		require.Error(t, err)
+	})
+}
+
+type stepsVariablesMock struct {
+	variables map[string]map[string]json.RawMessage
+}
+
+func newStepsVariablesMock() *stepsVariablesMock {
+	return &stepsVariablesMock{
+		variables: make(map[string]map[string]json.RawMessage),
+	}
+}
+
+func (svm *stepsVariablesMock) add(tgtID string, label, name string, in interface{}) error {
+	b, err := json.Marshal(in)
+	if err != nil {
+		return err
+	}
+
+	targetVars := svm.variables[tgtID]
+	if targetVars == nil {
+		targetVars = make(map[string]json.RawMessage)
+		svm.variables[tgtID] = targetVars
+	}
+	targetVars[label+"."+name] = b
+	return nil
+}
+
+func (svm *stepsVariablesMock) Get(tgtID string, stepLabel, name string, out interface{}) error {
+	targetVars := svm.variables[tgtID]
+	if targetVars == nil {
+		return fmt.Errorf("no target: %s", tgtID)
+	}
+	b, found := targetVars[stepLabel+"."+name]
+	if !found {
+		return fmt.Errorf("no variable %s %s", stepLabel, name)
+	}
+	return json.Unmarshal(b, out)
 }

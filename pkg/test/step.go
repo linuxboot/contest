@@ -109,7 +109,7 @@ type TestStepChannels struct {
 	Out chan<- TestStepResult
 }
 
-// StepsVariables represents a read/write access for step variables
+// StepsVariablesReader represents a read access for step variables
 // Example:
 // var sv StepsVariables
 // intVar := 42
@@ -118,12 +118,16 @@ type TestStepChannels struct {
 // var recvIntVar int
 // sv.Get(("dummy-target-id", "varname", &recvIntVar)
 // assert recvIntVar == 42
+type StepsVariablesReader interface {
+	// Get obtains existing variable that was added in one of the previous steps
+	Get(tgtID string, stepLabel, name string, out interface{}) error
+}
+
+// StepsVariables represents a read/write access for step variables
 type StepsVariables interface {
+	StepsVariablesReader
 	// Add adds a new or replaces existing variable associated with current test step and target
 	Add(tgtID string, name string, in interface{}) error
-
-	// Get obtains existing variable by a mappedName which should be specified in variables mapping
-	Get(tgtID string, stepLabel, name string, out interface{}) error
 }
 
 // TestStep is the interface that all steps need to implement to be executed

@@ -250,9 +250,9 @@ func (ts *GatherCmd) setParams(params test.TestStepParameters) error {
 
 	ts.args = []string{}
 	args := params.Get("args")
-	// expand args in case they use functions, but they shouldnt be target aware
+	// expand args in case they use functions, but they shouldn't be target aware
 	for _, arg := range args {
-		expanded, err := arg.Expand(&target.Target{})
+		expanded, err := arg.Expand(&target.Target{}, nil)
 		if err != nil {
 			return fmt.Errorf("failed to expand argument: %s -> %v", arg, err)
 		}

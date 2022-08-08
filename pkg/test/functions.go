@@ -32,6 +32,47 @@ func getFuncMap() map[string]interface{} {
 	return mapCopy
 }
 
+func parseLabelDotVariable(labelDotVariable string) (string, string, error) {
+	parts := strings.SplitN(labelDotVariable, ".", 2)
+	if len(parts) < 2 {
+		return "", "", fmt.Errorf("not 'label.variable' format of '%s'", labelDotVariable)
+	}
+	stepLabel, varname := parts[0], parts[1]
+	if err := CheckIdentifier(stepLabel); err != nil {
+		return "", "", fmt.Errorf("invalid step label: '%s': %w", stepLabel, err)
+	}
+	if err := CheckIdentifier(varname); err != nil {
+		return "", "", fmt.Errorf("invalid variable name: '%s': %w", varname, err)
+	}
+	return stepLabel, varname, nil
+}
+
+func registerStepVariableAccessor(fm map[string]interface{}, tgtID string, vars StepsVariablesReader) {
+	fm["StringVar"] = func(labelDotVariable string) (string, error) {
+		stepLabel, varName, err := parseLabelDotVariable(labelDotVariable)
+		if err != nil {
+			return "", err
+		}
+
+		var s string
+		if err := vars.Get(tgtID, stepLabel, varName, &s); err != nil {
+			return "", err
+		}
+		return s, nil
+	}
+	fm["IntVar"] = func(labelDotVariable string) (int, error) {
+		stepLabel, varName, err := parseLabelDotVariable(labelDotVariable)
+		if err != nil {
+			return 0, err
+		}
+		var i int
+		if err := vars.Get(tgtID, stepLabel, varName, &i); err != nil {
+			return 0, err
+		}
+		return i, nil
+	}
+}
+
 // RegisterFunction registers a template function suitable for text/template.
 // It can be either a func(string) string or a func(string) (string, error),
 // hence it's passed as an empty interface.
