@@ -271,7 +271,7 @@ func (tr *TestRunner) waitSteps(ctx xcontext.Context) ([]json.RawMessage, error)
 			resumeStates = append(resumeStates, ss.GetInitResumeState())
 			continue
 		}
-		result, err := ss.stepRunner.WaitResults(shutdownCtx)
+		result, err := ss.WaitResults(shutdownCtx)
 		if err != nil {
 			stepsNeverReturned = append(stepsNeverReturned, ss.GetTestStepLabel())
 			ss.SetError(ctx, &cerrors.ErrTestStepsNeverReturned{StepNames: []string{ss.GetTestStepLabel()}})
