@@ -126,14 +126,21 @@ func newStepVariablesAccessor(stepLabel string, tsv *testStepsVariables) *stepVa
 }
 
 func (sva *stepVariablesAccessor) Add(tgtID string, name string, in interface{}) error {
-	if len(sva.stepLabel) == 0 {
-		return nil
+	var marshalled []byte
+	if raw, ok := in.(json.RawMessage); ok {
+		var v interface{}
+		if err := json.Unmarshal(raw, &v); err != nil {
+			return fmt.Errorf("invalid input, failed to unmarshal: %v", err)
+		}
+		marshalled = raw
+	} else {
+		var err error
+		marshalled, err = json.Marshal(in)
+		if err != nil {
+			return fmt.Errorf("failed to serialize variable: %v", in)
+		}
 	}
-	b, err := json.Marshal(in)
-	if err != nil {
-		return fmt.Errorf("failed to serialize variable: %v", in)
-	}
-	return sva.tsv.Add(tgtID, sva.stepLabel, name, b)
+	return sva.tsv.Add(tgtID, sva.stepLabel, name, marshalled)
 }
 
 func (sva *stepVariablesAccessor) Get(tgtID string, stepLabel, name string, out interface{}) error {
