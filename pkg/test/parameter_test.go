@@ -56,6 +56,18 @@ func TestParameterExpandUserFunctions(t *testing.T) {
 	require.Error(t, UnregisterFunction("NoSuchFunction"))
 }
 
+func TestExpandWithNoTargetProvided(t *testing.T) {
+	p := NewParam("dummy")
+
+	res, err := p.Expand(nil, nil)
+	require.NoError(t, err)
+	require.Equal(t, "dummy", res)
+
+	res, err = p.Expand(nil, newStepsVariablesMock())
+	require.NoError(t, err)
+	require.Equal(t, "dummy", res)
+}
+
 func TestStepVariablesExpand(t *testing.T) {
 	p := NewParam("{{ StringVar \"step1.string_var\" }}: {{ IntVar \"step1.int_var\" }}")
 	svm := newStepsVariablesMock()
