@@ -21,11 +21,12 @@ type stepState struct {
 	stepIndex int                 // Index of this step in the pipeline.
 	sb        test.TestStepBundle // The test bundle.
 
-	ev         testevent.Emitter
-	tsv        *testStepsVariables
-	stepRunner *StepRunner
-	addTarget  AddTargetToStep
-	stopped    chan struct{}
+	ev                 testevent.Emitter
+	tsv                *testStepsVariables
+	stepRunner         *StepRunner
+	addTarget          AddTargetToStep
+	leftTargetsCounter int // the number of targets that will be assigned to the step, when reaches 0 the stepRunner should be stopped
+	stopped            chan struct{}
 
 	resumeState            json.RawMessage         // Resume state passed to and returned by the Run method.
 	resumeStateTargets     []target.Target         // Targets that were being processed during pause.
@@ -36,6 +37,7 @@ type stepState struct {
 
 func newStepState(
 	stepIndex int,
+	totalTargets int,
 	sb test.TestStepBundle,
 	emitterFactory TestStepEventsEmitterFactory,
 	tsv *testStepsVariables,
@@ -45,6 +47,7 @@ func newStepState(
 ) *stepState {
 	return &stepState{
 		stepIndex:          stepIndex,
+		leftTargetsCounter: totalTargets,
 		sb:                 sb,
 		ev:                 emitterFactory.New(sb.TestStepLabel),
 		tsv:                tsv,
@@ -75,8 +78,18 @@ func (ss *stepState) WaitResults(ctx context.Context) (stepResult StepResult, er
 	return ss.stepRunner.WaitResults(ctx)
 }
 
-func (ss *stepState) Stop() {
-	ss.stepRunner.Stop()
+// DecreaseLeftTargets stops step runner when there are no more targets left for it in the scope of a Test
+func (ss *stepState) DecreaseLeftTargets() {
+	ss.mu.Lock()
+	defer ss.mu.Unlock()
+
+	ss.leftTargetsCounter--
+	if ss.leftTargetsCounter < 0 {
+		panic(fmt.Sprintf("leftTargetsCounter should be >= 0 but is '%d'", ss.leftTargetsCounter))
+	}
+	if ss.leftTargetsCounter == 0 {
+		ss.stepRunner.Stop()
+	}
 }
 
 func (ss *stepState) ForceStop() {

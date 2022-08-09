@@ -126,7 +126,6 @@ func (tr *TestRunner) Run(
 
 	// Initialize remaining fields of the target structures,
 	// build the map and kick off target processing.
-	minStep := len(tr.steps)
 	for _, tgt := range targets {
 		tgs := tr.targets[tgt.ID]
 		if tgs == nil {
@@ -136,10 +135,6 @@ func (tr *TestRunner) Run(
 		}
 		tgs.tgt = tgt
 		tr.targets[tgt.ID] = tgs
-
-		if tgs.CurStep < minStep {
-			minStep = tgs.CurStep
-		}
 	}
 
 	stepOutputs, err := newTestStepsVariables(t.TestStepsBundles)
@@ -164,14 +159,18 @@ func (tr *TestRunner) Run(
 
 		// Collect "processed" targets in resume state for a StepRunner
 		var resumeStateTargets []target.Target
+		var stepTargetsCount int
 		for _, tgt := range tr.targets {
+			if tgt.CurStep <= i {
+				stepTargetsCount++
+			}
 			if tgt.CurStep == i && tgt.CurPhase == targetStepPhaseRun {
 				resumeStateTargets = append(resumeStateTargets, *tgt.tgt)
 			}
 		}
 
 		// Step handlers will be started from target handlers as targets reach them.
-		tr.steps = append(tr.steps, newStepState(i, sb, emitterFactory, stepOutputs, srs, resumeStateTargets, func(err error) {
+		tr.steps = append(tr.steps, newStepState(i, stepTargetsCount, sb, emitterFactory, stepOutputs, srs, resumeStateTargets, func(err error) {
 			tr.monitorCond.Signal()
 		}))
 	}
@@ -185,7 +184,7 @@ func (tr *TestRunner) Run(
 	}
 
 	// Run until no more progress can be made.
-	runErr := tr.runMonitor(ctx, minStep)
+	runErr := tr.runMonitor(ctx)
 	if runErr != nil {
 		ctx.Errorf("monitor returned error: %q, canceling", runErr)
 		for _, ss := range tr.steps {
@@ -314,12 +313,17 @@ func (tr *TestRunner) waitSteps(ctx xcontext.Context) ([]json.RawMessage, error)
 // targetHandler takes a single target through each step of the pipeline in sequence.
 // It injects the target, waits for the result, then moves on to the next step.
 func (tr *TestRunner) targetHandler(ctx xcontext.Context, tgs *targetState) {
+	lastDecremented := tgs.CurStep - 1
 	defer func() {
 		tr.mu.Lock()
 		tgs.handlerRunning = false
 		tr.mu.Unlock()
 		tr.monitorCond.Signal()
 		ctx.Debugf("%s: target handler finished", tgs)
+
+		for i := lastDecremented + 1; i < len(tr.steps); i++ {
+			tr.steps[i].DecreaseLeftTargets()
+		}
 	}()
 
 	ctx = ctx.WithField("target", tgs.tgt.ID)
@@ -365,6 +369,7 @@ loop:
 			ctx.Debugf("%s: injecting into %s", tgs, ss)
 			targetNotifier, err = ss.InjectTarget(ctx, tgs.tgt)
 		}
+
 		if err == nil {
 			tr.mu.Lock()
 			// By the time we get here the target could have been processed and result posted already, hence the check.
@@ -374,6 +379,10 @@ loop:
 			tr.mu.Unlock()
 			tr.monitorCond.Signal()
 		}
+
+		tr.steps[i].DecreaseLeftTargets()
+		lastDecremented = i
+
 		// Await result. It will be communicated to us by the step runner
 		// and returned in tgs.res.
 		if err == nil {
@@ -443,62 +452,19 @@ func (tr *TestRunner) checkStepRunnersFailed() error {
 // It also monitors steps for critical errors and cancels the whole run.
 // Note: input channels remain open when cancellation is requested,
 // plugins are expected to handle it explicitly.
-func (tr *TestRunner) runMonitor(ctx xcontext.Context, minStep int) error {
+func (tr *TestRunner) runMonitor(ctx xcontext.Context) error {
 	ctx.Debugf("monitor: active")
-	if minStep < len(tr.steps) {
-		ctx.Debugf("monitor: starting at step %s", tr.steps[minStep])
-	}
-
-	// Run the main loop.
-	runErr := func() error {
-		tr.mu.Lock()
-		defer tr.mu.Unlock()
-
-		pass := 1
-		var runErr error
-	stepLoop:
-		for step := minStep; step < len(tr.steps); pass++ {
-			ss := tr.steps[step]
-			ctx.Debugf("monitor pass %d: current step %s", pass, ss)
-			// Check if all the targets have either made it past the injection phase or terminated.
-			ok := true
-			for _, tgs := range tr.targets {
-				ctx.Debugf("monitor pass %d: %s: %s", pass, ss, tgs)
-				if !tgs.handlerRunning { // Not running anymore
-					continue
-				}
-				if tgs.CurStep < step || tgs.CurPhase < targetStepPhaseRun {
-					ctx.Debugf("monitor pass %d: %s: not all targets injected yet (%s)", pass, ss, tgs)
-					ok = false
-					break
-				}
-			}
-			if runErr = tr.checkStepRunnersFailed(); runErr != nil {
-				break stepLoop
-			}
-			if !ok {
-				// Wait for notification: as progress is being made, we get notified.
-				tr.monitorCond.Wait()
-				continue
-			}
-			// All targets ok, close the step's input channel.
-			ctx.Debugf("monitor pass %d: %s: no more targets, closing input channel", pass, ss)
-			ss.Stop()
-			step++
-		}
-		return runErr
-	}()
-	if runErr != nil {
-		return runErr
-	}
 
 	//
-	// After all targets were sent to the steps we should monitor steps for incoming errors
+	// Monitor steps for incoming errors
 	//
 	tr.mu.Lock()
 	defer tr.mu.Unlock()
 
-	var pass int
+	var (
+		pass   int
+		runErr error
+	)
 tgtLoop:
 	for ; runErr == nil; pass++ {
 		if runErr = tr.checkStepRunnersFailed(); runErr != nil {
