@@ -40,8 +40,9 @@ import (
 type TestRunner struct {
 	shutdownTimeout time.Duration // Time to wait for steps runners to finish a the end of the run
 
-	steps   []*stepState            // The pipeline, in order of execution
-	targets map[string]*targetState // Target state lookup map
+	steps             []*stepState            // The pipeline, in order of execution
+	targets           map[string]*targetState // Target state lookup map
+	stepsTargetsCount []int32                 // Holds counter of the amount of targets that will use this step
 
 	// One mutex to rule them all, used to serialize access to all the state above.
 	// Could probably be split into several if necessary.
@@ -173,6 +174,17 @@ func (tr *TestRunner) Run(
 		tr.steps = append(tr.steps, newStepState(i, stepTargetsCount, sb, emitterFactory, stepOutputs, srs, resumeStateTargets, func(err error) {
 			tr.monitorCond.Signal()
 		}))
+	}
+
+	tr.stepsTargetsCount = make([]int32, len(tr.steps))
+	for idx := 0; idx < len(tr.stepsTargetsCount); idx++ {
+		tr.stepsTargetsCount[idx] = int32(len(tr.targets))
+	}
+
+	for _, tgs := range tr.targets {
+		for i := 0; i < tgs.CurStep; i++ {
+			tr.stepsTargetsCount[i]--
+		}
 	}
 
 	for _, tgs := range tr.targets {
