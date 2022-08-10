@@ -62,7 +62,7 @@ func (p *Param) Expand(target *target.Target, vars StepsVariablesReader) (string
 		return "", errors.New("parameter cannot be nil")
 	}
 	funcs := getFuncMap()
-	if vars != nil {
+	if target != nil && vars != nil {
 		registerStepVariableAccessor(funcs, target.ID, vars)
 	}
 	// use Go text/template from here
