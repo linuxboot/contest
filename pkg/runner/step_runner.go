@@ -237,20 +237,6 @@ func (sr *StepRunner) Started() bool {
 // WaitResults returns TestStep.Run() output
 // It returns an error if and only if waiting was terminated by inputQueue ctx argument and returns ctx.Err()
 func (sr *StepRunner) WaitResults(ctx context.Context) (stepResult StepResult, err error) {
-	sr.mu.Lock()
-	resultErr := sr.resultErr
-	resultResumeState := sr.resultResumeState
-	sr.mu.Unlock()
-
-	// StepRunner either finished with error or behaved incorrectly
-	// it makes no sense to wait while it finishes, return what we have
-	if resultErr != nil {
-		return StepResult{
-			Err:         resultErr,
-			ResumeState: resultResumeState,
-		}, nil
-	}
-
 	select {
 	case <-ctx.Done():
 		// give priority to returning results
