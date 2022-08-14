@@ -49,18 +49,6 @@ type TestRunner struct {
 	monitorCond *sync.Cond // Used to notify the monitor about changes
 }
 
-// targetStepPhase denotes progression of a target through a step
-type targetStepPhase int
-
-const (
-	targetStepPhaseInvalid  targetStepPhase = iota
-	targetStepPhaseInit                     // (1) Created
-	targetStepPhaseBegin                    // (2) Picked up for execution.
-	targetStepPhaseRun                      // (3) Injected into step.
-	targetStepPhaseObsolete                 // (4) Former result posted to the handler. [Obsolete]
-	targetStepPhaseEnd                      // (5) Finished running a step.
-)
-
 // stepVariables represents the emitted variables of the steps
 type stepVariables map[string]json.RawMessage
 
@@ -85,9 +73,9 @@ type resumeStateStruct struct {
 }
 
 // Resume state version we are compatible with.
-// When imcompatible changes are made to the state format, bump this.
+// When incompatible changes are made to the state format, bump this.
 // Restoring incompatible state will abort the job.
-const resumeStateStructVersion = 2
+const resumeStateStructVersion = 3
 
 type TestStepEventsEmitterFactory interface {
 	New(testStepLabel string) testevent.Emitter
@@ -538,23 +526,15 @@ func NewTestRunner() *TestRunner {
 	return NewTestRunnerWithTimeouts(config.TestRunnerShutdownTimeout)
 }
 
-func (tph targetStepPhase) String() string {
-	switch tph {
-	case targetStepPhaseInvalid:
-		return "INVALID"
-	case targetStepPhaseInit:
-		return "init"
-	case targetStepPhaseBegin:
-		return "begin"
-	case targetStepPhaseRun:
-		return "run"
-	case targetStepPhaseObsolete:
-		return "result_pending_obsolete"
-	case targetStepPhaseEnd:
-		return "end"
-	}
-	return fmt.Sprintf("???(%d)", tph)
-}
+// targetStepPhase denotes progression of a target through a step
+type targetStepPhase string
+
+const (
+	targetStepPhaseInit  targetStepPhase = "init"  // Created
+	targetStepPhaseBegin targetStepPhase = "begin" // Picked up for execution.
+	targetStepPhaseRun   targetStepPhase = "run"   // Injected into step.
+	targetStepPhaseEnd   targetStepPhase = "end"   // Finished running a step.
+)
 
 func (tgs *targetState) String() string {
 	var resText string
