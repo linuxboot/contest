@@ -46,12 +46,12 @@ func setupCleanDB(uri string) (*mongo.Client, error) {
 	return client, err
 }
 
-func submitLog(addr string, log server.Log) error {
-	logJson, err := json.Marshal(log)
+func submitLogs(addr string, logs []server.Log) error {
+	batchJson, err := json.Marshal(logs)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Marshal Err: %v", err)
 	}
-	requestBody := bytes.NewBuffer(logJson)
+	requestBody := bytes.NewBuffer(batchJson)
 	_, err = http.Post(addr, "application/json", requestBody)
 
 	return err
@@ -77,34 +77,39 @@ func getAllLogs(t *testing.T, db *mongo.Client) []mongoStorage.Log {
 	return dbLogs
 }
 
-func TestLogPush(t *testing.T) {
+func TestBatchPush(t *testing.T) {
 	var (
 		logData  = "test log push"
 		loglevel = "info"
-		logDate  = time.Now()
+		date     = time.Now()
+		logsNum  = 100
+		logs     []server.Log
 	)
-	log := server.Log{
-		LogData:  logData,
-		LogLevel: loglevel,
-		Date:     logDate,
+
+	for i := 0; i < logsNum; i++ {
+		logs = append(logs, server.Log{
+			LogData:  fmt.Sprintf("%s %d", logData, i),
+			LogLevel: loglevel,
+			Date:     date,
+		})
 	}
 
 	db, err := setupCleanDB(*flagMongoEndpoint)
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), *flagOperationTimeout)
-	defer cancel()
-	defer db.Disconnect(ctx)
 
-	err = submitLog(*flagAdminEndpoint, log)
+	err = submitLogs(*flagAdminEndpoint, logs)
 	if err != nil {
 		t.Fatal(err)
 	}
 
+	ctx, cancel := context.WithTimeout(context.Background(), *flagOperationTimeout)
+	defer cancel()
+	defer db.Disconnect(ctx)
+
 	dbLogs := getAllLogs(t, db)
 
-	require.Equal(t, 1, len(dbLogs))
-	require.Equal(t, logData, dbLogs[0].LogData)
-	require.Equal(t, loglevel, dbLogs[0].LogLevel)
+	require.Equal(t, len(logs), len(dbLogs))
+	assertEqualResults(t, dbLogs, logs)
 }

@@ -18,11 +18,59 @@ import (
 
 var (
 	DefaultBufferSize = 10
+	MaxBatchSize      = 500000 // size in bytes
+	MaxBatchCount     = 100
+	BatchSendFreq     = 1 * time.Second
 	DefaultLogTimeout = 1 * time.Second
 )
 
+// Batch defines a log batch that handles the size in bytes of the logs
+type Batch struct {
+	addr string
+	logs []server.Log
+	size uint64
+}
+
+func NewBatch(addr string) Batch {
+	return Batch{
+		addr: addr,
+	}
+}
+
+func (b *Batch) Add(log server.Log) {
+	b.logs = append(b.logs, log)
+	b.size += uint64(len(log.LogData))
+}
+
+func (b *Batch) Size() uint64 {
+	return b.size
+}
+
+func (b *Batch) Count() int {
+	return len(b.logs)
+}
+
+// PostAndReset makes a post request sending hh.batch and reseting the batch
+func (b *Batch) PostAndReset() error {
+	logJson, err := json.Marshal(b.logs)
+	if err != nil {
+		return fmt.Errorf("Marshal Err: %v", err)
+	}
+	requestBody := bytes.NewBuffer(logJson)
+	_, err = http.Post(b.addr, "application/json", requestBody)
+	if err != nil {
+		return fmt.Errorf("Http Logger Err: %v", err)
+	}
+
+	b.logs = nil
+	b.size = 0
+	return nil
+}
+
 type HttpHook struct {
-	Addr      string
+	batch       Batch
+	batchTicker *time.Ticker
+
 	logChan   chan server.Log
 	closeChan chan struct{}
 }
@@ -36,9 +84,10 @@ func NewHttpHook(addr string) (*HttpHook, error) {
 	url.Path = path.Join(url.Path, "log")
 
 	hh := HttpHook{
-		Addr:      url.String(),
-		logChan:   make(chan server.Log, DefaultBufferSize),
-		closeChan: make(chan struct{}),
+		batch:       NewBatch(url.String()),
+		batchTicker: time.NewTicker(BatchSendFreq),
+		logChan:     make(chan server.Log, DefaultBufferSize),
+		closeChan:   make(chan struct{}),
 	}
 
 	go hh.logHandler()
@@ -90,16 +139,32 @@ func (hh *HttpHook) logHandler() {
 	for {
 		select {
 		case log := <-hh.logChan:
-			logJson, err := json.Marshal(log)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "Marshal Err: %v", err)
+			hh.batch.Add(log)
+			if hh.batch.Count() > MaxBatchCount || hh.batch.Size() > uint64(MaxBatchSize) {
+				err := hh.batch.PostAndReset()
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "Send Batch failed: %v", err)
+					break
+				}
+				// if the batch is sent
+				// to avoid ticking on an empty batch
+				hh.batchTicker.Reset(BatchSendFreq)
 			}
-			requestBody := bytes.NewBuffer(logJson)
-			_, err = http.Post(hh.Addr, "application/json", requestBody)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "Http Logger Err: %v", err)
+		case <-hh.batchTicker.C:
+			if hh.batch.Size() > 0 {
+				err := hh.batch.PostAndReset()
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "Send Batch failed: %v", err)
+				}
 			}
 		case <-hh.closeChan:
+			// if there are logs in the buffered batch, send them
+			if hh.batch.Count() > 0 {
+				err := hh.batch.PostAndReset()
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "Send Batch failed: %v", err)
+				}
+			}
 			fmt.Fprintf(os.Stderr, "Closing http logger")
 			return
 		}
@@ -109,6 +174,7 @@ func (hh *HttpHook) logHandler() {
 // Close ends the logHandler goroutine
 func (hh *HttpHook) Close() {
 	hh.closeChan <- struct{}{}
+	hh.batchTicker.Stop()
 	// to mark further Close as no-op
 	hh.closeChan = nil
 }
