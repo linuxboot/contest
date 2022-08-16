@@ -90,8 +90,8 @@ func NewContext(logLevel logger.Level, opts ...bundles.Option) (xcontext.Context
 		),
 	)
 
-	if cfg.HttpLoggerAddr != "" {
-		httpHook, err := loggerhook.NewHttpHook(cfg.HttpLoggerAddr)
+	if cfg.HttpLoggerConfig.Addr != "" {
+		httpHook, err := loggerhook.NewHttpHook(cfg.HttpLoggerConfig)
 		if err == nil {
 			// clean the http logger on ctx canceling
 			go func() {

@@ -6,6 +6,7 @@
 package bundles
 
 import (
+	"github.com/linuxboot/contest/pkg/loggerhook"
 	"github.com/linuxboot/contest/pkg/xcontext"
 )
 
@@ -70,12 +71,11 @@ func (opt OptionTimestampFormat) apply(cfg *Config) {
 	cfg.TimestampFormat = string(opt)
 }
 
-// OptionHttpLoggerAddr is used to create a logger hook to send logs via http
-// to admin server
-type OptionHttpLoggerAddr string
+// OptionHttpLoggerConfig is used to define the different config for the http logger
+type OptionHttpLoggerConfig loggerhook.Config
 
-func (opt OptionHttpLoggerAddr) apply(cfg *Config) {
-	cfg.HttpLoggerAddr = string(opt)
+func (opt OptionHttpLoggerConfig) apply(cfg *Config) {
+	cfg.HttpLoggerConfig = loggerhook.Config(opt)
 }
 
 // Config is a configuration state resulted from Option-s.
@@ -84,9 +84,10 @@ type Config struct {
 	TracerReportCaller bool
 	TimestampFormat    string
 	VerboseCaller      bool
-	HttpLoggerAddr     string
 	Tracer             xcontext.Tracer
 	Format             LogFormat
+	// http logger specific options
+	HttpLoggerConfig loggerhook.Config
 }
 
 // GetConfig processes passed Option-s and returns the resulting state as Config.
