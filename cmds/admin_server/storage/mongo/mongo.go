@@ -106,12 +106,14 @@ func toMongoQuery(query storage.Query) bson.D {
 	return q
 }
 
-func (s *MongoStorage) StoreLog(ctx xcontext.Context, log storage.Log) error {
-	mongoLog := toMongoLog(&log)
-	_, err := s.collection.InsertOne(ctx, mongoLog)
+func (s *MongoStorage) StoreLogs(ctx xcontext.Context, logs []storage.Log) error {
+	var mongoLogs []interface{}
+	for _, log := range logs {
+		mongoLogs = append(mongoLogs, toMongoLog(&log))
+	}
+	_, err := s.collection.InsertMany(ctx, mongoLogs)
 	if err != nil {
-		// for better debugging
-		ctx.Errorf("Error while inserting into the db: %v", err)
+		ctx.Errorf("Error while inserting a batch of logs: %v", err)
 		return storage.ErrInsert
 	}
 	return nil

@@ -19,7 +19,7 @@ var (
 )
 
 type Storage interface {
-	StoreLog(ctx xcontext.Context, entry Log) error
+	StoreLogs(ctx xcontext.Context, logs []Log) error
 	GetLogs(ctx xcontext.Context, query Query) (*Result, error)
 
 	Close(ctx xcontext.Context) error

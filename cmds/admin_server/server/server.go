@@ -107,24 +107,28 @@ func (r *RouteHandler) status(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "live"})
 }
 
-// addLog inserts a new log entry inside the database
-func (r *RouteHandler) addLog(c *gin.Context) {
-
-	var log Log
-	if err := c.Bind(&log); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"status": "err", "msg": "badly formatted log"})
+// addLogs inserts log's batches into the database
+func (r *RouteHandler) addLogs(c *gin.Context) {
+	var logs []Log
+	if err := c.Bind(&logs); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"status": "err", "msg": "badly formatted logs"})
 		r.log.Errorf("Err while binding request body %v", err)
 		return
+	}
+
+	storageLogs := make([]storage.Log, 0, len(logs))
+	for _, log := range logs {
+		storageLogs = append(storageLogs, log.ToStorageLog())
 	}
 
 	ctx, cancel := xcontext.WithTimeout(xcontext.Background(), DefaultDBAccessTimeout)
 	defer cancel()
 	ctx = ctx.WithLogger(r.log)
-	err := r.storage.StoreLog(ctx, log.ToStorageLog())
+	err := r.storage.StoreLogs(ctx, storageLogs)
 	if err != nil {
 		switch {
 		case errors.Is(err, storage.ErrInsert):
-			c.JSON(http.StatusInternalServerError, gin.H{"status": "err", "msg": "error while storing the log"})
+			c.JSON(http.StatusInternalServerError, gin.H{"status": "err", "msg": "error while storing the batch"})
 		case errors.Is(err, storage.ErrReadOnlyStorage):
 			c.JSON(http.StatusNotImplemented, gin.H{"status": "err", "msg": "not supported action"})
 		default:
@@ -168,7 +172,7 @@ func initRouter(ctx xcontext.Context, rh RouteHandler, middlewares []gin.Handler
 	}
 
 	r.GET("/status", rh.status)
-	r.POST("/log", rh.addLog)
+	r.POST("/log", rh.addLogs)
 	r.GET("/log", rh.getLogs)
 
 	// serve the frontend app
