@@ -102,7 +102,7 @@ func (tr *TestRunner) Run(
 	runCtx, runCancel := xcontext.WithCancel(ctx)
 	defer runCancel()
 
-	var testTargets map[string]*targetState
+	var targetStates map[string]*targetState
 
 	// If we have state to resume, parse it.
 	var rs resumeStateStruct
@@ -115,25 +115,25 @@ func (tr *TestRunner) Run(
 			return nil, nil, fmt.Errorf("incompatible resume state version %d (want %d)",
 				rs.Version, resumeStateStructVersion)
 		}
-		testTargets = rs.Targets
+		targetStates = rs.Targets
 	}
 
 	// Set up the targets
-	if testTargets == nil {
-		testTargets = make(map[string]*targetState)
+	if targetStates == nil {
+		targetStates = make(map[string]*targetState)
 	}
 
 	// Initialize remaining fields of the target structures,
 	// build the map and kick off target processing.
 	for _, tgt := range targets {
-		tgs := testTargets[tgt.ID]
+		tgs := targetStates[tgt.ID]
 		if tgs == nil {
 			tgs = &targetState{
 				CurPhase: targetStepPhaseInit,
 			}
 		}
 		tgs.tgt = tgt
-		testTargets[tgt.ID] = tgs
+		targetStates[tgt.ID] = tgs
 	}
 
 	stepOutputs, err := newTestStepsVariables(t.TestStepsBundles)
@@ -142,7 +142,7 @@ func (tr *TestRunner) Run(
 		return nil, nil, err
 	}
 
-	for targetID, targetState := range testTargets {
+	for targetID, targetState := range targetStates {
 		if err := stepOutputs.initTargetStepsVariables(targetID, targetState.StepsVariables); err != nil {
 			ctx.Errorf("Failed to initialise test steps variables for target: %s: %v", targetID, err)
 			return nil, nil, err
@@ -161,7 +161,7 @@ func (tr *TestRunner) Run(
 		var resumeStateTargets []target.Target
 
 		var stepTargetsCount int
-		for _, tgt := range testTargets {
+		for _, tgt := range targetStates {
 			if tgt.CurStep <= i {
 				stepTargetsCount++
 			}
@@ -177,16 +177,16 @@ func (tr *TestRunner) Run(
 		}))
 	}
 
-	targetErrors := make(chan error, len(testTargets))
-	targetErrorsCnt := int32(len(testTargets))
-	for _, tgs := range testTargets {
+	targetErrors := make(chan error, len(targetStates))
+	targetErrorsCount := int32(len(targetStates))
+	for _, tgs := range targetStates {
 		go func(ctx xcontext.Context, state *targetState, targetErrors chan<- error) {
-			targetErr := tr.targetHandler(ctx, state)
+			targetErr := tr.handleTarget(ctx, state)
 			if targetErr != nil {
 				runCtx.Errorf("Target %s reported an error: %v", state.tgt.ID, targetErr)
 			}
 			targetErrors <- targetErr
-			if atomic.AddInt32(&targetErrorsCnt, -1) == 0 {
+			if atomic.AddInt32(&targetErrorsCount, -1) == 0 {
 				close(targetErrors)
 			}
 		}(runCtx, tgs, targetErrors)
@@ -241,7 +241,7 @@ func (tr *TestRunner) Run(
 	resumeOk := runErr == nil
 	numInFlightTargets := 0
 	for i, tgt := range targets {
-		tgs := testTargets[tgt.ID]
+		tgs := targetStates[tgt.ID]
 		tgs.StepsVariables, err = stepOutputs.getTargetStepsVariables(tgt.ID)
 		if err != nil {
 			ctx.Errorf("Failed to get steps variables: %v", err)
@@ -279,7 +279,7 @@ func (tr *TestRunner) Run(
 		}
 		rs := &resumeStateStruct{
 			Version:         resumeStateStructVersion,
-			Targets:         testTargets,
+			Targets:         targetStates,
 			StepResumeState: stepResumeStates,
 		}
 		resumeState, runErr = json.Marshal(rs)
@@ -293,7 +293,7 @@ func (tr *TestRunner) Run(
 	}
 
 	targetsResults := make(map[string]error)
-	for id, state := range testTargets {
+	for id, state := range targetStates {
 		if state.Res != nil {
 			targetsResults[id] = state.Res.Unwrap()
 		} else if state.CurStep == len(tr.steps)-1 && state.CurPhase == targetStepPhaseEnd {
@@ -335,9 +335,9 @@ func (tr *TestRunner) waitSteps(ctx xcontext.Context) ([]json.RawMessage, error)
 	return resumeStates, resultErr
 }
 
-// targetHandler takes a single target through each step of the pipeline in sequence.
+// handleTarget takes a single target through each step of the pipeline in sequence.
 // It injects the target, waits for the result, then moves on to the next step.
-func (tr *TestRunner) targetHandler(ctx xcontext.Context, tgs *targetState) error {
+func (tr *TestRunner) handleTarget(ctx xcontext.Context, tgs *targetState) error {
 	lastDecremented := tgs.CurStep - 1
 	defer func() {
 		ctx.Debugf("%s: target handler finished", tgs)
