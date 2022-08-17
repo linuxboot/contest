@@ -16,13 +16,22 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-var (
-	DefaultBufferSize = 10
-	MaxBatchSize      = 500000 // size in bytes
-	MaxBatchCount     = 100
-	BatchSendFreq     = 1 * time.Second
-	DefaultLogTimeout = 1 * time.Second
+const (
+	DefaultBufferSize    = 10
+	DefaultMaxBatchSize  = 500000 // size in bytes
+	DefaultMaxBatchCount = 100
+	DefaultBatchSendFreq = 1 * time.Second
+	DefaultLogTimeout    = 1 * time.Second
 )
+
+type Config struct {
+	Addr          string
+	BufferSize    int
+	MaxBatchSize  int
+	MaxBatchCount int
+	BatchSendFreq time.Duration
+	LogTimeout    time.Duration
+}
 
 // Batch defines a log batch that handles the size in bytes of the logs
 type Batch struct {
@@ -68,6 +77,7 @@ func (b *Batch) PostAndReset() error {
 }
 
 type HttpHook struct {
+	cfg         Config
 	batch       Batch
 	batchTicker *time.Ticker
 
@@ -75,8 +85,8 @@ type HttpHook struct {
 	closeChan chan struct{}
 }
 
-func NewHttpHook(addr string) (*HttpHook, error) {
-	url, err := url.ParseRequestURI(addr)
+func NewHttpHook(cfg Config) (*HttpHook, error) {
+	url, err := url.ParseRequestURI(cfg.Addr)
 	if err != nil {
 		return nil, err
 	}
@@ -84,9 +94,10 @@ func NewHttpHook(addr string) (*HttpHook, error) {
 	url.Path = path.Join(url.Path, "log")
 
 	hh := HttpHook{
+		cfg:         cfg,
 		batch:       NewBatch(url.String()),
-		batchTicker: time.NewTicker(BatchSendFreq),
-		logChan:     make(chan server.Log, DefaultBufferSize),
+		batchTicker: time.NewTicker(cfg.BatchSendFreq),
+		logChan:     make(chan server.Log, cfg.BufferSize),
 		closeChan:   make(chan struct{}),
 	}
 
@@ -123,7 +134,7 @@ func (hh *HttpHook) Fire(entry *logrus.Entry) error {
 	}
 
 	// timeout is used to not block the service on the logging
-	timeout := time.After(DefaultLogTimeout)
+	timeout := time.After(hh.cfg.LogTimeout)
 	select {
 	case hh.logChan <- log:
 	// do nothing
@@ -140,7 +151,7 @@ func (hh *HttpHook) logHandler() {
 		select {
 		case log := <-hh.logChan:
 			hh.batch.Add(log)
-			if hh.batch.Count() > MaxBatchCount || hh.batch.Size() > uint64(MaxBatchSize) {
+			if hh.batch.Count() > hh.cfg.MaxBatchCount || hh.batch.Size() > uint64(hh.cfg.MaxBatchSize) {
 				err := hh.batch.PostAndReset()
 				if err != nil {
 					fmt.Fprintf(os.Stderr, "Send Batch failed: %v", err)
@@ -148,7 +159,7 @@ func (hh *HttpHook) logHandler() {
 				}
 				// if the batch is sent
 				// to avoid ticking on an empty batch
-				hh.batchTicker.Reset(BatchSendFreq)
+				hh.batchTicker.Reset(hh.cfg.BatchSendFreq)
 			}
 		case <-hh.batchTicker.C:
 			if hh.batch.Size() > 0 {

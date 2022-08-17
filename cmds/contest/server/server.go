@@ -19,6 +19,7 @@ import (
 	"github.com/linuxboot/contest/pkg/config"
 	"github.com/linuxboot/contest/pkg/job"
 	"github.com/linuxboot/contest/pkg/jobmanager"
+	"github.com/linuxboot/contest/pkg/loggerhook"
 	"github.com/linuxboot/contest/pkg/logging"
 	"github.com/linuxboot/contest/pkg/pluginregistry"
 	"github.com/linuxboot/contest/pkg/storage"
@@ -48,10 +49,16 @@ var (
 	flagTargetLocker       *string
 	flagInstanceTag        *string
 	flagLogLevel           *string
-	flagAdminServerAddr    *string
 	flagPauseTimeout       *time.Duration
 	flagResumeJobs         *bool
 	flagTargetLockDuration *time.Duration
+	// http logger parameters
+	flagAdminServerAddr         *string
+	flagHttpLoggerBufferSize    *int
+	flagHttpLoggerMaxBatchSize  *int
+	flagHttpLoggerMaxBatchCount *int
+	flagHttpLoggerBatchSendFreq *time.Duration
+	flagHttpLoggerTimeout       *time.Duration
 )
 
 func initFlags(cmd string) {
@@ -59,6 +66,11 @@ func initFlags(cmd string) {
 	flagDBURI = flagSet.String("dbURI", config.DefaultDBURI, "Database URI")
 	flagListenAddr = flagSet.String("listenAddr", ":8080", "Listen address and port")
 	flagAdminServerAddr = flagSet.String("adminServerAddr", "", "Addr of the admin server to connect to")
+	flagHttpLoggerBufferSize = flagSet.Int("loggerBufferSize", loggerhook.DefaultBufferSize, "buffer size for the http logger hook")
+	flagHttpLoggerMaxBatchSize = flagSet.Int("loggerMaxBatchSize", loggerhook.DefaultMaxBatchSize, "max size (in bytes) of a logs batch to be sent if it reaches/exceeds it")
+	flagHttpLoggerMaxBatchCount = flagSet.Int("loggerMaxBatchCount", loggerhook.DefaultMaxBatchCount, "max count of logs in a batch")
+	flagHttpLoggerBatchSendFreq = flagSet.Duration("loggerBatchSendFreq", loggerhook.DefaultBatchSendFreq, "duration that defines the batch sending freq")
+	flagHttpLoggerTimeout = flagSet.Duration("loggerTimeout", loggerhook.DefaultLogTimeout, "logs send timeout")
 	flagServerID = flagSet.String("serverID", "", "Set a static server ID, e.g. the host name or another unique identifier. If unset, will use the listener's default")
 	flagProcessTimeout = flagSet.Duration("processTimeout", api.DefaultEventTimeout, "API request processing timeout")
 	flagTargetLocker = flagSet.String("targetLocker", "auto", "Target locker implementation to use, \"auto\" follows DBURI setting")
@@ -154,7 +166,17 @@ func Main(pluginConfig *PluginConfig, cmd string, args []string, sigs <-chan os.
 	logrusOpts := logging.DefaultOptions()
 
 	if *flagAdminServerAddr != "" {
-		logrusOpts = append(logrusOpts, bundles.OptionHttpLoggerAddr(*flagAdminServerAddr))
+		logrusOpts = append(
+			logrusOpts,
+			bundles.OptionHttpLoggerConfig(loggerhook.Config{
+				Addr:          *flagAdminServerAddr,
+				BufferSize:    *flagHttpLoggerBufferSize,
+				MaxBatchSize:  *flagHttpLoggerMaxBatchSize,
+				MaxBatchCount: *flagHttpLoggerMaxBatchCount,
+				BatchSendFreq: *flagHttpLoggerBatchSendFreq,
+				LogTimeout:    *flagHttpLoggerTimeout,
+			}),
+		)
 	}
 
 	ctx, cancel := logrusctx.NewContext(logLevel, logrusOpts...)
