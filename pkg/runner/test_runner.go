@@ -206,7 +206,7 @@ func (tr *TestRunner) Run(
 				}
 			case runErr = <-stepsErrorsCh:
 			}
-			if runErr != nil && runErr != xcontext.ErrPaused {
+			if runErr != nil && runErr != xcontext.ErrPaused && resultErr == nil {
 				resultErr = runErr
 
 				ctx.Errorf("Got error: %v, canceling", runErr)
