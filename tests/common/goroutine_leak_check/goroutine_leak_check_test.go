@@ -30,8 +30,7 @@ func TestLeaks(t *testing.T) {
 	go Func1(c)
 	c.Wait() // Wait for the go routine to start.
 	c.L.Unlock()
-	dump, err := checkLeakedGoRoutines()
-	require.Errorf(t, err, "===\n%s\n===", dump)
+	err := CheckLeakedGoRoutines()
 	require.Contains(t, err.Error(), "goroutine_leak_check_test.go")
 	require.Contains(t, err.Error(), "goroutine_leak_check.Func1")
 	c.Signal()
