@@ -27,7 +27,7 @@ type MongoStorage struct {
 	collection *mongo.Collection
 }
 
-func NewMongoStorage(ctx xcontext.Context, uri string) (storage.Storage, error) {
+func NewMongoStorage(ctx xcontext.Context, uri string) (*MongoStorage, error) {
 	client, err := mongo.NewClient(options.Client().ApplyURI(uri))
 	if err != nil {
 		return nil, err

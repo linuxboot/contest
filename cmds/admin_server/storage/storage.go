@@ -21,8 +21,6 @@ var (
 type Storage interface {
 	StoreLogs(ctx xcontext.Context, logs []Log) error
 	GetLogs(ctx xcontext.Context, query Query) (*Result, error)
-
-	Close(ctx xcontext.Context) error
 }
 
 // Log defines the basic log info pushed by the server
