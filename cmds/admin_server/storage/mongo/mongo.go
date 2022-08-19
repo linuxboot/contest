@@ -62,11 +62,11 @@ func toMongoQuery(query storage.Query) bson.D {
 		})
 	}
 
-	if query.Text != nil {
+	if query.LogData != nil {
 		q = append(q, bson.E{
 			Key: "log_data",
 			Value: bson.M{
-				"$regex": primitive.Regex{Pattern: *query.Text, Options: "ig"},
+				"$regex": primitive.Regex{Pattern: *query.LogData, Options: "ig"},
 			},
 		})
 	}

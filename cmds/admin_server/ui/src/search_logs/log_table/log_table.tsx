@@ -1,33 +1,36 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Table, Pagination, Button, useToaster, Message } from 'rsuite';
-import { Column, Cell, HeaderCell } from 'rsuite-table';
 import { StandardProps } from 'rsuite-table/lib/@types/common';
-import { getLogs, Log, Result } from '../../api/logs';
 import { TypeAttributes } from 'rsuite/esm/@types/common';
-import DateCell from './date_cell/date_cell';
+import { renderColumn } from './render_columns';
+import {
+    getLogs,
+    getLogDescription,
+    Result,
+    FieldMetaData,
+} from '../../api/logs';
 import 'rsuite/dist/rsuite.min.css';
 import './log_table.scss';
 
 export interface LogTableProps extends StandardProps {
-    logLevels?: string;
-    queryText?: string;
-    jobID?: number;
-    startDate?: Date;
-    endDate?: Date;
+    columns?: FieldMetaData[];
+    filters?: any;
 }
 
-export default function LogTable({
-    logLevels,
-    queryText,
-    jobID,
-    startDate,
-    endDate,
-}: LogTableProps) {
+export default function LogTable({ columns, filters }: LogTableProps) {
     const [loading, setLoading] = useState<boolean>(false);
-    const [logs, setLogs] = useState<Log[] | null>([]);
+    const [logs, setLogs] = useState<any[] | null>([]);
     const [count, setCount] = useState<number>(0);
     const [page, setPage] = useState<number>(0);
     const [limit, setLimit] = useState<number>(20);
+
+    const renderedColumns = useMemo(
+        () =>
+            columns
+                ?.sort((a, b) => (a.type.length > b.type.length ? 1 : -1))
+                .map((c, idx) => renderColumn(c, idx)),
+        [columns]
+    );
 
     const toaster = useToaster();
     const pageSizes = [20, 50, 100];
@@ -41,16 +44,14 @@ export default function LogTable({
         );
     };
     const updateLogsTable = async (page: number, limit: number) => {
+        getLogDescription();
+
         setLoading(true);
         try {
             let result: Result = await getLogs({
-                job_id: jobID ?? undefined,
-                text: queryText,
                 page: page,
                 page_size: limit,
-                log_level: logLevels,
-                start_date: startDate?.toJSON(),
-                end_date: endDate?.toJSON(),
+                ...filters,
             });
 
             setLogs(result.logs);
@@ -83,22 +84,7 @@ export default function LogTable({
                 wordWrap="break-word"
                 rowHeight={30}
             >
-                <Column width={80} align="center" fixed>
-                    <HeaderCell>JobID</HeaderCell>
-                    <Cell className="log-table__cell" dataKey="job_id" />
-                </Column>
-                <Column width={250} align="center" fixed>
-                    <HeaderCell>Date</HeaderCell>
-                    <DateCell className="log-table__cell" dataKey="date" />
-                </Column>
-                <Column width={80} align="center" fixed>
-                    <HeaderCell>Level</HeaderCell>
-                    <Cell className="log-table__cell" dataKey="log_level" />
-                </Column>
-                <Column width={600} align="left" flexGrow={1}>
-                    <HeaderCell>Data</HeaderCell>
-                    <Cell className="log-table__cell" dataKey="log_data" />
-                </Column>
+                {renderedColumns}
             </Table>
             <div>
                 <Pagination
