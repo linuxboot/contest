@@ -145,13 +145,18 @@ func (ss *stepState) Run(ctx xcontext.Context) error {
 
 	go func() {
 		defer func() {
+			// There could be a race condition when due to error in step runner, TestRunner gets the error earlier
+			// than it is propagated here and cancels stepCtx
+			if runErr := ss.stepRunner.getErr(); runErr != nil {
+				ss.SetError(ctx, runErr)
+			}
 			close(ss.stopped)
 			stepCtx.Debugf("StepRunner fully stopped")
 		}()
 
 		select {
 		case stepErr := <-stepRunResult.NotifyCh():
-			ss.SetError(stepCtx, stepErr)
+			ss.SetError(ctx, stepErr)
 		case <-stepCtx.Done():
 			stepCtx.Debugf("Cancelled step context during waiting for step run result")
 		}
