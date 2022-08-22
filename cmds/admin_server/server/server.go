@@ -8,7 +8,10 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	adminServerJob "github.com/linuxboot/contest/cmds/admin_server/job"
 	"github.com/linuxboot/contest/cmds/admin_server/storage"
+	"github.com/linuxboot/contest/pkg/job"
+	"github.com/linuxboot/contest/pkg/types"
 	"github.com/linuxboot/contest/pkg/xcontext"
 	"github.com/linuxboot/contest/pkg/xcontext/logger"
 )
@@ -97,9 +100,58 @@ func toServerResult(r *storage.Result) Result {
 	return result
 }
 
+type Tag struct {
+	Name      string `json:"name"`
+	JobsCount uint   `json:"jobs_count"`
+}
+
+func fromStorageTags(storageTags []adminServerJob.Tag) []Tag {
+	tags := make([]Tag, 0, len(storageTags))
+	for _, tag := range storageTags {
+		tags = append(tags, Tag{
+			Name:      tag.Name,
+			JobsCount: tag.JobsCount,
+		})
+	}
+	return tags
+}
+
+type report struct {
+	ReporterName string     `json:"reporter_name"`
+	Success      *bool      `json:"success"`
+	Time         *time.Time `json:"time"`
+	Data         *string    `json:"data"`
+}
+type Job struct {
+	JobID  types.JobID `json:"job_id"`
+	Report *report     `json:"report"`
+}
+
+func fromStorageJobs(storageJobs []adminServerJob.Job) []Job {
+	jobs := make([]Job, 0, len(storageJobs))
+	for _, job := range storageJobs {
+		var r *report
+		if job.ReporterName != nil {
+			r = &report{
+				ReporterName: *job.ReporterName,
+				Success:      job.Success,
+				Time:         job.ReportTime,
+				Data:         job.Data,
+			}
+		}
+
+		jobs = append(jobs, Job{
+			JobID:  job.JobID,
+			Report: r,
+		})
+	}
+	return jobs
+}
+
 type RouteHandler struct {
-	storage storage.Storage
-	log     logger.Logger
+	storage    storage.Storage
+	jobStorage adminServerJob.Storage
+	log        logger.Logger
 }
 
 // status is a simple endpoint to check if the serves is alive
@@ -111,7 +163,7 @@ func (r *RouteHandler) status(c *gin.Context) {
 func (r *RouteHandler) addLogs(c *gin.Context) {
 	var logs []Log
 	if err := c.Bind(&logs); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"status": "err", "msg": "badly formatted logs"})
+		c.JSON(http.StatusBadRequest, makeRestErr("badly formatted logs"))
 		r.log.Errorf("Err while binding request body %v", err)
 		return
 	}
@@ -129,11 +181,11 @@ func (r *RouteHandler) addLogs(c *gin.Context) {
 		r.log.Errorf("Err while storing logs: %v", err)
 		switch {
 		case errors.Is(err, storage.ErrInsert):
-			c.JSON(http.StatusInternalServerError, gin.H{"status": "err", "msg": "error while storing the batch"})
+			c.JSON(http.StatusInternalServerError, makeRestErr("error while storing the batch"))
 		case errors.Is(err, storage.ErrReadOnlyStorage):
-			c.JSON(http.StatusNotImplemented, gin.H{"status": "err", "msg": "not supported action"})
+			c.JSON(http.StatusNotImplemented, makeRestErr("not supported action"))
 		default:
-			c.JSON(http.StatusInternalServerError, gin.H{"status": "err", "msg": "unknown server error"})
+			c.JSON(http.StatusInternalServerError, makeRestErr("unknown server error"))
 		}
 		return
 	}
@@ -145,7 +197,7 @@ func (r *RouteHandler) addLogs(c *gin.Context) {
 func (r *RouteHandler) getLogs(c *gin.Context) {
 	var query Query
 	if err := c.BindQuery(&query); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"status": "err", "msg": fmt.Sprintf("bad formatted query %v", err)})
+		c.JSON(http.StatusBadRequest, makeRestErr("bad formatted query %v", err))
 		r.log.Errorf("Err while binding request body %v", err)
 		return
 	}
@@ -155,12 +207,59 @@ func (r *RouteHandler) getLogs(c *gin.Context) {
 	ctx = ctx.WithLogger(r.log)
 	result, err := r.storage.GetLogs(ctx, query.ToStorageQuery())
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"status": "err", "msg": "error while getting the logs"})
+		c.JSON(http.StatusInternalServerError, makeRestErr("error while getting the logs"))
 		r.log.Errorf("Err while getting logs from storage: %v", err)
 		return
 	}
 
 	c.JSON(http.StatusOK, toServerResult(result))
+}
+
+// getTags gets the tags with similar name to text
+func (r *RouteHandler) getTags(c *gin.Context) {
+	var query struct {
+		Text string `form:"text"`
+	}
+	if err := c.BindQuery(&query); err != nil {
+		c.JSON(http.StatusBadRequest, makeRestErr("bad formatted query %v", err))
+		r.log.Errorf("Err while binding request body %v", err)
+		return
+	}
+
+	ctx, cancel := xcontext.WithTimeout(xcontext.Background(), DefaultDBAccessTimeout)
+	defer cancel()
+	ctx = ctx.WithLogger(r.log)
+	res, err := r.jobStorage.GetTags(ctx, query.Text)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, makeRestErr("error while getting the projects"))
+		return
+	}
+
+	c.JSON(http.StatusOK, fromStorageTags(res))
+}
+
+// getJobs gets the jobs with final report -if it exists- under a given project name as a url parameter
+func (r *RouteHandler) getJobs(c *gin.Context) {
+	projectName := c.Param("name")
+	if err := job.CheckTags([]string{projectName}, false); err != nil {
+		c.JSON(http.StatusBadRequest, makeRestErr("bad formatted job tag %v", err))
+		return
+	}
+
+	ctx, cancel := xcontext.WithTimeout(xcontext.Background(), DefaultDBAccessTimeout)
+	defer cancel()
+	ctx = ctx.WithLogger(r.log)
+	res, err := r.jobStorage.GetJobs(ctx, projectName)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, makeRestErr("error while getting the jobs"))
+		return
+	}
+
+	c.JSON(http.StatusOK, fromStorageJobs(res))
+}
+
+func makeRestErr(format string, args ...any) gin.H {
+	return gin.H{"status": "err", "msg": fmt.Sprintf(format, args...)}
 }
 
 func initRouter(ctx xcontext.Context, rh RouteHandler, middlewares []gin.HandlerFunc) *gin.Engine {
@@ -176,6 +275,8 @@ func initRouter(ctx xcontext.Context, rh RouteHandler, middlewares []gin.Handler
 	r.GET("/status", rh.status)
 	r.POST("/log", rh.addLogs)
 	r.GET("/log", rh.getLogs)
+	r.GET("/tag", rh.getTags)
+	r.GET("/tag/:name/jobs", rh.getJobs)
 
 	// serve the frontend app
 	r.StaticFS("/app", FS(false))
@@ -183,10 +284,11 @@ func initRouter(ctx xcontext.Context, rh RouteHandler, middlewares []gin.Handler
 	return r
 }
 
-func Serve(ctx xcontext.Context, port int, storage storage.Storage, middlewares []gin.HandlerFunc, tlsConfig *tls.Config) error {
+func Serve(ctx xcontext.Context, port int, storage storage.Storage, jobStorage adminServerJob.Storage, middlewares []gin.HandlerFunc, tlsConfig *tls.Config) error {
 	routeHandler := RouteHandler{
-		storage: storage,
-		log:     ctx.Logger(),
+		storage:    storage,
+		jobStorage: jobStorage,
+		log:        ctx.Logger(),
 	}
 	router := initRouter(ctx, routeHandler, middlewares)
 	server := &http.Server{
