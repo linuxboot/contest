@@ -13,12 +13,16 @@ type testStepsVariables struct {
 
 	lock                   sync.Mutex
 	stepsVariablesByTarget map[string]map[string]stepVariables
+	onVariableAdded        onVariableAdded
 }
 
-func newTestStepsVariables(bundles []test.TestStepBundle) (*testStepsVariables, error) {
+type onVariableAdded func(tgtID string, stepLabel string, name string, value json.RawMessage)
+
+func newTestStepsVariables(bundles []test.TestStepBundle, onVariableAdded onVariableAdded) (*testStepsVariables, error) {
 	result := &testStepsVariables{
 		existingSteps:          make(map[string]struct{}),
 		stepsVariablesByTarget: make(map[string]map[string]stepVariables),
+		onVariableAdded:        onVariableAdded,
 	}
 	for _, bs := range bundles {
 		if len(bs.TestStepLabel) == 0 {
@@ -66,17 +70,23 @@ func (tsv *testStepsVariables) Add(tgtID string, stepLabel string, name string, 
 		return err
 	}
 
-	// tsv.stepsVariablesByTarget is a readonly map, though its values may change
-	targetSteps := tsv.stepsVariablesByTarget[tgtID]
-	tsv.lock.Lock()
-	defer tsv.lock.Unlock()
+	func() {
+		// tsv.stepsVariablesByTarget is a readonly map, though its values may change
+		targetSteps := tsv.stepsVariablesByTarget[tgtID]
+		tsv.lock.Lock()
+		defer tsv.lock.Unlock()
 
-	stepVars, found := targetSteps[stepLabel]
-	if !found {
-		stepVars = make(stepVariables)
-		targetSteps[stepLabel] = stepVars
+		stepVars, found := targetSteps[stepLabel]
+		if !found {
+			stepVars = make(stepVariables)
+			targetSteps[stepLabel] = stepVars
+		}
+		stepVars[name] = value
+	}()
+
+	if tsv.onVariableAdded != nil {
+		tsv.onVariableAdded(tgtID, stepLabel, name, value)
 	}
-	stepVars[name] = value
 	return nil
 }
 

@@ -556,6 +556,12 @@ func (s *TestRunnerSuite) TestVariables() {
 		require.NoError(s.T(), err)
 		require.Empty(s.T(), resumeState)
 	}
+
+	targetEvents := s.MemoryStorage.GetTargetEvents(ctx, testName, "T1")
+	require.Contains(s.T(), targetEvents,
+		`{[1 1 SimpleTest 0 step1][Target{ID: "T1"} VariableEmitted &"{\"Name\":\"target_id\",\"Value\":\"\\\"T1\\\"\"}"]}`)
+	require.Contains(s.T(), targetEvents,
+		`{[1 1 SimpleTest 0 step2][Target{ID: "T1"} VariableEmitted &"{\"Name\":\"target_id\",\"Value\":\"\\\"T1\\\"\"}"]}`)
 }
 
 // Test pausing/resuming a naive step that does not cooperate.
