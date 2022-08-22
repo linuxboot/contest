@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -279,7 +280,14 @@ func initRouter(ctx xcontext.Context, rh RouteHandler, middlewares []gin.Handler
 	r.GET("/tag/:name/jobs", rh.getJobs)
 
 	// serve the frontend app
-	r.StaticFS("/app", FS(false))
+	r.GET("/app/*filepath", func(c *gin.Context) {
+		// as it's a SPA send the same index.html for any request other than bundle.js
+		if strings.HasSuffix(c.Param("filepath"), ".js") {
+			c.FileFromFS(c.Param("filepath"), FS(false))
+			return
+		}
+		c.FileFromFS("/", FS(false))
+	})
 
 	return r
 }
