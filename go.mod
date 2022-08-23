@@ -15,6 +15,7 @@ require (
 	github.com/fsnotify/fsnotify v1.4.9 // indirect
 	github.com/go-sql-driver/mysql v1.6.0
 	github.com/google/go-safeweb v0.0.0-20211026121254-697f59a9d57f
+	github.com/google/goexpect v0.0.0-20200703111054-623d5ca06f56 // indirect
 	github.com/google/uuid v1.3.0
 	github.com/insomniacslk/termhook v0.0.0-20210329134026-a267c978e590
 	github.com/insomniacslk/xjson v0.0.0-20210106140854-1589ccfd1a1a

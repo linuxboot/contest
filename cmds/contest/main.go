@@ -33,6 +33,7 @@ import (
 	dutctl "github.com/linuxboot/contest/plugins/teststeps/dutctl"
 	echo "github.com/linuxboot/contest/plugins/teststeps/echo"
 	exec "github.com/linuxboot/contest/plugins/teststeps/exec"
+	qemu "github.com/linuxboot/contest/plugins/teststeps/qemu"
 	randecho "github.com/linuxboot/contest/plugins/teststeps/randecho"
 	sleep "github.com/linuxboot/contest/plugins/teststeps/sleep"
 	sshcmd "github.com/linuxboot/contest/plugins/teststeps/sshcmd"
@@ -56,6 +57,7 @@ func getPluginConfig() *server.PluginConfig {
 	pc.TestStepLoaders = append(pc.TestStepLoaders, sleep.Load)
 	pc.TestStepLoaders = append(pc.TestStepLoaders, sshcmd.Load)
 	pc.TestStepLoaders = append(pc.TestStepLoaders, dutctl.Load)
+	pc.TestStepLoaders = append(pc.TestStepLoaders, qemu.Load)
 	pc.ReporterLoaders = append(pc.ReporterLoaders, noop.Load)
 	pc.ReporterLoaders = append(pc.ReporterLoaders, targetsuccess.Load)
 
