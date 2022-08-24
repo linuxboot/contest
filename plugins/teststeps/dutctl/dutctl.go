@@ -341,41 +341,9 @@ func serial(ctx xcontext.Context, dutInterface dutctl.DutCtl, expect string) err
 		return fmt.Errorf("Failed to get serial: %v\n", err)
 	}
 
-	//quit := make(chan bool)
-	go func(ctx xcontext.Context) {
-		defer func() {
-			iface.Close()
-		}()
-		for {
-			var n int
-			select {
-			case <-ctx.Done():
-				return
-			default:
-				buf := make([]byte, 16)
-				n, err = os.Stdin.Read(buf)
-				if err != nil {
-					return
-				}
-				for i := 0; i < n; i++ {
-					if buf[i] == 0xd {
-						buf[i] = 0xa
-					}
-				}
-				_, err = iface.Write(buf[:n])
-				if err != nil {
-					return
-				}
-			}
-		}
-	}(ctx)
-	_, err = os.Create("/tmp/dutctlserial")
+	dst, err := os.Create("/tmp/dutctlserial")
 	if err != nil {
 		return fmt.Errorf("Creating serial dst file failed: %v", err)
-	}
-	dst, err := os.OpenFile("/tmp/dutctlserial", os.O_RDWR|os.O_APPEND, 0666)
-	if err != nil {
-		return fmt.Errorf("Opening serial dst file failed: %v", err)
 	}
 	defer dst.Close()
 
@@ -388,8 +356,7 @@ func serial(ctx xcontext.Context, dutInterface dutctl.DutCtl, expect string) err
 			case <-ctx.Done():
 				return nil
 			default:
-				writer := io.MultiWriter(os.Stdout, dst)
-				_, err = io.Copy(writer, iface)
+				_, err = io.Copy(dst, iface)
 				if err != nil {
 					return fmt.Errorf("Failed to copy serial to stdout: %v", err)
 				}
@@ -408,8 +375,10 @@ func serial(ctx xcontext.Context, dutInterface dutctl.DutCtl, expect string) err
 			return fmt.Errorf("Failed to read serial file: %v", err)
 		}
 		if strings.Contains(string(serial), expect) {
+			log.Infof("%s", string(serial))
 			ctx.Done()
 			return nil
 		}
+		time.Sleep(time.Second)
 	}
 }
