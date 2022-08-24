@@ -2,6 +2,8 @@ package waitport
 
 import (
 	"fmt"
+	"github.com/linuxboot/contest/tests/common/mocks"
+	"github.com/stretchr/testify/require"
 	"net"
 	"sync"
 	"testing"
@@ -50,22 +52,17 @@ func TestWaitForTCPPort(t *testing.T) {
 		}
 	}()
 
-	inCh := make(chan *target.Target, 1)
-	testStepChannels := test.TestStepChannels{
-		In:  inCh,
-		Out: make(chan test.TestStepResult, 1),
-	}
+	stepIO := mocks.NewTestStepInputOutputMock([]target.Target{
+		{
+			ID:   "some_id",
+			FQDN: "localhost",
+		},
+	})
 	ev := storage.NewTestEventEmitterFetcher(storageEngineVault, testevent.Header{
 		JobID:         12345,
 		TestName:      "waitport_tests",
 		TestStepLabel: "waitport",
 	})
-
-	inCh <- &target.Target{
-		ID:   "some_id",
-		FQDN: "localhost",
-	}
-	close(inCh)
 
 	params := test.TestStepParameters{
 		"protocol":       []test.Param{*test.NewParam("tcp")},
@@ -75,8 +72,12 @@ func TestWaitForTCPPort(t *testing.T) {
 	}
 
 	plugin := &WaitPort{}
-	if _, err = plugin.Run(ctx, testStepChannels, ev, nil, params, nil); err != nil {
+	if _, err = plugin.Run(ctx, stepIO, ev, nil, params, nil); err != nil {
 		t.Errorf("Plugin run failed: '%v'", err)
 	}
 	wg.Wait()
+
+	require.Equal(t, map[string]error{
+		"some_id": nil,
+	}, stepIO.GetReportedTargets())
 }

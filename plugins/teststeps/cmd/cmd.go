@@ -95,7 +95,7 @@ func emitEvent(ctx xcontext.Context, name event.Name, payload interface{}, tgt *
 // Run executes the cmd step.
 func (ts *Cmd) Run(
 	ctx xcontext.Context,
-	ch test.TestStepChannels,
+	io test.TestStepInputOutput,
 	ev testevent.Emitter,
 	stepsVars test.StepsVariables,
 	params test.TestStepParameters,
@@ -161,7 +161,7 @@ func (ts *Cmd) Run(
 			cmd.Path, cmd.Args, stdout.Bytes(), stderr.Bytes(), runErr)
 		return runErr
 	}
-	return teststeps.ForEachTarget(Name, ctx, ch, f)
+	return teststeps.ForEachTarget(Name, ctx, io, f)
 }
 
 func (ts *Cmd) validateAndPopulate(params test.TestStepParameters) error {

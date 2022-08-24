@@ -67,7 +67,7 @@ func (ts *Step) shouldFail(t *target.Target, params test.TestStepParameters) boo
 // Run executes the example step.
 func (ts *Step) Run(
 	ctx xcontext.Context,
-	ch test.TestStepChannels,
+	io test.TestStepInputOutput,
 	ev testevent.Emitter,
 	stepsVars test.StepsVariables,
 	params test.TestStepParameters,
@@ -103,7 +103,7 @@ func (ts *Step) Run(
 	if err := ev.Emit(ctx, testevent.Data{EventName: StepRunningEvent}); err != nil {
 		return nil, fmt.Errorf("failed to emit failed event: %v", err)
 	}
-	_, res := teststeps.ForEachTarget(Name, ctx, ch, f)
+	_, res := teststeps.ForEachTarget(Name, ctx, io, f)
 	if err := ev.Emit(ctx, testevent.Data{EventName: StepFinishedEvent}); err != nil {
 		return nil, fmt.Errorf("failed to emit failed event: %v", err)
 	}

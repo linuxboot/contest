@@ -57,10 +57,10 @@ func (s *StepRunnerSuite) TestRunningStep() {
 	var obtainedResumeState json.RawMessage
 
 	err := s.RegisterStateFullStep(
-		func(ctx xcontext.Context, ch test.TestStepChannels, ev testevent.Emitter,
+		func(ctx xcontext.Context, io test.TestStepInputOutput, ev testevent.Emitter,
 			stepsVars test.StepsVariables, params test.TestStepParameters, resumeState json.RawMessage) (json.RawMessage, error) {
 			obtainedResumeState = resumeState
-			_, err := teststeps.ForEachTarget(stateFullStepName, ctx, ch, func(ctx xcontext.Context, target *target.Target) error {
+			_, err := teststeps.ForEachTarget(stateFullStepName, ctx, io, func(ctx xcontext.Context, target *target.Target) error {
 				require.NotNil(s.T(), target)
 
 				mu.Lock()
@@ -129,9 +129,9 @@ func (s *StepRunnerSuite) TestAddSameTargetSequentiallyTimes() {
 	const inputTargetID = "input_target_id"
 
 	err := s.RegisterStateFullStep(
-		func(ctx xcontext.Context, ch test.TestStepChannels, ev testevent.Emitter,
+		func(ctx xcontext.Context, io test.TestStepInputOutput, ev testevent.Emitter,
 			stepsVars test.StepsVariables, params test.TestStepParameters, resumeState json.RawMessage) (json.RawMessage, error) {
-			_, err := teststeps.ForEachTarget(stateFullStepName, ctx, ch, func(ctx xcontext.Context, target *target.Target) error {
+			_, err := teststeps.ForEachTarget(stateFullStepName, ctx, io, func(ctx xcontext.Context, target *target.Target) error {
 				require.NotNil(s.T(), target)
 				require.Equal(s.T(), inputTargetID, target.ID)
 				return nil
@@ -184,11 +184,14 @@ func (s *StepRunnerSuite) TestAddTargetReturnsErrorIfFailsToInput() {
 		}
 	}()
 	err := s.RegisterStateFullStep(
-		func(ctx xcontext.Context, ch test.TestStepChannels, ev testevent.Emitter,
+		func(ctx xcontext.Context, io test.TestStepInputOutput, ev testevent.Emitter,
 			stepsVars test.StepsVariables, params test.TestStepParameters, resumeState json.RawMessage) (json.RawMessage, error) {
 			<-hangCh
-			for range ch.In {
-				require.Fail(s.T(), "unexpected input")
+			for {
+				tgt, err := io.Get(ctx)
+				require.NoError(s.T(), err)
+				require.Nil(s.T(), tgt, "unexpected input")
+				break
 			}
 			return nil, nil
 		},
@@ -244,7 +247,7 @@ func (s *StepRunnerSuite) TestStepPanics() {
 	defer cancel()
 
 	err := s.RegisterStateFullStep(
-		func(ctx xcontext.Context, ch test.TestStepChannels, ev testevent.Emitter,
+		func(ctx xcontext.Context, ch test.TestStepInputOutput, ev testevent.Emitter,
 			stepsVars test.StepsVariables, params test.TestStepParameters, resumeState json.RawMessage) (json.RawMessage, error) {
 			panic("panic")
 		},
@@ -296,9 +299,9 @@ func (s *StepRunnerSuite) TestCornerCases() {
 	defer cancel()
 
 	err := s.RegisterStateFullStep(
-		func(ctx xcontext.Context, ch test.TestStepChannels, ev testevent.Emitter,
+		func(ctx xcontext.Context, in test.TestStepInputOutput, ev testevent.Emitter,
 			stepsVars test.StepsVariables, params test.TestStepParameters, resumeState json.RawMessage) (json.RawMessage, error) {
-			_, err := teststeps.ForEachTarget(stateFullStepName, ctx, ch, func(ctx xcontext.Context, target *target.Target) error {
+			_, err := teststeps.ForEachTarget(stateFullStepName, ctx, in, func(ctx xcontext.Context, target *target.Target) error {
 				return fmt.Errorf("should not be called")
 			})
 			return nil, err

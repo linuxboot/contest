@@ -31,7 +31,6 @@ import (
 	"github.com/linuxboot/contest/tests/common"
 	"github.com/linuxboot/contest/tests/common/goroutine_leak_check"
 	"github.com/linuxboot/contest/tests/plugins/teststeps/badtargets"
-	"github.com/linuxboot/contest/tests/plugins/teststeps/channels"
 	"github.com/linuxboot/contest/tests/plugins/teststeps/hanging"
 	"github.com/linuxboot/contest/tests/plugins/teststeps/noreturn"
 	"github.com/linuxboot/contest/tests/plugins/teststeps/panicstep"
@@ -86,7 +85,6 @@ func (s *TestRunnerSuite) SetupTest() {
 		events  []event.Name
 	}{
 		{badtargets.Name, badtargets.New, badtargets.Events},
-		{channels.Name, channels.New, channels.Events},
 		{hanging.Name, hanging.New, hanging.Events},
 		{noreturn.Name, noreturn.New, noreturn.Events},
 		{panicstep.Name, panicstep.New, panicstep.Events},
@@ -332,29 +330,6 @@ func (s *TestRunnerSuite) TestStepPanics() {
 	require.Contains(s.T(), s.MemoryStorage.GetStepEvents(ctx, testName, "Step1"), "step Step1 paniced")
 }
 
-// A misbehaving step that closes its output channel.
-func (s *TestRunnerSuite) TestStepClosesChannels() {
-	ctx, cancel := logrusctx.NewContext(logger.LevelDebug)
-	defer cancel()
-
-	tr := newTestRunner()
-	_, _, err := s.runWithTimeout(ctx, tr, nil, 1, 2*time.Second,
-		[]*target.Target{tgt("T1")},
-		[]test.TestStepBundle{
-			s.NewStep(ctx, "Step1", channels.Name, nil),
-		},
-	)
-	require.Error(s.T(), err)
-	require.IsType(s.T(), &cerrors.ErrTestStepClosedChannels{}, err)
-	require.Equal(s.T(), `
-{[1 1 SimpleTest 0 Step1][Target{ID: "T1"} TargetIn]}
-{[1 1 SimpleTest 0 Step1][Target{ID: "T1"} TargetOut]}
-`, s.MemoryStorage.GetTargetEvents(ctx, testName, "T1"))
-	require.Equal(s.T(), `
-{[1 1 SimpleTest 0 Step1][(*Target)(nil) TestError &"\"test step Step1 closed output channels (api violation)\""]}
-`, s.MemoryStorage.GetStepEvents(ctx, testName, "Step1"))
-}
-
 // A misbehaving step that yields a result for a target that does not exist.
 func (s *TestRunnerSuite) TestStepYieldsResultForNonexistentTarget() {
 	ctx, cancel := logrusctx.NewContext(logger.LevelDebug)
@@ -480,13 +455,13 @@ func (s *TestRunnerSuite) TestVariables() {
 	)
 	require.NoError(s.T(), s.RegisterStateFullStep(
 		func(ctx xcontext.Context,
-			ch test.TestStepChannels,
+			io test.TestStepInputOutput,
 			ev testevent.Emitter,
 			stepsVars test.StepsVariables,
 			params test.TestStepParameters,
 			resumeState json.RawMessage,
 		) (json.RawMessage, error) {
-			_, err := teststeps.ForEachTargetWithResume(ctx, ch, resumeState, 1,
+			_, err := teststeps.ForEachTargetWithResume(ctx, io, resumeState, 1,
 				func(ctx xcontext.Context, target *teststeps.TargetWithData) error {
 					require.NoError(s.T(), stepsVars.Add(target.Target.ID, "target_id", target.Target.ID))
 

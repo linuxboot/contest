@@ -63,7 +63,7 @@ func (ts *Step) shouldFail(t *target.Target) bool {
 // Run executes the example step.
 func (ts *Step) Run(
 	ctx xcontext.Context,
-	ch test.TestStepChannels,
+	stepIO test.TestStepInputOutput,
 	ev testevent.Emitter,
 	stepsVars test.StepsVariables,
 	params test.TestStepParameters,
@@ -89,7 +89,7 @@ func (ts *Step) Run(
 		}
 		return nil
 	}
-	return teststeps.ForEachTarget(Name, ctx, ch, f)
+	return teststeps.ForEachTarget(Name, ctx, stepIO, f)
 }
 
 // ValidateParameters validates the parameters associated to the TestStep

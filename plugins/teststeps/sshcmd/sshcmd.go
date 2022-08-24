@@ -71,7 +71,7 @@ func (ts SSHCmd) Name() string {
 // Run executes the cmd step.
 func (ts *SSHCmd) Run(
 	ctx xcontext.Context,
-	ch test.TestStepChannels,
+	stepIO test.TestStepInputOutput,
 	ev testevent.Emitter,
 	stepsVars test.StepsVariables,
 	params test.TestStepParameters,
@@ -278,7 +278,7 @@ func (ts *SSHCmd) Run(
 			}
 		}
 	}
-	return teststeps.ForEachTarget(Name, ctx, ch, f)
+	return teststeps.ForEachTarget(Name, ctx, stepIO, f)
 }
 
 func (ts *SSHCmd) validateAndPopulate(params test.TestStepParameters) error {

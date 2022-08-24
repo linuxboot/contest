@@ -31,14 +31,23 @@ func (ts *noreturnStep) Name() string {
 // Run executes a step that never returns.
 func (ts *noreturnStep) Run(
 	ctx xcontext.Context,
-	ch test.TestStepChannels,
+	io test.TestStepInputOutput,
 	ev testevent.Emitter,
 	stepsVars test.StepsVariables,
 	inputParams test.TestStepParameters,
 	resumeState json.RawMessage,
 ) (json.RawMessage, error) {
-	for target := range ch.In {
-		ch.Out <- test.TestStepResult{Target: target}
+	for {
+		tgt, err := io.Get(ctx)
+		if err != nil {
+			return nil, err
+		}
+		if tgt == nil {
+			break
+		}
+		if err := io.Report(ctx, *tgt, nil); err != nil {
+			return nil, err
+		}
 	}
 	channel := make(chan struct{})
 	<-channel

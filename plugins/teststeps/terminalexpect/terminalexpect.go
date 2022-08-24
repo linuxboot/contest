@@ -56,7 +56,7 @@ func match(match string, log xcontext.Logger) termhook.LineHandler {
 // Run executes the terminal step.
 func (ts *TerminalExpect) Run(
 	ctx xcontext.Context,
-	ch test.TestStepChannels,
+	stepIO test.TestStepInputOutput,
 	ev testevent.Emitter,
 	stepsVars test.StepsVariables,
 	params test.TestStepParameters,
@@ -90,7 +90,7 @@ func (ts *TerminalExpect) Run(
 		}
 	}
 	log.Debugf("%s: waiting for string '%s' with timeout %s", Name, ts.Match, ts.Timeout)
-	return teststeps.ForEachTarget(Name, ctx, ch, f)
+	return teststeps.ForEachTarget(Name, ctx, stepIO, f)
 }
 
 func (ts *TerminalExpect) validateAndPopulate(params test.TestStepParameters) error {

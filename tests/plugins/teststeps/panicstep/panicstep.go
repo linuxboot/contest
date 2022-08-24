@@ -31,7 +31,7 @@ func (ts *panicStep) Name() string {
 // Run executes the example step.
 func (ts *panicStep) Run(
 	ctx xcontext.Context,
-	ch test.TestStepChannels,
+	io test.TestStepInputOutput,
 	ev testevent.Emitter,
 	stepsVars test.StepsVariables,
 	inputParams test.TestStepParameters,

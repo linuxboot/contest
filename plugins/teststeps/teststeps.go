@@ -29,43 +29,27 @@ type PerTargetFunc func(ctx xcontext.Context, target *target.Target) error
 // This function wraps the logic that handles target routing through the in/out
 // The implementation of the per-target function is responsible for
 // reacting to cancel/pause signals and return quickly.
-func ForEachTarget(pluginName string, ctx xcontext.Context, ch test.TestStepChannels, f PerTargetFunc) (json.RawMessage, error) {
-	reportTarget := func(t *target.Target, err error) {
-		if err != nil {
-			ctx.Errorf("%s: ForEachTarget: failed to apply test step function on target %s: %v", pluginName, t, err)
-		} else {
-			ctx.Debugf("%s: ForEachTarget: target %s completed successfully", pluginName, t)
-		}
-		select {
-		case ch.Out <- test.TestStepResult{Target: t, Err: err}:
-		case <-ctx.Done():
-			ctx.Debugf("%s: ForEachTarget: received cancellation signal while reporting result", pluginName)
-		}
-	}
-
+func ForEachTarget(pluginName string, ctx xcontext.Context, inputOutput test.TestStepInputOutput, f PerTargetFunc) (json.RawMessage, error) {
 	var wg sync.WaitGroup
-	func() {
-		for {
-			select {
-			case tgt, ok := <-ch.In:
-				if !ok {
-					ctx.Debugf("%s: ForEachTarget: all targets have been received", pluginName)
-					return
-				}
-				ctx.Debugf("%s: ForEachTarget: received target %s", pluginName, tgt)
-				wg.Add(1)
-				go func() {
-					defer wg.Done()
-
-					err := f(ctx, tgt)
-					reportTarget(tgt, err)
-				}()
-			case <-ctx.Done():
-				ctx.Debugf("%s: ForEachTarget: incoming loop canceled", pluginName)
-				return
-			}
+	for {
+		tgt, err := inputOutput.Get(ctx)
+		if err != nil {
+			ctx.Debugf("%s: ForEachTarget: incoming targets error: '%v'", err)
+			break
 		}
-	}()
+		if tgt == nil {
+			ctx.Debugf("%s: ForEachTarget: all targets have been received", pluginName)
+			break
+		}
+
+		wg.Add(1)
+		go func(tgt target.Target) {
+			defer wg.Done()
+
+			tgtErr := f(ctx, &tgt)
+			inputOutput.Report(ctx, tgt, tgtErr)
+		}(*tgt)
+	}
 	wg.Wait()
 	return nil, nil
 }
@@ -121,7 +105,7 @@ type parallelTargetsState struct {
 // with the same data on job resumption. The helper will not call functions again that succeeded or failed
 // before the pause signal was received.
 // The supplied PerTargetWithResumeFunc must react to pause and cancellation signals as normal.
-func ForEachTargetWithResume(ctx xcontext.Context, ch test.TestStepChannels, resumeState json.RawMessage, currentStepStateVersion int, f PerTargetWithResumeFunc) (json.RawMessage, error) {
+func ForEachTargetWithResume(ctx xcontext.Context, inputOutput test.TestStepInputOutput, resumeState json.RawMessage, currentStepStateVersion int, f PerTargetWithResumeFunc) (json.RawMessage, error) {
 	var ss parallelTargetsState
 
 	// Parse resume state, if any.
@@ -157,11 +141,7 @@ func ForEachTargetWithResume(ctx xcontext.Context, ch test.TestStepChannels, res
 			} else {
 				ctx.Debugf("ForEachTargetWithResume: target %s completed successfully", tgt2.Target.ID)
 			}
-			select {
-			case ch.Out <- test.TestStepResult{Target: tgt2.Target, Err: err}:
-			case <-ctx.Done():
-				ctx.Debugf("ForEachTargetWithResume: received cancellation signal while reporting result")
-			}
+			inputOutput.Report(ctx, *tgt2.Target, err)
 		}
 	}
 
@@ -175,22 +155,19 @@ func ForEachTargetWithResume(ctx xcontext.Context, ch test.TestStepChannels, res
 	ss.Targets = nil
 
 	var err error
-mainloop:
 	for {
-		select {
-		// no need to check for pause here, pausing closes the channel
-		case tgt, ok := <-ch.In:
-			if !ok {
-				break mainloop
-			}
-			ctx.Debugf("ForEachTargetWithResume: received target %s", tgt)
-			wg.Add(1)
-			go handleTarget(&TargetWithData{Target: tgt})
-		case <-ctx.Done():
-			ctx.Debugf("ForEachTargetWithResume: canceled, terminating")
-			err = xcontext.ErrCanceled
-			break mainloop
+		var tgt *target.Target
+		tgt, err = inputOutput.Get(ctx)
+		if err != nil {
+			ctx.Debugf("%s: ForEachTargetWithResume: incoming targets error: '%v'", err)
+			break
 		}
+		if tgt == nil {
+			break
+		}
+
+		wg.Add(1)
+		go handleTarget(&TargetWithData{Target: tgt})
 	}
 
 	// close pauseStates to signal all handlers are done

@@ -53,29 +53,29 @@ func (e Step) Name() string {
 // Run executes the step
 func (e Step) Run(
 	ctx xcontext.Context,
-	ch test.TestStepChannels,
+	io test.TestStepInputOutput,
 	ev testevent.Emitter,
 	stepsVars test.StepsVariables,
 	params test.TestStepParameters,
 	resumeState json.RawMessage,
 ) (json.RawMessage, error) {
 	for {
-		select {
-		case target, ok := <-ch.In:
-			if !ok {
-				return nil, nil
-			}
-			output, err := params.GetOne("text").Expand(target, stepsVars)
-			if err != nil {
-				return nil, err
-			}
-			// guaranteed to work here
-			jobID, _ := types.JobIDFromContext(ctx)
-			runID, _ := types.RunIDFromContext(ctx)
-			ctx.Infof("This is job %d, run %d on target %s with text '%s'", jobID, runID, target.ID, output)
-			ch.Out <- test.TestStepResult{Target: target}
-		case <-ctx.Done():
-			return nil, nil
+		tgt, _ := io.Get(ctx)
+		if tgt == nil {
+			break
+		}
+
+		output, err := params.GetOne("text").Expand(tgt, stepsVars)
+		if err != nil {
+			return nil, err
+		}
+		// guaranteed to work here
+		jobID, _ := types.JobIDFromContext(ctx)
+		runID, _ := types.RunIDFromContext(ctx)
+		ctx.Infof("This is job %d, run %d on target %s with text '%s'", jobID, runID, tgt.ID, output)
+		if err := io.Report(ctx, *tgt, nil); err != nil {
+			return nil, err
 		}
 	}
+	return nil, nil
 }

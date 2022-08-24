@@ -54,7 +54,7 @@ func (ts TestStep) Name() string {
 // Run executes the step.
 func (ts *TestStep) Run(
 	ctx xcontext.Context,
-	ch test.TestStepChannels,
+	stepIO test.TestStepInputOutput,
 	ev testevent.Emitter,
 	stepsVars test.StepsVariables,
 	params test.TestStepParameters,
@@ -65,7 +65,7 @@ func (ts *TestStep) Run(
 	}
 
 	tr := NewTargetRunner(ts, ev, stepsVars)
-	return teststeps.ForEachTarget(Name, ctx, ch, tr.Run)
+	return teststeps.ForEachTarget(Name, ctx, stepIO, tr.Run)
 }
 
 func (ts *TestStep) populateParams(stepParams test.TestStepParameters) error {

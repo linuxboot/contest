@@ -30,7 +30,7 @@ type StepResult struct {
 type StepRunner struct {
 	mu sync.Mutex
 
-	input         chan *target.Target
+	targetsCh     chan targetInput
 	inputWg       sync.WaitGroup
 	activeTargets map[string]*stepTargetInfo
 
@@ -64,22 +64,13 @@ func (str *resultNotifier) postResult(err error) {
 }
 
 type stepTargetInfo struct {
-	targetInEmitted bool
-	result          *resultNotifier
-}
-
-func (sti *stepTargetInfo) acquireTargetInEmission() bool {
-	if sti.targetInEmitted {
-		return false
-	}
-	sti.targetInEmitted = true
-	return true
+	result *resultNotifier
 }
 
 // NewStepRunner creates a new StepRunner object
 func NewStepRunner() *StepRunner {
 	return &StepRunner{
-		input:         make(chan *target.Target),
+		targetsCh:     make(chan targetInput),
 		activeTargets: make(map[string]*stepTargetInfo),
 		notifyStopped: newResultNotifier(),
 		stopped:       make(chan struct{}),
@@ -105,8 +96,7 @@ func (sr *StepRunner) Run(
 	var resumedTargetsResults []ChanNotifier
 	for _, resumeTarget := range resumeStateTargets {
 		targetInfo := &stepTargetInfo{
-			targetInEmitted: true,
-			result:          newResultNotifier(),
+			result: newResultNotifier(),
 		}
 		sr.activeTargets[resumeTarget.ID] = targetInfo
 		resumedTargetsResults = append(resumedTargetsResults, targetInfo.result)
@@ -131,9 +121,23 @@ func (sr *StepRunner) Run(
 	}
 
 	stepOut := make(chan test.TestStepResult)
+	stepIO := newTestStepInputOutput(sr.targetsCh, func(_ctx xcontext.Context, tgt target.Target, err error) error {
+		var resultErr error
+		select {
+		case stepOut <- test.TestStepResult{Target: &tgt, Err: err}:
+			return nil
+		case <-_ctx.Done():
+			resultErr = _ctx.Err()
+		case <-ctx.Done():
+			resultErr = ctx.Err()
+		}
+		ctx.Debugf("canceled while reporting target '%s' result: %v", tgt.ID, err)
+		return resultErr
+	})
+
 	go func() {
 		defer finish()
-		sr.runningLoop(ctx, sr.input, stepOut, bundle, stepsVariables, ev, resumeState)
+		sr.runningLoop(ctx, stepIO, stepOut, bundle, stepsVariables, ev, resumeState)
 		ctx.Debugf("Running loop finished")
 	}()
 
@@ -169,6 +173,12 @@ func (sr *StepRunner) addTarget(
 		return nil, fmt.Errorf("step runner was stopped")
 	}
 
+	onTargetConsumed := func() {
+		if err := emitEvent(ctx, ev, target.EventTargetIn, tgt, nil); err != nil {
+			sr.setErrLocked(ctx, fmt.Errorf("failed to report target injection: %w", err))
+		}
+	}
+
 	targetInfo, err := func() (*stepTargetInfo, error) {
 		targetInfo, err := func() (*stepTargetInfo, error) {
 			sr.mu.Lock()
@@ -190,17 +200,7 @@ func (sr *StepRunner) addTarget(
 
 		defer sr.inputWg.Done()
 		select {
-		case sr.input <- tgt:
-			// we should always emit TargetIn before TargetOut or TargetError
-			// we have a race condition that outputLoop may receive result for this target first
-			// in that case we will emit TargetIn in outputLoop and should not emit it here
-			sr.mu.Lock()
-			if targetInfo.acquireTargetInEmission() {
-				if err := emitEvent(ctx, ev, target.EventTargetIn, tgt, nil); err != nil {
-					sr.setErrLocked(ctx, fmt.Errorf("failed to report target injection: %w", err))
-				}
-			}
-			sr.mu.Unlock()
+		case sr.targetsCh <- targetInput{tgt: *tgt, onConsumed: onTargetConsumed}:
 			return targetInfo, nil
 		case <-stopped:
 			return nil, fmt.Errorf("step runner was stopped")
@@ -273,7 +273,7 @@ func (sr *StepRunner) Stop() {
 	}
 
 	sr.inputWg.Wait()
-	close(sr.input)
+	close(sr.targetsCh)
 }
 
 func (sr *StepRunner) outputLoop(
@@ -314,35 +314,26 @@ func (sr *StepRunner) outputLoop(
 			}
 			ctx.Infof("Obtained '%v' for target '%s'", res, res.Target.ID)
 
-			shouldEmitTargetIn, targetResult, err := func() (bool, *resultNotifier, error) {
+			targetResult, err := func() (*resultNotifier, error) {
 				sr.mu.Lock()
 				defer sr.mu.Unlock()
 
 				info, found := sr.activeTargets[res.Target.ID]
 				if !found {
-					return false, nil, &cerrors.ErrTestStepReturnedUnexpectedResult{
+					return nil, &cerrors.ErrTestStepReturnedUnexpectedResult{
 						StepName: testStepLabel,
 						Target:   res.Target.ID,
 					}
 				}
 				if info == nil {
-					return false, nil, &cerrors.ErrTestStepReturnedDuplicateResult{StepName: testStepLabel, Target: res.Target.ID}
+					return nil, &cerrors.ErrTestStepReturnedDuplicateResult{StepName: testStepLabel, Target: res.Target.ID}
 				}
 				sr.activeTargets[res.Target.ID] = nil
-
-				shouldEmitTargetIn := info.acquireTargetInEmission()
-				return shouldEmitTargetIn, info.result, nil
+				return info.result, nil
 			}()
 			if err != nil {
 				sr.setErr(ctx, err)
 				return
-			}
-
-			if shouldEmitTargetIn {
-				if err := emitEvent(ctx, ev, target.EventTargetIn, res.Target, nil); err != nil {
-					sr.setErr(ctx, fmt.Errorf("failed to report target injection: %w", err))
-					return
-				}
 			}
 
 			if res.Err == nil {
@@ -365,7 +356,7 @@ func (sr *StepRunner) outputLoop(
 
 func (sr *StepRunner) runningLoop(
 	ctx xcontext.Context,
-	stepIn <-chan *target.Target,
+	stepIO *testStepInputOutput,
 	stepOut chan test.TestStepResult,
 	bundle test.TestStepBundle,
 	stepsVariables test.StepsVariables,
@@ -397,8 +388,7 @@ func (sr *StepRunner) runningLoop(
 			}
 		}()
 
-		inChannels := test.TestStepChannels{In: stepIn, Out: stepOut}
-		return bundle.TestStep.Run(ctx, inChannels, ev, stepsVariables, bundle.Parameters, resumeState)
+		return bundle.TestStep.Run(ctx, stepIO, ev, stepsVariables, bundle.Parameters, resumeState)
 	}()
 	ctx.Debugf("TestStep finished '%v', rs: '%s'", err, string(resultResumeState))
 

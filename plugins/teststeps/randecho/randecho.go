@@ -56,13 +56,13 @@ func (e Step) Name() string {
 // Run executes the step
 func (e Step) Run(
 	ctx xcontext.Context,
-	ch test.TestStepChannels,
+	stepIO test.TestStepInputOutput,
 	ev testevent.Emitter,
 	stepsVars test.StepsVariables,
 	params test.TestStepParameters,
 	resumeState json.RawMessage,
 ) (json.RawMessage, error) {
-	return teststeps.ForEachTarget(Name, ctx, ch,
+	return teststeps.ForEachTarget(Name, ctx, stepIO,
 		func(ctx xcontext.Context, target *target.Target) error {
 			r := rand.Intn(2)
 			if r == 0 {
