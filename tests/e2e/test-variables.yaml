@@ -1,0 +1,34 @@
+JobName: A variables test job
+Runs: 1
+RunInterval: 1s
+Tags:
+  - test
+  - variables
+TestDescriptors:
+  - TargetManagerName: TargetList
+    TargetManagerAcquireParameters:
+      Targets:
+        - ID: T1
+    TargetManagerReleaseParameters:
+    TestFetcherName: literal
+    TestFetcherFetchParameters:
+      TestName: Test 1
+      Steps:
+        - name: variables
+          label: variablesstep
+          parameters:
+            message: ["Hello"]
+        - name: cmd
+          label: cmdstep
+          parameters:
+            executable: [echo]
+            args: ["{{ StringVar \"variablesstep.message\" }}"]
+            emit_stdout: [true]
+            emit_stderr: [true]
+Reporting:
+  RunReporters:
+    - name: TargetSuccess
+      parameters:
+        SuccessExpression: "=100%"
+  FinalReporters:
+    - name: noop
