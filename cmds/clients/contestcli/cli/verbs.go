@@ -12,7 +12,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"strconv"
 	"strings"
@@ -38,13 +37,13 @@ func run(requestor string, transport transport.Transport, stdout io.Writer) erro
 		var jobDesc []byte
 		if flagSet.Arg(1) == "" {
 			fmt.Fprintf(os.Stderr, "Reading from stdin...\n")
-			jd, err := ioutil.ReadAll(os.Stdin)
+			jd, err := io.ReadAll(os.Stdin)
 			if err != nil {
 				return fmt.Errorf("failed to read job descriptor: %w", err)
 			}
 			jobDesc = jd
 		} else {
-			jd, err := ioutil.ReadFile(flagSet.Arg(1))
+			jd, err := os.ReadFile(flagSet.Arg(1))
 			if err != nil {
 				return fmt.Errorf("failed to read job descriptor: %w", err)
 			}

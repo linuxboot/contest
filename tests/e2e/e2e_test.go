@@ -12,7 +12,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"net"
 	"os"
 	"strconv"
@@ -389,13 +388,13 @@ func (ts *E2ETestSuite) TestRetries() {
 	waitPort, err := getFreePort()
 	require.NoError(ts.T(), err)
 
-	testDescrTemplate, err := ioutil.ReadFile("test-retry.yaml")
+	testDescrTemplate, err := os.ReadFile("test-retry.yaml")
 	require.NoError(ts.T(), err)
 
 	templ, err := template.New("test-description").Delims("[[", "]]").Parse(string(testDescrTemplate))
 	require.NoError(ts.T(), err)
 
-	tmpFile, err := ioutil.TempFile("", "")
+	tmpFile, err := os.CreateTemp("", "")
 	require.NoError(ts.T(), err)
 	defer func() {
 		assert.NoError(ts.T(), tmpFile.Close())

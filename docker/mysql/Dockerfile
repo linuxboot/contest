@@ -3,7 +3,8 @@ FROM mysql:8.0-debian
 # Configure golang environment to run migration against database
 ARG TARGETARCH
 RUN apt-get update && apt-get install -y curl && apt-get clean
-RUN curl -L https://golang.org/dl/go1.16.2.linux-$TARGETARCH.tar.gz | tar xzf -
+RUN apt-get install -y git
+RUN curl -L https://golang.org/dl/go1.18.linux-$TARGETARCH.tar.gz | tar xzf -
 ENV GOROOT=/go
 ENV PATH=$PATH:/go/bin
 

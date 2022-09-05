@@ -10,7 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/url"
 	"os"
@@ -166,7 +166,7 @@ func (h *HTTP) request(requestor string, verb string, params url.Values) (*HTTPP
 		return nil, fmt.Errorf("HTTP POST failed: %v", err)
 	}
 	defer resp.Body.Close()
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("cannot read HTTP response: %v", err)
 	}

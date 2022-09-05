@@ -7,7 +7,7 @@ package ocp
 
 import (
 	"encoding/json"
-	"io/ioutil"
+	"os"
 )
 
 var parameterFile = "parameters.json"
@@ -28,7 +28,7 @@ type contestParameter struct {
 
 var userFunctions = map[string]interface{}{
 	"getPrivateKeyFile": func(a string) (string, error) {
-		fb, err := ioutil.ReadFile(parameterFile)
+		fb, err := os.ReadFile(parameterFile)
 		if err != nil {
 			return "", err
 		}
@@ -46,7 +46,7 @@ var userFunctions = map[string]interface{}{
 		return "", nil
 	},
 	"getBmcHost": func(a string) (string, error) {
-		fb, err := ioutil.ReadFile(parameterFile)
+		fb, err := os.ReadFile(parameterFile)
 		if err != nil {
 			return "", err
 		}
@@ -63,7 +63,7 @@ var userFunctions = map[string]interface{}{
 		return "", nil
 	},
 	"getBmcUser": func(a string) (string, error) {
-		fb, err := ioutil.ReadFile(parameterFile)
+		fb, err := os.ReadFile(parameterFile)
 		if err != nil {
 			return "", err
 		}
@@ -80,7 +80,7 @@ var userFunctions = map[string]interface{}{
 		return "", nil
 	},
 	"getBmcPassword": func(a string) (string, error) {
-		fb, err := ioutil.ReadFile(parameterFile)
+		fb, err := os.ReadFile(parameterFile)
 		if err != nil {
 			return "", err
 		}
@@ -97,7 +97,7 @@ var userFunctions = map[string]interface{}{
 		return "", nil
 	},
 	"getSlotToTest": func(a string) (string, error) {
-		fb, err := ioutil.ReadFile(parameterFile)
+		fb, err := os.ReadFile(parameterFile)
 		if err != nil {
 			return "", err
 		}
@@ -114,7 +114,7 @@ var userFunctions = map[string]interface{}{
 		return "", nil
 	},
 	"getGithubRepo": func(a string) (string, error) {
-		fb, err := ioutil.ReadFile(parameterFile)
+		fb, err := os.ReadFile(parameterFile)
 		if err != nil {
 			return "", err
 		}
@@ -131,7 +131,7 @@ var userFunctions = map[string]interface{}{
 		return "", nil
 	},
 	"getTty": func(a string) (string, error) {
-		fb, err := ioutil.ReadFile(parameterFile)
+		fb, err := os.ReadFile(parameterFile)
 		if err != nil {
 			return "", err
 		}

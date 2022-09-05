@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"os"
 	"path"
@@ -147,7 +147,7 @@ func readConfig(filename string) (*Config, error) {
 			log.Printf("Error closing file '%s': %v", filename, err)
 		}
 	}()
-	data, err := ioutil.ReadAll(r)
+	data, err := io.ReadAll(r)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read file: %w", err)
 	}
