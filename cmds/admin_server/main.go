@@ -9,6 +9,9 @@ import (
 	"syscall"
 	"time"
 
+	// this import registers mysql driver for safesql to use
+	_ "github.com/go-sql-driver/mysql"
+	"github.com/linuxboot/contest/cmds/admin_server/job/rdb"
 	"github.com/linuxboot/contest/cmds/admin_server/server"
 	mongoStorage "github.com/linuxboot/contest/cmds/admin_server/storage/mongo"
 	"github.com/linuxboot/contest/pkg/logging"
@@ -18,18 +21,20 @@ import (
 )
 
 var (
-	flagSet      *flag.FlagSet
-	flagPort     *int
-	flagDBURI    *string
-	flagTLSCert  *string
-	flagTLSKey   *string
-	flagLogLevel *string
+	flagSet          *flag.FlagSet
+	flagPort         *int
+	flagDBURI        *string
+	flagContestDBURI *string
+	flagTLSCert      *string
+	flagTLSKey       *string
+	flagLogLevel     *string
 )
 
 func initFlags(cmd string) {
 	flagSet = flag.NewFlagSet(cmd, flag.ContinueOnError)
 	flagPort = flagSet.Int("port", 8000, "Port to init the admin server on")
 	flagDBURI = flagSet.String("dbURI", "mongodb://localhost:27017", "Database URI")
+	flagContestDBURI = flagSet.String("contestdbURI", "contest:contest@tcp(localhost:3306)/contest_integ?parseTime=true", "Contest Database URI")
 	flagTLSCert = flagSet.String("tlsCert", "", "Path to the tls cert file")
 	flagTLSKey = flagSet.String("tlsKey", "", "Path to the tls key file")
 	flagLogLevel = flagSet.String("logLevel", "debug", "A log level, possible values: debug, info, warning, error, panic, fatal")
@@ -72,6 +77,14 @@ func main() {
 	defer cancel()
 	defer storage.Close(closeCtx)
 
+	var jobStorage *rdb.Storage
+	ctx.Debugf("init contest db connection %v \n", *flagContestDBURI)
+	jobStorage, err = rdb.New(*flagContestDBURI, "mysql")
+	if err != nil {
+		exitWithError(err, 1)
+	}
+	defer jobStorage.Close()
+
 	go func() {
 		<-sigs
 		cancel()
@@ -88,7 +101,7 @@ func main() {
 		}
 	}
 
-	if err := server.Serve(ctx, *flagPort, storage, nil, tlsConfig); err != nil {
+	if err := server.Serve(ctx, *flagPort, storage, jobStorage, nil, tlsConfig); err != nil {
 		exitWithError(fmt.Errorf("server err: %w", err), 1)
 	}
 }
