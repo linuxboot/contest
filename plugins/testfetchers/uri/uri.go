@@ -8,8 +8,9 @@ package uri
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
+	"os"
 	"strings"
 
 	"github.com/linuxboot/contest/pkg/test"
@@ -97,7 +98,7 @@ func (tf *URI) Fetch(ctx xcontext.Context, params interface{}) (string, []*test.
 	switch scheme {
 	case "", "file":
 		// naively assume that it's OK to read the whole file in memory.
-		buf, err = ioutil.ReadFile(fetchParams.URI.Path)
+		buf, err = os.ReadFile(fetchParams.URI.Path)
 		if err != nil {
 			return "", nil, err
 		}
@@ -106,7 +107,7 @@ func (tf *URI) Fetch(ctx xcontext.Context, params interface{}) (string, []*test.
 		if err != nil {
 			return "", nil, err
 		}
-		buf, err = ioutil.ReadAll(resp.Body)
+		buf, err = io.ReadAll(resp.Body)
 		if err != nil {
 			return "", nil, err
 		}

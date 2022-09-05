@@ -6,7 +6,7 @@
 package logging
 
 import (
-	"io/ioutil"
+	"io"
 
 	log_prefixed "github.com/chappjc/logrus-prefix"
 	"github.com/sirupsen/logrus"
@@ -41,7 +41,7 @@ func AddFields(e *logrus.Entry, fields map[string]interface{}) *logrus.Entry {
 
 // Disable sends all logging output to the bit bucket.
 func Disable() {
-	log.SetOutput(ioutil.Discard)
+	log.SetOutput(io.Discard)
 }
 
 // Trace - Set Log Level to Trace

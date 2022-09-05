@@ -16,7 +16,8 @@ var funcMap = map[string]interface{}{
 	// some common pre-sets
 	"ToUpper": strings.ToUpper,
 	"ToLower": strings.ToLower,
-	"Title":   strings.Title,
+	// nolint deprecated, but works fine
+	"Title": strings.Title,
 }
 var funcMapMutex sync.Mutex
 

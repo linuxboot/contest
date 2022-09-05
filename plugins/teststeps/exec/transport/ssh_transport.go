@@ -7,7 +7,6 @@ package transport
 
 import (
 	"fmt"
-	"io/ioutil"
 	"net"
 	"os"
 	"strconv"
@@ -56,7 +55,7 @@ func NewSSHTransport(config SSHTransportConfig) Transport {
 func (st *SSHTransport) NewProcess(ctx xcontext.Context, bin string, args []string) (Process, error) {
 	var signer ssh.Signer
 	if st.IdentityFile != "" {
-		key, err := ioutil.ReadFile(st.IdentityFile)
+		key, err := os.ReadFile(st.IdentityFile)
 		if err != nil {
 			return nil, fmt.Errorf("cannot read private key at %s: %v", st.IdentityFile, err)
 		}

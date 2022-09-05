@@ -38,6 +38,7 @@ func TestParameterExpandUserFunctions(t *testing.T) {
 		if len(a) == 0 {
 			return "", errors.New("no params")
 		}
+		// nolint deprecated, but works fine
 		return strings.Title(a[0]), nil
 	}
 	require.NoError(t, RegisterFunction("CustomFunc", customFunc))

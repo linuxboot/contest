@@ -21,8 +21,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
+	"os"
 	"regexp"
 	"strconv"
 	"time"
@@ -149,7 +149,7 @@ func (ts *SSHCmd) Run(
 		}
 
 		if privKeyFile != "" {
-			key, err := ioutil.ReadFile(privKeyFile)
+			key, err := os.ReadFile(privKeyFile)
 			if err != nil {
 				return fmt.Errorf("cannot read private key at %s: %v", ts.PrivateKeyFile, err)
 			}
