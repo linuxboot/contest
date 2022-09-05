@@ -126,6 +126,7 @@ func (r *RouteHandler) addLogs(c *gin.Context) {
 	ctx = ctx.WithLogger(r.log)
 	err := r.storage.StoreLogs(ctx, storageLogs)
 	if err != nil {
+		r.log.Errorf("Err while storing logs: %v", err)
 		switch {
 		case errors.Is(err, storage.ErrInsert):
 			c.JSON(http.StatusInternalServerError, gin.H{"status": "err", "msg": "error while storing the batch"})
@@ -155,6 +156,7 @@ func (r *RouteHandler) getLogs(c *gin.Context) {
 	result, err := r.storage.GetLogs(ctx, query.ToStorageQuery())
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"status": "err", "msg": "error while getting the logs"})
+		r.log.Errorf("Err while getting logs from storage: %v", err)
 		return
 	}
 
