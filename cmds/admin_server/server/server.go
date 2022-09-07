@@ -22,9 +22,15 @@ var (
 	DefaultDBAccessTimeout time.Duration = 10 * time.Second
 )
 
+/*
+Query should have the same names as the fields in the entity that it queries(in this case Log).
+To generalize filtering time fields (range filtering), it should have two fields with prefixes `start_<name>`, `end_<name>`
+to make the frontend generate the query programmatically.
+e.g. (Log.Date `date` -> Query.StartDate `start_date`, Query.EndDate `end_date`)
+*/
 type Query struct {
 	JobID     *uint64    `form:"job_id"`
-	Text      *string    `form:"text"`
+	LogData   *string    `form:"log_data"`
 	LogLevel  *string    `form:"log_level"`
 	StartDate *time.Time `form:"start_date" time_format:"2006-01-02T15:04:05.000Z07:00"`
 	EndDate   *time.Time `form:"end_date" time_format:"2006-01-02T15:04:05.000Z07:00"`
@@ -40,7 +46,7 @@ func (q *Query) ToStorageQuery() storage.Query {
 	}
 
 	storageQuery.JobID = q.JobID
-	storageQuery.Text = q.Text
+	storageQuery.LogData = q.LogData
 	storageQuery.LogLevel = q.LogLevel
 	storageQuery.StartDate = q.StartDate
 	storageQuery.EndDate = q.EndDate
@@ -57,10 +63,10 @@ func (q *Query) ToStorageQuery() storage.Query {
 }
 
 type Log struct {
-	JobID    uint64    `json:"job_id"`
-	LogData  string    `json:"log_data"`
-	Date     time.Time `json:"date"`
-	LogLevel string    `json:"log_level"`
+	JobID    uint64    `json:"job_id" filter:"uint"`
+	LogData  string    `json:"log_data" filter:"string"`
+	Date     time.Time `json:"date" filter:"time"`
+	LogLevel string    `json:"log_level" filter:"enum" values:"info,debug,error,fatal,panic,warning"`
 }
 
 func (l *Log) ToStorageLog() storage.Log {
@@ -157,6 +163,17 @@ type RouteHandler struct {
 // status is a simple endpoint to check if the serves is alive
 func (r *RouteHandler) status(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "live"})
+}
+
+//
+func (r *RouteHandler) describeLog(c *gin.Context) {
+	res, err := DescribeEntity(Log{})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"status": "err", "msg": "error while getting the storage descirbtion"})
+		return
+	}
+
+	c.JSON(http.StatusOK, res)
 }
 
 // addLogs inserts log's batches into the database
@@ -277,6 +294,7 @@ func initRouter(ctx xcontext.Context, rh RouteHandler, middlewares []gin.Handler
 	r.GET("/log", rh.getLogs)
 	r.GET("/tag", rh.getTags)
 	r.GET("/tag/:name/jobs", rh.getJobs)
+	r.GET("/log-description", rh.describeLog)
 
 	// serve the frontend app
 	r.StaticFS("/app", FS(false))

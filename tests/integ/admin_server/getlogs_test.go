@@ -104,8 +104,8 @@ func queryLogsEndpoint(query server.Query, retrieveAll bool) (*server.Result, in
 		if query.JobID != nil {
 			q.Set("job_id", strconv.FormatUint(*query.JobID, 10))
 		}
-		if query.Text != nil {
-			q.Set("text", *query.Text)
+		if query.LogData != nil {
+			q.Set("log_data", *query.LogData)
 		}
 		if query.StartDate != nil {
 			q.Set("start_date", query.StartDate.Format(storage.DefaultTimestampFormat))
@@ -226,7 +226,7 @@ func TestLogQuery(t *testing.T) {
 		{
 			name: "text-search",
 			apiQuery: server.Query{
-				Text:     &searchText,
+				LogData:  &searchText,
 				Page:     &page,
 				PageSize: &pageSize,
 			},
@@ -237,7 +237,7 @@ func TestLogQuery(t *testing.T) {
 		{
 			name: "logLevel-search",
 			apiQuery: server.Query{
-				Text:     &emptySearchText,
+				LogData:  &emptySearchText,
 				LogLevel: &logLevel,
 				Page:     &page,
 				PageSize: &pageSize,
@@ -249,7 +249,7 @@ func TestLogQuery(t *testing.T) {
 		{
 			name: "multiple-log-levels",
 			apiQuery: server.Query{
-				Text:     &emptySearchText,
+				LogData:  &emptySearchText,
 				LogLevel: &logLevels,
 				Page:     &page,
 				PageSize: &pageSize,
@@ -261,7 +261,7 @@ func TestLogQuery(t *testing.T) {
 		{
 			name: "start-date",
 			apiQuery: server.Query{
-				Text:      &emptySearchText,
+				LogData:   &emptySearchText,
 				StartDate: &startDate,
 				Page:      &page,
 				PageSize:  &pageSize,
@@ -275,7 +275,7 @@ func TestLogQuery(t *testing.T) {
 		{
 			name: "end-date",
 			apiQuery: server.Query{
-				Text:     &emptySearchText,
+				LogData:  &emptySearchText,
 				EndDate:  &endDate,
 				Page:     &page,
 				PageSize: &pageSize,
@@ -289,7 +289,7 @@ func TestLogQuery(t *testing.T) {
 		{
 			name: "date-range",
 			apiQuery: server.Query{
-				Text:      &emptySearchText,
+				LogData:   &emptySearchText,
 				EndDate:   &endDate,
 				StartDate: &startDate,
 				Page:      &page,
@@ -305,7 +305,7 @@ func TestLogQuery(t *testing.T) {
 		{
 			name: "combined-query",
 			apiQuery: server.Query{
-				Text:      &searchText,
+				LogData:   &searchText,
 				StartDate: &startDate,
 				EndDate:   &endDate,
 				LogLevel:  &logLevel,
@@ -354,7 +354,7 @@ func TestLogQuery(t *testing.T) {
 	t.Run("no-paging", func(t *testing.T) {
 		// get logs from endpoint
 		res, statusCode, err := queryLogsEndpoint(server.Query{
-			Text:     &searchText,
+			LogData:  &searchText,
 			PageSize: &pageSize,
 		}, false)
 		if err != nil {
