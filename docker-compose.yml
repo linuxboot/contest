@@ -27,7 +27,7 @@ services:
             test: ["CMD", "mysqladmin", "ping", "-h127.0.0.1", "-ucontest", "-pcontest"]
             interval: 5s
             timeout: 1s
-            retries: 5
+            retries: 10
         networks:
             net:
                 aliases:
@@ -46,7 +46,7 @@ services:
             test: curl --fail -X GET http://localhost:8000/status || exit 1
             interval: 5s
             timeout: 1s
-            retries: 5
+            retries: 10
         depends_on:
             mysql:
                 condition: service_healthy
@@ -68,7 +68,7 @@ services:
             test: echo 'db.runCommand("ping").ok' | mongo localhost:27017/admin-server-db --quiet
             interval: 5s
             timeout: 1s
-            retries: 5
+            retries: 10
         networks:
             net:
                 aliases:
