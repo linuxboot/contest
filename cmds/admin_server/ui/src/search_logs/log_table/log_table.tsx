@@ -4,7 +4,7 @@ import { Column, Cell, HeaderCell } from 'rsuite-table';
 import { StandardProps } from 'rsuite-table/lib/@types/common';
 import { getLogs, Log, Result } from '../../api/logs';
 import { TypeAttributes } from 'rsuite/esm/@types/common';
-import DateCell from './date_cell/date_cell';
+import DateCell from '../../date_cell/date_cell';
 import 'rsuite/dist/rsuite.min.css';
 import './log_table.scss';
 
@@ -58,7 +58,6 @@ export default function LogTable({
             setPage(result.page);
             setLimit(result.page_size);
         } catch (err) {
-            console.log(err);
             showMsg('error', err?.message);
         }
         setLoading(false);

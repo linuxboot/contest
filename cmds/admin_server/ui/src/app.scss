@@ -3,3 +3,29 @@
     padding: 0;
     box-sizing: border-box;
 }
+
+.navbar {
+    padding: 1em 2em;
+    display: flex;
+    align-items: center;
+    box-shadow: 1px 1px 10px rgba(0,0,0,.2);
+
+    .navbar__logo {
+        font-size: 1.7em;
+        font-weight: 900;
+    }
+
+    .navbar__btns{
+        margin-left: auto;
+    }
+
+    .navbar__link{
+        padding: .5em .7em;
+        border: 1px solid;
+        border-radius: 5px;
+    }
+
+    .navbar__link + .navbar__link {
+        margin-left: 10px;
+    }
+}
