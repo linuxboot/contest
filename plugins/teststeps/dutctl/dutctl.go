@@ -12,6 +12,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -182,11 +183,37 @@ func (d *Dutctl) Run(ctx xcontext.Context, ch test.TestStepChannels, params test
 						return fmt.Errorf("Failed to power off: %v\n", err)
 					}
 					log.Infof("dut powered off.")
+				case "powercycle":
+					if len(args) == 2 {
+						reboots, err := strconv.Atoi(args[1])
+						if err != nil {
+							return fmt.Errorf("powercycle amount could not be parsed: %v\n", err)
+						}
+						for i := 1; i < reboots; i++ {
+							err = dutInterface.PowerOn()
+							if err != nil {
+								return fmt.Errorf("Failed to power on: %v\n", err)
+							}
+							log.Infof("dut powered on.")
+							if expect != "" {
+								if err := serial(ctx, dutInterface, expect); err != nil {
+									return fmt.Errorf("the expect %q was not found in the logs", expect)
+								}
+							}
+							err = dutInterface.PowerOff()
+							if err != nil {
+								return fmt.Errorf("Failed to power off: %v\n", err)
+							}
+							log.Infof("dut powered off.")
+						}
+					} else {
+						return fmt.Errorf("You have to add only a second argument to specify how often you want to powercycle.")
+					}
 				default:
-					return fmt.Errorf("Failed to execute the power command. The argument %q is not valid. Possible values are 'on' and 'off'.", args)
+					return fmt.Errorf("Failed to execute the power command. The argument %q is not valid. Possible values are 'on', 'off' and 'powercycle'.", args)
 				}
 			} else {
-				return fmt.Errorf("Failed to execute the power command. Args is empty. Possible values are 'on' and 'off'.")
+				return fmt.Errorf("Failed to execute the power command. Args is empty. Possible values are 'on', 'off' and 'powercycle'.")
 			}
 		case "flash":
 			err = dutInterface.InitPowerPlugins(stdout)
