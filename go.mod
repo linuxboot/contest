@@ -9,6 +9,7 @@ require (
 	github.com/gin-gonic/gin v1.8.1
 	github.com/go-sql-driver/mysql v1.6.0
 	github.com/google/go-safeweb v0.0.0-20211026121254-697f59a9d57f
+	github.com/google/goexpect v0.0.0-20200703111054-623d5ca06f56
 	github.com/google/uuid v1.3.0
 	github.com/insomniacslk/termhook v0.0.0-20210329134026-a267c978e590
 	github.com/insomniacslk/xjson v0.0.0-20210106140854-1589ccfd1a1a
@@ -49,6 +50,7 @@ require (
 	github.com/goccy/go-json v0.9.8 // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/golang/snappy v0.0.1 // indirect
+	github.com/google/goterm v0.0.0-20190703233501-fc88cf888a3f // indirect
 	github.com/hugelgupf/p9 v0.1.0 // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
@@ -86,5 +88,6 @@ require (
 	golang.org/x/text v0.3.7 // indirect
 	golang.org/x/tools v0.1.12 // indirect
 	golang.org/x/xerrors v0.0.0-20220609144429-65e65417b02f // indirect
+	google.golang.org/grpc v1.31.0 // indirect
 	google.golang.org/protobuf v1.28.0 // indirect
 )
