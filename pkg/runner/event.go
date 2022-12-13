@@ -20,3 +20,6 @@ var EventRunStarted = event.Name("RunStarted")
 
 // EventTestError indicates that a test failed.
 var EventTestError = event.Name("TestError")
+
+// EventVariableEmitted is emitted each time when a step adds variable
+var EventVariableEmitted = event.Name("VariableEmitted")

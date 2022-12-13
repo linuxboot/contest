@@ -136,7 +136,31 @@ func (tr *TestRunner) Run(
 		targetStates[tgt.ID] = tgs
 	}
 
-	stepOutputs, err := newTestStepsVariables(t.TestStepsBundles)
+	emitterForStep := make(map[string]testevent.Emitter)
+	for _, sb := range t.TestStepsBundles {
+		emitterForStep[sb.TestStepLabel] = emitterFactory.New(sb.TestStepLabel)
+	}
+
+	stepOutputs, err := newTestStepsVariables(t.TestStepsBundles, func(tgtID string, stepLabel string, name string, value json.RawMessage) {
+		emitter := emitterForStep[stepLabel]
+		if emitter == nil {
+			runCtx.Errorf("not found events emitter for step: '%s'", stepLabel)
+			return
+		}
+		tgs := targetStates[tgtID]
+		if tgs == nil {
+			runCtx.Errorf("unknown target id: '%s'", tgtID)
+			return
+		}
+
+		payload := emittedVariablePayload{
+			Name:  name,
+			Value: string(value),
+		}
+		if err := emitEvent(runCtx, emitter, EventVariableEmitted, tgs.tgt, payload); err != nil {
+			runCtx.Errorf("failed to emit event: '%v'", err)
+		}
+	})
 	if err != nil {
 		ctx.Errorf("Failed to initialise test steps variables: %v", err)
 		return nil, nil, err
@@ -172,7 +196,7 @@ func (tr *TestRunner) Run(
 		}
 
 		// Step handlers will be started from target handlers as targets reach them.
-		tr.steps = append(tr.steps, newStepState(i, stepTargetsCount, sb, emitterFactory, stepOutputs, srs, resumeStateTargets, func(err error) {
+		tr.steps = append(tr.steps, newStepState(i, stepTargetsCount, sb, emitterForStep[sb.TestStepLabel], stepOutputs, srs, resumeStateTargets, func(err error) {
 			stepsErrorsCh <- err
 		}))
 	}
@@ -494,4 +518,9 @@ func (tgs *targetState) String() string {
 	}
 	return fmt.Sprintf("[%s %d %s %s]",
 		tgs.tgt, tgs.CurStep, tgs.CurPhase, resText)
+}
+
+type emittedVariablePayload struct {
+	Name  string
+	Value string
 }
