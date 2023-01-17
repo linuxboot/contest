@@ -634,22 +634,21 @@ func (s *TestRunnerSuite) TestPauseResumeSimple() {
 		)
 		require.NoError(s.T(), err)
 	}
+
 	// Verify step events.
-	// Steps 1 and 2 are executed entirely within the first runner instance
-	// and never started in the second.
-	require.Equal(s.T(), `
-{[1 1 SimpleTest 0 Step1][(*Target)(nil) TestStepRunningEvent]}
-{[1 1 SimpleTest 0 Step1][(*Target)(nil) TestStepFinishedEvent]}
-`, s.MemoryStorage.GetStepEvents(ctx, testName, "Step1"))
-	require.Equal(s.T(), `
-{[1 1 SimpleTest 0 Step2][(*Target)(nil) TestStepRunningEvent]}
-{[1 1 SimpleTest 0 Step2][(*Target)(nil) TestStepFinishedEvent]}
-`, s.MemoryStorage.GetStepEvents(ctx, testName, "Step2"))
-	// Step 3 did not get to start in the first instance and ran in the second.
-	require.Equal(s.T(), `
-{[1 5 SimpleTest 0 Step3][(*Target)(nil) TestStepRunningEvent]}
-{[1 5 SimpleTest 0 Step3][(*Target)(nil) TestStepFinishedEvent]}
-`, s.MemoryStorage.GetStepEvents(ctx, testName, "Step3"))
+	// all steps start fully in each run, but only some process targets
+	for id := 1; id <= 3; id++ {
+		stepid := fmt.Sprintf("Step%d", id)
+		expected := fmt.Sprintf(`
+{[1 1 SimpleTest 0 %[1]s][(*Target)(nil) TestStepRunningEvent]}
+{[1 1 SimpleTest 0 %[1]s][(*Target)(nil) TestStepFinishedEvent]}
+{[1 5 SimpleTest 0 %[1]s][(*Target)(nil) TestStepRunningEvent]}
+{[1 5 SimpleTest 0 %[1]s][(*Target)(nil) TestStepFinishedEvent]}
+`, stepid)
+
+		require.Equal(s.T(), expected, s.MemoryStorage.GetStepEvents(ctx, testName, stepid))
+	}
+
 	// T1 failed entirely within the first run.
 	require.Equal(s.T(), `
 {[1 1 SimpleTest 0 Step1][Target{ID: "T1"} TargetIn]}
@@ -657,6 +656,7 @@ func (s *TestRunnerSuite) TestPauseResumeSimple() {
 {[1 1 SimpleTest 0 Step1][Target{ID: "T1"} TestFailedEvent]}
 {[1 1 SimpleTest 0 Step1][Target{ID: "T1"} TargetErr &"{\"Error\":\"target failed\"}"]}
 `, s.MemoryStorage.GetTargetEvents(ctx, testName, "T1"))
+
 	// T2 and T3 ran in both.
 	require.Equal(s.T(), `
 {[1 1 SimpleTest 0 Step1][Target{ID: "T2"} TargetIn]}
