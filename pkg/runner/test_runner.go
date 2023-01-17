@@ -25,19 +25,19 @@ import (
 
 // TestRunner is the state associated with a test run.
 // Here's how a test run works:
-//  * Each target gets a targetState and a "target handler" - a goroutine that takes that particular
-//    target through each step of the pipeline in sequence. It injects the target, waits for the result,
-//    then moves on to the next step.
-//  * Each step of the pipeline gets a stepState and:
-//    - A "step runner" - a goroutine that is responsible for running the step's Run() method
-//    - A "step reader" - a goroutine that processes results and sends them on to target handlers that await them.
-//  * After starting all of the above, the main goroutine goes into "monitor" mode
-//    that checks on the pipeline's progress and is responsible for closing step input channels
-//    when all the targets have been injected.
-//  * Monitor loop finishes when all the targets have been injected into the last step
-//    or if a step has encountered an error.
-//  * We then wait for all the step runners and readers to shut down.
-//  * Once all the activity has died down, resulting state is examined and an error is returned, if any.
+//   - Each target gets a targetState and a "target handler" - a goroutine that takes that particular
+//     target through each step of the pipeline in sequence. It injects the target, waits for the result,
+//     then moves on to the next step.
+//   - Each step of the pipeline gets a stepState and:
+//   - A "step runner" - a goroutine that is responsible for running the step's Run() method
+//   - A "step reader" - a goroutine that processes results and sends them on to target handlers that await them.
+//   - After starting all of the above, the main goroutine goes into "monitor" mode
+//     that checks on the pipeline's progress and is responsible for closing step input channels
+//     when all the targets have been injected.
+//   - Monitor loop finishes when all the targets have been injected into the last step
+//     or if a step has encountered an error.
+//   - We then wait for all the step runners and readers to shut down.
+//   - Once all the activity has died down, resulting state is examined and an error is returned, if any.
 type TestRunner struct {
 	shutdownTimeout time.Duration // Time to wait for steps runners to finish a the end of the run
 
@@ -373,6 +373,32 @@ func (tr *TestRunner) handleTarget(ctx xcontext.Context, tgs *targetState) error
 
 	ctx = ctx.WithField("target", tgs.tgt.ID)
 	ctx.Debugf("%s: target handler active", tgs)
+
+	// Preload next steps; this allows plugin to have init-time state that was saved in
+	// previous state pause events. Otherwise, during a resume, any step that had no
+	// targets reach it (and therefore start it) previously, will be completely reset.
+	// This action also allows a fail-fast for any steps that have init-time errors.
+	for i := tgs.CurStep; i < len(tr.steps); i++ {
+		step := tr.steps[i]
+		bundle := tr.steps[i].sb
+
+		if err := step.Run(ctx); err != nil {
+			switch err {
+			case xcontext.ErrPaused:
+				ctx.Debugf("%s: paused", tgs)
+
+			case xcontext.ErrCanceled:
+				ctx.Debugf("%s: canceled", tgs)
+
+			default:
+				ctx.Errorf("Target handler failed: %v", err)
+			}
+			return err
+		}
+
+		ctx.Infof("%s: step plugin started", bundle.TestStepLabel)
+	}
+
 	// NB: CurStep may be non-zero on entry if resumed
 loop:
 	for i := tgs.CurStep; i < len(tr.steps); {
@@ -407,15 +433,10 @@ loop:
 			return err
 		}
 		tr.mu.Unlock()
-		// Make sure we have a step runner active. If not, start one.
-		err := ss.Run(ctx)
 
-		var targetNotifier ChanNotifier
-		if err == nil {
-			// Inject the target.
-			ctx.Debugf("%s: injecting into %s", tgs, ss)
-			targetNotifier, err = ss.InjectTarget(ctx, tgs.tgt)
-		}
+		// Inject the target.
+		ctx.Debugf("%s: injecting into %s", tgs, ss)
+		targetNotifier, err := ss.InjectTarget(ctx, tgs.tgt)
 
 		if err == nil {
 			tr.mu.Lock()
@@ -429,36 +450,49 @@ loop:
 		tr.steps[i].DecreaseLeftTargets()
 		lastDecremented = i
 
-		// Await result. It will be communicated to us by the step runner
-		// and returned in tgs.res.
-		if err == nil {
-			select {
-			case res := <-targetNotifier.NotifyCh():
-				ctx.Debugf("Got target result: '%v'", err)
-				tr.mu.Lock()
-				if res != nil {
-					tgs.Res = xjson.NewError(res)
-				}
-				tgs.CurPhase = targetStepPhaseEnd
-				tr.mu.Unlock()
-				err = nil
-			case <-ss.NotifyStopped():
-				err = ss.GetError()
-				ctx.Debugf("step runner stopped: '%v'", err)
-			case <-ctx.Done():
-				ctx.Debugf("Canceled target context during waiting for target result")
-				err = ctx.Err()
-			}
-		}
-		if err != nil {
-			ctx.Errorf("Target handler failed: %v", err)
+	err_handling:
+		for {
 			switch err {
+			case nil:
+				// Await result. It will be communicated to us by the step runner and returned in tgs.res.
+				select {
+				case res := <-targetNotifier.NotifyCh():
+					ctx.Debugf("Got target result: '%v'", err)
+
+					tr.mu.Lock()
+					if res != nil {
+						tgs.Res = xjson.NewError(res)
+					}
+					tgs.CurPhase = targetStepPhaseEnd
+					tr.mu.Unlock()
+					break err_handling
+
+				case <-ss.NotifyStopped():
+					err = ss.GetError()
+					ctx.Debugf("step runner stopped, err: %w", err)
+					if err == nil {
+						// StepState.GetError here is misleading, it may return nil
+						// and that's considered "normal stopping".
+						break err_handling
+					}
+
+				case <-ctx.Done():
+					err = ctx.Err()
+					ctx.Debugf("Canceled target context during waiting for target result")
+				}
+
 			case xcontext.ErrPaused:
-				ctx.Debugf("%s: paused 1", tgs)
+				ctx.Debugf("%s: paused", tgs)
+				return err
+
 			case xcontext.ErrCanceled:
-				ctx.Debugf("%s: canceled 1", tgs)
+				ctx.Debugf("%s: canceled", tgs)
+				return err
+
+			default:
+				ctx.Errorf("target handler failed: %w", err)
+				return err
 			}
-			return err
 		}
 
 		tr.mu.Lock()
