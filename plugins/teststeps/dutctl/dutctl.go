@@ -19,6 +19,7 @@ import (
 	"github.com/9elements/fti/pkg/dut"
 	"github.com/9elements/fti/pkg/dutctl"
 	"github.com/9elements/fti/pkg/remote_lab/client"
+	"github.com/9elements/fti/pkg/tools"
 	"github.com/linuxboot/contest/pkg/event"
 	"github.com/linuxboot/contest/pkg/event/testevent"
 	"github.com/linuxboot/contest/pkg/target"
@@ -64,12 +65,15 @@ func emitEvent(ctx xcontext.Context, name event.Name, payload interface{}, tgt *
 	return nil
 }
 
-var Timeout time.Duration
-var TimeTimeout time.Time
+var (
+	Timeout     time.Duration
+	TimeTimeout time.Time
+)
 
 // Run executes the Dutctl action.
 func (d *Dutctl) Run(ctx xcontext.Context, ch test.TestStepChannels, params test.TestStepParameters,
-	ev testevent.Emitter, resumeState json.RawMessage) (json.RawMessage, error) {
+	ev testevent.Emitter, resumeState json.RawMessage,
+) (json.RawMessage, error) {
 	log := ctx.Logger()
 	// Validate the parameter
 	if err := d.validateAndPopulate(params); err != nil {
@@ -78,7 +82,7 @@ func (d *Dutctl) Run(ctx xcontext.Context, ch test.TestStepChannels, params test
 	f := func(ctx xcontext.Context, target *target.Target) error {
 		var err error
 		var dutInterface dutctl.DutCtl
-		var stdout dut.LogginFunc
+		var stdout tools.LogginFunc
 		var o dut.FlashOptions
 
 		// expand all variables
@@ -104,7 +108,6 @@ func (d *Dutctl) Run(ctx xcontext.Context, ch test.TestStepChannels, params test
 		expect, err := d.expect.Expand(target)
 		if expect == "" && command == "serial" {
 			return fmt.Errorf("'expect' has to be set if you want to use the command 'serial'")
-
 		}
 		if err != nil {
 			return fmt.Errorf("failed to expand args 'expect': %v", err)
@@ -220,7 +223,7 @@ func (d *Dutctl) Run(ctx xcontext.Context, ch test.TestStepChannels, params test
 			if err != nil {
 				return fmt.Errorf("Failed to init power plugins: %v\n", err)
 			}
-			err = dutInterface.InitProgrammerPlugins(stdout)
+			err = dutInterface.InitFlashPlugins(stdout)
 			if err != nil {
 				return fmt.Errorf("Failed to init programmer plugins: %v\n", err)
 			}
@@ -250,7 +253,7 @@ func (d *Dutctl) Run(ctx xcontext.Context, ch test.TestStepChannels, params test
 						return fmt.Errorf("Fail to read: %v\n", err)
 					}
 
-					err = ioutil.WriteFile(args[1], rom, 0660)
+					err = ioutil.WriteFile(args[1], rom, 0o660)
 					if err != nil {
 						return fmt.Errorf("Failed to write file: %v\n", err)
 					}
