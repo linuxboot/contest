@@ -1,0 +1,32 @@
+syntax = "proto3";
+
+package contest.v1;
+
+option go_package = "./contestlistener";
+
+service ConTestService {
+    rpc StartJob(StartJobRequest) returns (StartJobResponse) {}
+    rpc StatusJob(StatusJobRequest) returns (stream StatusJobResponse) {}
+}
+
+message StartJobRequest {
+    string requestor = 1;
+    bytes job = 2;
+}
+
+message StartJobResponse {
+    int32 job_id = 1;
+    string error = 2;
+}
+
+message StatusJobRequest {
+    int32 job_id = 1;
+    string requestor = 2;
+}
+
+message StatusJobResponse {
+    string status = 1;
+    string error = 2;
+    bytes report = 3;
+    bytes log = 4;
+}
