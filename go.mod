@@ -7,11 +7,13 @@ replace github.com/codegangsta/cli v1.22.5 => github.com/urfave/cli v1.22.5
 replace github.com/yudai/gotty v1.0.1 => github.com/yudai/gotty v2.0.0-alpha.3+incompatible
 
 require (
-	github.com/9elements/fti v0.6.3-0.20220714120759-68a3b39fb61b
+	github.com/9elements/fti v0.6.3-0.20230202152603-3135aca74685
 	github.com/OneOfOne/xxhash v1.2.8 // indirect
+	github.com/alecthomas/units v0.0.0-20210208195552-ff826a37aa15 // indirect
 	github.com/aws/aws-sdk-go v1.41.14
 	github.com/benbjohnson/clock v1.1.0
 	github.com/chappjc/logrus-prefix v0.0.0-20180227015900-3a1d64819adb
+	github.com/codegangsta/cli v1.22.5 // indirect
 	github.com/fsnotify/fsnotify v1.4.9 // indirect
 	github.com/go-sql-driver/mysql v1.6.0
 	github.com/google/go-safeweb v0.0.0-20211026121254-697f59a9d57f
@@ -41,6 +43,7 @@ require (
 	github.com/xaionaro-go/spinlock v0.0.0-20200518175509-30e6d1ce68a1 // indirect
 	github.com/xaionaro-go/statuspage v0.0.0-20220629202611-97b44b308599
 	github.com/xaionaro-go/unsafetools v0.0.0-20210722164218-75ba48cf7b3c
+	github.com/yudai/gotty v1.0.1 // indirect
 	go.uber.org/atomic v1.9.0
 	go.uber.org/multierr v1.7.0 // indirect
 	go.uber.org/zap v1.19.1
