@@ -7,7 +7,7 @@ replace github.com/codegangsta/cli v1.22.5 => github.com/urfave/cli v1.22.5
 replace github.com/yudai/gotty v1.0.1 => github.com/yudai/gotty v2.0.0-alpha.3+incompatible
 
 require (
-	github.com/9elements/fti v0.6.2
+	github.com/9elements/fti v0.6.3-0.20220714120759-68a3b39fb61b
 	github.com/OneOfOne/xxhash v1.2.8 // indirect
 	github.com/aws/aws-sdk-go v1.41.14
 	github.com/benbjohnson/clock v1.1.0

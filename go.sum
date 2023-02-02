@@ -33,6 +33,8 @@ cloud.google.com/go/storage v1.10.0/go.mod h1:FLPqc6j+Ki4BU591ie1oL6qBQGu2Bl/tZ9
 dmitri.shuralyov.com/gpu/mtl v0.0.0-20190408044501-666a987793e9/go.mod h1:H6x//7gZCb22OMCxBHrMx7a5I7Hp++hsVxbQ4BYO7hU=
 github.com/9elements/fti v0.6.2 h1:GnCpK5gBJBWN9XWD2h2aLCUceu9GQ+UBhXCljOQeTAs=
 github.com/9elements/fti v0.6.2/go.mod h1:0bpm5GHGeyOX1kmv9FJBqLbjHPODNFyhSJtBw0VMKpo=
+github.com/9elements/fti v0.6.3-0.20220714120759-68a3b39fb61b h1:zpwHIKKQr/I/0VgJBhMPvL2ODWBsuEr58z/6VNhTm+M=
+github.com/9elements/fti v0.6.3-0.20220714120759-68a3b39fb61b/go.mod h1:0bpm5GHGeyOX1kmv9FJBqLbjHPODNFyhSJtBw0VMKpo=
 github.com/9elements/go-ser2net v0.0.0-20220202113301-548d3f6ea5c2 h1:D8j4tWxHMhdQMX8jPY0g0OGpaiCj0BTHLsx/M0u2ctU=
 github.com/9elements/go-ser2net v0.0.0-20220202113301-548d3f6ea5c2/go.mod h1:FqeHlfIUQXoFHwPYogIcdZwGISNwLv1A3f/Usijx56w=
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
