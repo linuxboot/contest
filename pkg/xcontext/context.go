@@ -10,17 +10,18 @@ package xcontext
 
 import (
 	"context"
+	"io"
 	"os"
 	"os/user"
 	"runtime"
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/linuxboot/contest/pkg/xcontext/buildinfo"
 	"github.com/linuxboot/contest/pkg/xcontext/fields"
 	"github.com/linuxboot/contest/pkg/xcontext/logger"
 	"github.com/linuxboot/contest/pkg/xcontext/metrics"
-	"github.com/google/uuid"
 )
 
 var (
@@ -59,6 +60,8 @@ func NewTraceID() TraceID {
 // Logger is an abstract logger used by a Context.
 type Logger = logger.Logger
 
+type Writer = io.Writer
+
 // Context is a generic extension over context.Context with provides also:
 // * Logger which allows to send messages to a log.
 // * Metrics which allows to update metrics.
@@ -67,6 +70,9 @@ type Logger = logger.Logger
 type Context interface {
 	context.Context
 	logger.MinimalLogger
+
+	Writer() io.Writer
+	AddWriter(io.Writer)
 
 	// Clone just returns a copy of the Context safe to be modified.
 	Clone() Context
@@ -169,7 +175,7 @@ type TimeSpan interface {
 //
 // Is supposed to be used this way:
 //
-//     defer ctx.Tracer().StartSpan("some label here").Finish()
+//	defer ctx.Tracer().StartSpan("some label here").Finish()
 type Tracer interface {
 	// StartSpan creates a time span to be reported (if Finish will be called)
 	// which starts counting time since the moment StartSpan was called.
@@ -208,6 +214,7 @@ func (tools *debugTools) Clone() *debugTools {
 type ctxValue struct {
 	mutationSyncer sync.Once
 	traceIDValue   TraceID
+	writer         io.Writer
 
 	debugTools *debugTools
 	valuesHandler
@@ -218,9 +225,7 @@ type ctxValue struct {
 	parent *ctxValue
 }
 
-var (
-	background = NewContext(context.Background(), "", nil, nil, nil, nil, nil)
-)
+var background = NewContext(context.Background(), "", nil, nil, nil, nil, nil)
 
 // Background is analog of standard context.Context which returns just a simple dummy context which does nothing.
 func Background() Context {
@@ -316,6 +321,7 @@ func (ctx *ctxValue) clone() *ctxValue {
 		debugTools:    ctx.loadDebugTools().Clone(),
 		valuesHandler: ctx.valuesHandler,
 		eventHandler:  ctx.eventHandler,
+		writer:        ctx.writer,
 		parent:        ctx,
 	}
 }
@@ -324,6 +330,19 @@ func (ctx *ctxValue) clone() *ctxValue {
 // this context will not affect the original one.
 func (ctx *ctxValue) Clone() Context {
 	return ctx.clone()
+}
+
+func (ctx *ctxValue) AddWriter(wrt io.Writer) {
+	if wrt != nil {
+		ctx.writer = wrt
+	}
+}
+
+func (ctx *ctxValue) Writer() io.Writer {
+	if ctx.writer != nil {
+		return ctx.writer
+	}
+	return nil
 }
 
 // TraceID returns the tracing ID of the context. The tracing ID is
