@@ -14,6 +14,7 @@ import (
 	expect "github.com/google/goexpect"
 	"github.com/linuxboot/contest/pkg/event"
 	"github.com/linuxboot/contest/pkg/event/testevent"
+	"github.com/linuxboot/contest/pkg/multiwriter"
 	"github.com/linuxboot/contest/pkg/target"
 	"github.com/linuxboot/contest/pkg/test"
 	"github.com/linuxboot/contest/pkg/xcontext"
@@ -42,7 +43,7 @@ type Qemu struct {
 	steps      []test.Param
 }
 
-//  Needed for the Teststep interface. Returns a Teststep instance.
+// Needed for the Teststep interface. Returns a Teststep instance.
 func New() test.TestStep {
 	return &Qemu{}
 }
@@ -175,10 +176,25 @@ func (q *Qemu) Run(ctx xcontext.Context, ch test.TestStepChannels, params test.T
 			defer logfile.Close()
 		}
 
+		// Set up multiwriter
+		mw := multiwriter.New()
+		if ctx.Writer() != nil {
+			err := mw.AddWriter(ctx.Writer())
+			if err != nil {
+				ctx.Errorf("MultiWriter.AddWriter() = '%w'", err)
+			}
+		}
+
+		// Add stdout buffer to the Multiwriter
+		err = mw.AddWriter(logfile)
+		if err != nil {
+			return fmt.Errorf("MultiWriter.AddWriter() = '%w'", err)
+		}
+
 		gExpect, errchan, err := expect.SpawnWithArgs(
 			command,
 			globalTimeout,
-			expect.Tee(logfile),
+			expect.Tee(mw),
 			expect.CheckDuration(time.Minute),
 			expect.PartialMatch(false),
 			expect.SendTimeout(globalTimeout),
