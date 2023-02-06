@@ -39,6 +39,7 @@ type Dutctl struct {
 	serverAddr *test.Param  // Addr to the server where the dut is running.
 	command    *test.Param  // Command that shall be run on the dut.
 	args       []test.Param // Arguments that the command need.
+	in         *test.Param  // In writes something on the serial
 	expect     *test.Param  // Expect is the string expected in the serial.
 	timeout    *test.Param  // Timeout after that the cmd will terminate.
 }
@@ -106,11 +107,14 @@ func (d *Dutctl) Run(ctx xcontext.Context, ch test.TestStepChannels, params test
 		}
 
 		expect, err := d.expect.Expand(target)
-		if expect == "" && command == "serial" {
-			return fmt.Errorf("'expect' has to be set if you want to use the command 'serial'")
-		}
 		if err != nil {
 			return fmt.Errorf("failed to expand args 'expect': %v", err)
+		}
+
+		// Input can be *not* set
+		input, err := d.expect.Expand(target)
+		if err != nil {
+			return fmt.Errorf("failed to expand arg 'input': %w", err)
 		}
 
 		timeoutStr, err := d.timeout.Expand(target)
@@ -176,7 +180,7 @@ func (d *Dutctl) Run(ctx xcontext.Context, ch test.TestStepChannels, params test
 					}
 					log.Infof("dut powered on.")
 					if expect != "" {
-						if err := serial(ctx, dutInterface, expect); err != nil {
+						if err := serial(ctx, dutInterface, expect, input); err != nil {
 							return fmt.Errorf("the expect %q was not found in the logs", expect)
 						}
 					}
@@ -199,7 +203,7 @@ func (d *Dutctl) Run(ctx xcontext.Context, ch test.TestStepChannels, params test
 							}
 							log.Infof("dut powered on.")
 							if expect != "" {
-								if err := serial(ctx, dutInterface, expect); err != nil {
+								if err := serial(ctx, dutInterface, expect, input); err != nil {
 									return fmt.Errorf("the expect %q was not found in the logs", expect)
 								}
 							}
@@ -302,7 +306,7 @@ func (d *Dutctl) Run(ctx xcontext.Context, ch test.TestStepChannels, params test
 			}
 
 		case "serial":
-			if err := serial(ctx, dutInterface, expect); err != nil {
+			if err := serial(ctx, dutInterface, expect, input); err != nil {
 				return fmt.Errorf("the expected string %q was not found in the logs", expect)
 			}
 		default:
@@ -334,6 +338,9 @@ func (d *Dutctl) validateAndPopulate(params test.TestStepParameters) error {
 	// validate the dutctl cmd expect
 	d.expect = params.GetOne("expect")
 
+	// validate teh dutctl cmd input
+	d.in = params.GetOne("in")
+
 	// validate the dutctl cmd timeout
 	if params.GetOne("timeout").IsEmpty() {
 		d.timeout = test.NewParam(defaultTimeoutParameter)
@@ -359,7 +366,7 @@ func Load() (string, test.TestStepFactory, []event.Name) {
 	return Name, New, nil
 }
 
-func serial(ctx xcontext.Context, dutInterface dutctl.DutCtl, expect string) error {
+func serial(ctx xcontext.Context, dutInterface dutctl.DutCtl, expect string, input string) error {
 	log := ctx.Logger()
 
 	err := dutInterface.InitSerialPlugins()
@@ -369,6 +376,15 @@ func serial(ctx xcontext.Context, dutInterface dutctl.DutCtl, expect string) err
 	iface, err := dutInterface.GetSerial(0)
 	if err != nil {
 		return fmt.Errorf("Failed to get serial: %v\n", err)
+	}
+
+	// Write in into serial
+	if input != "" {
+		num, err := iface.Write([]byte(input))
+		if err != nil {
+			return fmt.Errorf("Error writing '%s' to dutctl: %w", input, err)
+		}
+		log.Infof("Wrote %d to 'dutctl'", num)
 	}
 
 	dst, err := os.Create("/tmp/dutctlserial")
