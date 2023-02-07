@@ -22,7 +22,6 @@ import (
 	"github.com/9elements/fti/pkg/tools"
 	"github.com/linuxboot/contest/pkg/event"
 	"github.com/linuxboot/contest/pkg/event/testevent"
-	"github.com/linuxboot/contest/pkg/multiwriter"
 	"github.com/linuxboot/contest/pkg/target"
 	"github.com/linuxboot/contest/pkg/test"
 	"github.com/linuxboot/contest/pkg/xcontext"
@@ -394,21 +393,6 @@ func serial(ctx xcontext.Context, dutInterface dutctl.DutCtl, expect string, inp
 	}
 	defer dst.Close()
 
-	// Set up multiwriter
-	mw := multiwriter.New()
-	if ctx.Writer() != nil {
-		err := mw.AddWriter(ctx.Writer())
-		if err != nil {
-			ctx.Errorf("MultiWriter.AddWriter() = '%w'", err)
-		}
-	}
-
-	// Add stdout buffer to the Multiwriter
-	err = mw.AddWriter(dst)
-	if err != nil {
-		return fmt.Errorf("MultiWriter.AddWriter() = '%w'", err)
-	}
-
 	go func(ctx xcontext.Context) error {
 		defer func() {
 			iface.Close()
@@ -418,7 +402,7 @@ func serial(ctx xcontext.Context, dutInterface dutctl.DutCtl, expect string, inp
 			case <-ctx.Done():
 				return nil
 			default:
-				_, err = io.Copy(mw, iface)
+				_, err = io.Copy(dst, iface)
 				if err != nil {
 					return fmt.Errorf("Failed to copy serial to stdout: %v", err)
 				}

@@ -32,7 +32,6 @@ import (
 
 	"github.com/linuxboot/contest/pkg/event"
 	"github.com/linuxboot/contest/pkg/event/testevent"
-	"github.com/linuxboot/contest/pkg/multiwriter"
 	"github.com/linuxboot/contest/pkg/target"
 	"github.com/linuxboot/contest/pkg/test"
 	"github.com/linuxboot/contest/pkg/xcontext"
@@ -47,10 +46,8 @@ var Name = "SSHCmd"
 // fail.
 var Events = []event.Name{}
 
-const (
-	defaultSSHPort          = 22
-	defaultTimeoutParameter = "10m"
-)
+const defaultSSHPort = 22
+const defaultTimeoutParameter = "10m"
 
 // SSHCmd is used to run arbitrary commands as test steps.
 type SSHCmd struct {
@@ -172,7 +169,7 @@ func (ts *SSHCmd) Run(ctx xcontext.Context, ch test.TestStepChannels, params tes
 			User: user,
 			Auth: auth,
 			// TODO expose this in the plugin arguments
-			// HostKeyCallback: ssh.FixedHostKey(hostKey),
+			//HostKeyCallback: ssh.FixedHostKey(hostKey),
 			HostKeyCallback: ssh.InsecureIgnoreHostKey(),
 		}
 
@@ -213,23 +210,7 @@ func (ts *SSHCmd) Run(ctx xcontext.Context, ch test.TestStepChannels, params tes
 		}()
 		// run the remote command and catch stdout/stderr
 		var stdout, stderr bytes.Buffer
-
-		// Set up multiwriter
-		mw := multiwriter.New()
-		if ctx.Writer() != nil {
-			err := mw.AddWriter(ctx.Writer())
-			if err != nil {
-				ctx.Errorf("MultiWriter.AddWriter() = '%w'", err)
-			}
-		}
-
-		// Add stdout buffer to the Multiwriter
-		err = mw.AddWriter(stdout)
-		if err != nil {
-			return fmt.Errorf("MultiWriter.AddWriter() = '%w'", err)
-		}
-
-		session.Stdout, session.Stderr = mw, &stderr
+		session.Stdout, session.Stderr = &stdout, &stderr
 		cmd := shellquote.Join(append([]string{executable}, args...)...)
 		log.Debugf("Running remote SSH command on %s: '%v'", addr, cmd)
 		errCh := make(chan error, 1)

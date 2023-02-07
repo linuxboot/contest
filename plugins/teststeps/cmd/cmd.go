@@ -17,7 +17,6 @@ import (
 
 	"github.com/linuxboot/contest/pkg/event"
 	"github.com/linuxboot/contest/pkg/event/testevent"
-	"github.com/linuxboot/contest/pkg/multiwriter"
 	"github.com/linuxboot/contest/pkg/target"
 	"github.com/linuxboot/contest/pkg/test"
 	"github.com/linuxboot/contest/pkg/xcontext"
@@ -117,23 +116,7 @@ func (ts *Cmd) Run(ctx xcontext.Context, ch test.TestStepChannels, params test.T
 		}
 		cmd.Dir = pwd
 		var stdout, stderr bytes.Buffer
-
-		// Set up multiwriter
-		mw := multiwriter.New()
-		if ctx.Writer() != nil {
-			err := mw.AddWriter(ctx.Writer())
-			if err != nil {
-				ctx.Errorf("MultiWriter.AddWriter() = '%w'", err)
-			}
-		}
-
-		// Add stdout buffer to the Multiwriter
-		err = mw.AddWriter(&stdout)
-		if err != nil {
-			return fmt.Errorf("MultiWriter.AddWriter() = '%w'", err)
-		}
-
-		cmd.Stdout, cmd.Stderr = mw, &stderr
+		cmd.Stdout, cmd.Stderr = &stdout, &stderr
 		cmd.SysProcAttr = &syscall.SysProcAttr{
 			// Put the command into a separate session (and group) so signals do not propagate directly to it.
 			Setsid: true,
