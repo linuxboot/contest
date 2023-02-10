@@ -6,20 +6,19 @@
 package http
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/url"
-	"os"
 	"strconv"
 	"strings"
 
 	"github.com/linuxboot/contest/pkg/api"
 	"github.com/linuxboot/contest/pkg/job"
 	"github.com/linuxboot/contest/pkg/types"
+	"github.com/linuxboot/contest/pkg/xcontext"
 	"github.com/linuxboot/contest/plugins/listeners/httplistener"
 
 	"github.com/insomniacslk/xjson"
@@ -39,8 +38,8 @@ type HTTP struct {
 	Addr string
 }
 
-func (h *HTTP) Version(ctx context.Context, requestor string) (*api.VersionResponse, error) {
-	resp, err := h.request(requestor, "version", url.Values{})
+func (h *HTTP) Version(ctx xcontext.Context, requestor string) (*api.VersionResponse, error) {
+	resp, err := h.request(ctx, requestor, "version", url.Values{})
 	if err != nil {
 		return nil, err
 	}
@@ -53,10 +52,10 @@ func (h *HTTP) Version(ctx context.Context, requestor string) (*api.VersionRespo
 	return &api.VersionResponse{ServerID: resp.ServerID, Data: data, Err: resp.Error}, nil
 }
 
-func (h *HTTP) Start(ctx context.Context, requestor string, jobDescriptor string) (*api.StartResponse, error) {
+func (h *HTTP) Start(ctx xcontext.Context, requestor string, jobDescriptor string) (*api.StartResponse, error) {
 	params := url.Values{}
 	params.Add("jobDesc", jobDescriptor)
-	resp, err := h.request(requestor, "start", params)
+	resp, err := h.request(ctx, requestor, "start", params)
 	if err != nil {
 		return nil, err
 	}
@@ -69,10 +68,10 @@ func (h *HTTP) Start(ctx context.Context, requestor string, jobDescriptor string
 	return &api.StartResponse{ServerID: resp.ServerID, Data: data, Err: resp.Error}, nil
 }
 
-func (h *HTTP) Stop(ctx context.Context, requestor string, jobID types.JobID) (*api.StopResponse, error) {
+func (h *HTTP) Stop(ctx xcontext.Context, requestor string, jobID types.JobID) (*api.StopResponse, error) {
 	params := url.Values{}
 	params.Add("jobID", strconv.Itoa(int(jobID)))
-	resp, err := h.request(requestor, "stop", params)
+	resp, err := h.request(ctx, requestor, "stop", params)
 	if err != nil {
 		return nil, err
 	}
@@ -85,10 +84,10 @@ func (h *HTTP) Stop(ctx context.Context, requestor string, jobID types.JobID) (*
 	return &api.StopResponse{ServerID: resp.ServerID, Data: data, Err: resp.Error}, nil
 }
 
-func (h *HTTP) Status(ctx context.Context, requestor string, jobID types.JobID) (*api.StatusResponse, error) {
+func (h *HTTP) Status(ctx xcontext.Context, requestor string, jobID types.JobID) (*api.StatusResponse, error) {
 	params := url.Values{}
 	params.Add("jobID", strconv.Itoa(int(jobID)))
-	resp, err := h.request(requestor, "status", params)
+	resp, err := h.request(ctx, requestor, "status", params)
 	if err != nil {
 		return nil, err
 	}
@@ -101,10 +100,10 @@ func (h *HTTP) Status(ctx context.Context, requestor string, jobID types.JobID) 
 	return &api.StatusResponse{ServerID: resp.ServerID, Data: data, Err: resp.Error}, nil
 }
 
-func (h *HTTP) Retry(ctx context.Context, requestor string, jobID types.JobID) (*api.RetryResponse, error) {
+func (h *HTTP) Retry(ctx xcontext.Context, requestor string, jobID types.JobID) (*api.RetryResponse, error) {
 	params := url.Values{}
 	params.Add("jobID", strconv.Itoa(int(jobID)))
-	resp, err := h.request(requestor, "retry", params)
+	resp, err := h.request(ctx, requestor, "retry", params)
 	if err != nil {
 		return nil, err
 	}
@@ -117,7 +116,7 @@ func (h *HTTP) Retry(ctx context.Context, requestor string, jobID types.JobID) (
 	return &api.RetryResponse{ServerID: resp.ServerID, Data: data, Err: resp.Error}, nil
 }
 
-func (h *HTTP) List(ctx context.Context, requestor string, states []job.State, tags []string) (*api.ListResponse, error) {
+func (h *HTTP) List(ctx xcontext.Context, requestor string, states []job.State, tags []string) (*api.ListResponse, error) {
 	params := url.Values{}
 	if len(states) > 0 {
 		sts := make([]string, len(states))
@@ -129,7 +128,7 @@ func (h *HTTP) List(ctx context.Context, requestor string, states []job.State, t
 	if len(tags) > 0 {
 		params.Set("tags", strings.Join(tags, ","))
 	}
-	resp, err := h.request(requestor, "list", params)
+	resp, err := h.request(ctx, requestor, "list", params)
 	if err != nil {
 		return nil, err
 	}
@@ -142,7 +141,9 @@ func (h *HTTP) List(ctx context.Context, requestor string, states []job.State, t
 	return &api.ListResponse{ServerID: resp.ServerID, Data: data, Err: resp.Error}, nil
 }
 
-func (h *HTTP) request(requestor string, verb string, params url.Values) (*HTTPPartiallyDecodedResponse, error) {
+func (h *HTTP) request(ctx xcontext.Context, requestor string, verb string, params url.Values) (*HTTPPartiallyDecodedResponse, error) {
+	logger := xcontext.LoggerFrom(ctx)
+
 	params.Set("requestor", requestor)
 	u, err := url.Parse(h.Addr)
 	if err != nil {
@@ -155,12 +156,10 @@ func (h *HTTP) request(requestor string, verb string, params url.Values) (*HTTPP
 		return nil, fmt.Errorf("unsupported URL scheme '%s', please specify either http or https", u.Scheme)
 	}
 	u.Path += "/" + verb
-	fmt.Fprintf(os.Stderr, "Requesting URL %s with requestor ID '%s'\n", u.String(), requestor)
-	fmt.Fprintf(os.Stderr, "  with params:\n")
 	for k, v := range params {
-		fmt.Fprintf(os.Stderr, "    %s: %s\n", k, v)
+		logger = logger.WithField(k, v)
 	}
-	fmt.Fprintf(os.Stderr, "\n")
+	logger.Infof("Requesting URL %s with requestor ID '%s'\n", u.String(), requestor)
 	resp, err := http.PostForm(u.String(), params)
 	if err != nil {
 		return nil, fmt.Errorf("HTTP POST failed: %v", err)
@@ -170,7 +169,7 @@ func (h *HTTP) request(requestor string, verb string, params url.Values) (*HTTPP
 	if err != nil {
 		return nil, fmt.Errorf("cannot read HTTP response: %v", err)
 	}
-	fmt.Fprintf(os.Stderr, "The server responded with status %s\n", resp.Status)
+	xcontext.LoggerFrom(ctx).Infof("The server responded with status %s\n", resp.Status)
 
 	var apiResp HTTPPartiallyDecodedResponse
 	if resp.StatusCode == http.StatusOK {
