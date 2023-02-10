@@ -24,9 +24,11 @@ import (
 	"github.com/linuxboot/contest/pkg/job"
 	"github.com/linuxboot/contest/pkg/transport"
 	"github.com/linuxboot/contest/pkg/types"
+	"github.com/linuxboot/contest/pkg/xcontext"
 )
 
 func run(requestor string, transport transport.Transport, stdout io.Writer) error {
+	ctx := context.Background()
 	verb := strings.ToLower(flagSet.Arg(0))
 	if verb == "" {
 		return fmt.Errorf("Missing verb, see --help")
@@ -66,7 +68,7 @@ func run(requestor string, transport transport.Transport, stdout io.Writer) erro
 			return fmt.Errorf("failed to add version to descriptor: %w", err)
 		}
 
-		startResp, err := transport.Start(context.Background(), requestor, string(jobDescJSON))
+		startResp, err := transport.Start(xcontext.NewContext(ctx, "", nil, nil, nil, nil, nil), requestor, string(jobDescJSON))
 		if err != nil {
 			return err
 		}
@@ -97,7 +99,7 @@ func run(requestor string, transport transport.Transport, stdout io.Writer) erro
 		if err != nil {
 			return err
 		}
-		resp, err = transport.Stop(context.Background(), requestor, types.JobID(jobID))
+		resp, err = transport.Stop(xcontext.NewContext(ctx, "", nil, nil, nil, nil, nil), requestor, types.JobID(jobID))
 		if err != nil {
 			return err
 		}
@@ -106,7 +108,7 @@ func run(requestor string, transport transport.Transport, stdout io.Writer) erro
 		if err != nil {
 			return err
 		}
-		resp, err = transport.Status(context.Background(), requestor, jobID)
+		resp, err = transport.Status(xcontext.NewContext(ctx, "", nil, nil, nil, nil, nil), requestor, jobID)
 		if err != nil {
 			return err
 		}
@@ -115,7 +117,7 @@ func run(requestor string, transport transport.Transport, stdout io.Writer) erro
 		if err != nil {
 			return err
 		}
-		resp, err = transport.Retry(context.Background(), requestor, jobID)
+		resp, err = transport.Retry(xcontext.NewContext(ctx, "", nil, nil, nil, nil, nil), requestor, jobID)
 		if err != nil {
 			return err
 		}
@@ -128,12 +130,12 @@ func run(requestor string, transport transport.Transport, stdout io.Writer) erro
 			}
 			states = append(states, st)
 		}
-		resp, err = transport.List(context.Background(), requestor, states, *flagTags)
+		resp, err = transport.List(xcontext.NewContext(ctx, "", nil, nil, nil, nil, nil), requestor, states, *flagTags)
 		if err != nil {
 			return err
 		}
 	case "version":
-		resp, err = transport.Version(context.Background(), requestor)
+		resp, err = transport.Version(xcontext.NewContext(ctx, "", nil, nil, nil, nil, nil), requestor)
 		if err != nil {
 			return err
 		}
@@ -155,7 +157,7 @@ func run(requestor string, transport transport.Transport, stdout io.Writer) erro
 func wait(ctx context.Context, jobID types.JobID, jobWaitPoll time.Duration, requestor string, transport transport.Transport) (*api.StatusResponse, error) {
 	// keep polling for status till job is completed, used when -wait is set
 	for {
-		resp, err := transport.Status(context.Background(), requestor, jobID)
+		resp, err := transport.Status(xcontext.NewContext(ctx, "", nil, nil, nil, nil, nil), requestor, jobID)
 		if err != nil {
 			return nil, err
 		}
@@ -193,9 +195,7 @@ func parseJob(jobIDStr string) (types.JobID, error) {
 
 // addVersion adds the version field to the job descriptor if it does not exist
 func addVersion(jobDescJSON []byte) ([]byte, error) {
-	var (
-		jobDesc = make(map[string]interface{})
-	)
+	jobDesc := make(map[string]interface{})
 	if err := json.Unmarshal(jobDescJSON, &jobDesc); err != nil {
 		return nil, fmt.Errorf("failed to parse JSON job descriptor: %w", err)
 	}
