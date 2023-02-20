@@ -159,7 +159,7 @@ func (h *HTTP) request(ctx xcontext.Context, requestor string, verb string, para
 	for k, v := range params {
 		logger = logger.WithField(k, v)
 	}
-	logger.Infof("Requesting URL %s with requestor ID '%s'\n", u.String(), requestor)
+	logger.Debugf("Requesting URL %s with requestor ID '%s'\n", u.String(), requestor)
 	resp, err := http.PostForm(u.String(), params)
 	if err != nil {
 		return nil, fmt.Errorf("HTTP POST failed: %v", err)
@@ -169,7 +169,7 @@ func (h *HTTP) request(ctx xcontext.Context, requestor string, verb string, para
 	if err != nil {
 		return nil, fmt.Errorf("cannot read HTTP response: %v", err)
 	}
-	xcontext.LoggerFrom(ctx).Infof("The server responded with status %s\n", resp.Status)
+	xcontext.LoggerFrom(ctx).Debugf("The server responded with status %s\n", resp.Status)
 
 	var apiResp HTTPPartiallyDecodedResponse
 	if resp.StatusCode == http.StatusOK {
