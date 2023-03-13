@@ -17,7 +17,8 @@ type JobDescFormat int
 
 // List of supported job descriptor formats
 const (
-	JobDescFormatJSON JobDescFormat = iota
+	JobDescFormatUnknown JobDescFormat = iota
+	JobDescFormatJSON
 	JobDescFormatYAML
 )
 
@@ -25,9 +26,7 @@ const (
 // JSON-formatted descriptor if it was provided in a different format.
 // The currently supported format are JSON and YAML.
 func ParseJobDescriptor(data []byte, jobDescFormat JobDescFormat) ([]byte, error) {
-	var (
-		jobDesc = make(map[string]interface{})
-	)
+	jobDesc := make(map[string]interface{})
 	switch jobDescFormat {
 	case JobDescFormatJSON:
 		if err := json.Unmarshal(data, &jobDesc); err != nil {
@@ -37,6 +36,8 @@ func ParseJobDescriptor(data []byte, jobDescFormat JobDescFormat) ([]byte, error
 		if err := yaml.Unmarshal(data, &jobDesc); err != nil {
 			return nil, fmt.Errorf("failed to parse YAML job descriptor: %w", err)
 		}
+	default:
+		return nil, fmt.Errorf("unknown job descriptor format")
 	}
 
 	// then marshal the structure back to JSON
