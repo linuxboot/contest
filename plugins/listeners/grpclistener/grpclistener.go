@@ -11,6 +11,7 @@ import (
 	grpcreflect "github.com/bufbuild/connect-grpcreflect-go"
 	"github.com/linuxboot/contest/pkg/api"
 	"github.com/linuxboot/contest/pkg/buffer"
+	"github.com/linuxboot/contest/pkg/job"
 	"github.com/linuxboot/contest/pkg/types"
 	"github.com/linuxboot/contest/pkg/xcontext"
 	contestlistener "github.com/linuxboot/contest/plugins/listeners/grpclistener/gen/contest/v1"
@@ -25,7 +26,9 @@ type Endpoint struct {
 	buffer io.Reader
 }
 
-type GRPCListener struct{}
+type GRPCListener struct {
+	listenAddr string
+}
 
 type GRPCServer struct {
 	ctx       xcontext.Context
@@ -33,10 +36,10 @@ type GRPCServer struct {
 	Endpoints map[int]*Endpoint
 }
 
-var waitForUpdate = 20 * time.Second
+var waitForUpdate = 5 * time.Second
 
-func New() *GRPCListener {
-	return &GRPCListener{}
+func New(listenAddr string) *GRPCListener {
+	return &GRPCListener{listenAddr: listenAddr}
 }
 
 func (grpcl *GRPCListener) Serve(ctx xcontext.Context, a *api.API) error {
@@ -124,7 +127,7 @@ func (s *GRPCServer) StartJob(ctx context.Context, req *connect.Request[contestl
 	}), nil
 }
 
-func (s *GRPCServer) StatusJob(ctx context.Context, req *connect.Request[contestlistener.StatusJobRequest], resp *connect.ServerStream[contestlistener.StatusJobResponse]) error {
+func (s *GRPCServer) StatusJob(ctx context.Context, req *connect.Request[contestlistener.StatusJobRequest], stream *connect.ServerStream[contestlistener.StatusJobResponse]) error {
 	if req.Msg.Requestor == "" {
 		s.ctx.Errorf("Requestor is not set")
 
@@ -157,12 +160,16 @@ func (s *GRPCServer) StatusJob(ctx context.Context, req *connect.Request[contest
 		return fmt.Errorf("Unable to Marshal Status")
 	}
 
-	if err := resp.Send(&contestlistener.StatusJobResponse{
+	if err := stream.Send(&contestlistener.StatusJobResponse{
 		Status: startResponse.Status.State,
 		Error:  startResponse.Status.StateErrMsg,
 		Report: reportBytes,
 	}); err != nil {
 		return err
+	}
+
+	if startResponse.Status.State == string(job.EventJobCompleted) {
+		return nil
 	}
 
 	for {
@@ -184,7 +191,7 @@ func (s *GRPCServer) StatusJob(ctx context.Context, req *connect.Request[contest
 		n, err := s.Endpoints[int(req.Msg.JobId)].buffer.Read(buf)
 		if n > 0 {
 			// DEBUG
-			if err := resp.Send(&contestlistener.StatusJobResponse{
+			if err := stream.Send(&contestlistener.StatusJobResponse{
 				Status: r.Status.State,
 				Error:  r.Status.StateErrMsg,
 				Log:    buf[:n],
@@ -200,7 +207,7 @@ func (s *GRPCServer) StatusJob(ctx context.Context, req *connect.Request[contest
 		fmt.Printf("Job State: %s read %d\n", r.Status.State, n)
 
 		// Job is not running anymore
-		if r.Status.State != "JobStateStarted" {
+		if r.Status.State != string(job.EventJobStarted) {
 			break
 		}
 
@@ -236,7 +243,7 @@ func (s *GRPCServer) StatusJob(ctx context.Context, req *connect.Request[contest
 		return fmt.Errorf("Unable to Marshal Status")
 	}
 
-	if err := resp.Send(&contestlistener.StatusJobResponse{
+	if err := stream.Send(&contestlistener.StatusJobResponse{
 		Status: r.Status.State,
 		Error:  r.Status.StateErrMsg,
 		Report: reportBytes,

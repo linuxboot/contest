@@ -35,7 +35,7 @@ import (
 	"github.com/linuxboot/contest/plugins/targetlocker/inmemory"
 
 	// the listener plugin
-	"github.com/linuxboot/contest/plugins/listeners/httplistener"
+	"github.com/linuxboot/contest/plugins/listeners/grpclistener"
 )
 
 var (
@@ -251,7 +251,7 @@ func Main(pluginConfig *PluginConfig, cmd string, args []string, sigs <-chan os.
 	}
 
 	// spawn JobManager
-	listener := httplistener.New(*flagListenAddr)
+	listener := grpclistener.New(*flagListenAddr)
 
 	opts := []jobmanager.Option{
 		jobmanager.APIOption(api.OptionEventTimeout(*flagProcessTimeout)),
