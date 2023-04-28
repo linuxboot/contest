@@ -62,7 +62,7 @@ func (p *Parameter) flashWrite(ctx xcontext.Context, arg string) error {
 		}
 	}
 
-	endpoint := fmt.Sprintf("%s:%s/contexts/%s/machines/%s/flash", p.hostname, p.port, p.contextID, p.machineID)
+	endpoint := fmt.Sprintf("%s:%s/contexts/%s/machines/%s/auxiliaries/%s/api/flash", p.hostname, p.port, p.contextID, p.machineID, p.deviceID)
 
 	targetInfo, err := getTargetState(ctx, endpoint)
 	if err != nil {
@@ -211,8 +211,8 @@ func flashTarget(ctx xcontext.Context, endpoint string, filePath string) error {
 		return fmt.Errorf("failed to do http request")
 	}
 
-	if resp.StatusCode != 200 {
-		return fmt.Errorf("failed to flash binary on target")
+	if resp.StatusCode != 201 {
+		return fmt.Errorf("failed to flash binary on target: %v: %v", resp.StatusCode, resp.Body)
 	}
 
 	return nil
