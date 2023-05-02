@@ -73,41 +73,6 @@ type Parameter struct {
 	args      []string
 }
 
-// HTTPRequest triggerers a http request and returns the response. The parameter that can be set are:
-// method: can be every http method
-// endpoint: api endpoint that shall be requested
-// body: the body of the request
-func HTTPRequest(ctx xcontext.Context, method string, endpoint string, body io.Reader) (*http.Response, error) {
-	log := ctx.Logger()
-
-	client := &http.Client{}
-
-	req, err := http.NewRequestWithContext(ctx, method, endpoint, body)
-	if err != nil {
-		return nil, err
-	}
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-
-	jsonBody, err := json.Marshal(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal resp.Body: %v", err)
-	}
-
-	if ctx.Writer() != nil {
-		writer := ctx.Writer()
-		_, err := writer.Write(jsonBody)
-		if err != nil {
-			log.Warnf("writing to ctx.Writer failed: %w", err)
-		}
-	}
-
-	return resp, nil
-}
-
 // Name returns the plugin name.
 func (hws HWaaS) Name() string {
 	return Name
@@ -352,4 +317,39 @@ func New() test.TestStep {
 // Load returns the name, factory and events which are needed to register the step.
 func Load() (string, test.TestStepFactory, []event.Name) {
 	return Name, New, nil
+}
+
+// HTTPRequest triggerers a http request and returns the response. The parameter that can be set are:
+// method: can be every http method
+// endpoint: api endpoint that shall be requested
+// body: the body of the request
+func HTTPRequest(ctx xcontext.Context, method string, endpoint string, body io.Reader) (*http.Response, error) {
+	log := ctx.Logger()
+
+	client := &http.Client{}
+
+	req, err := http.NewRequestWithContext(ctx, method, endpoint, body)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	jsonBody, err := json.Marshal(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal resp.Body: %v", err)
+	}
+
+	if ctx.Writer() != nil {
+		writer := ctx.Writer()
+		_, err := writer.Write(jsonBody)
+		if err != nil {
+			log.Warnf("writing to ctx.Writer failed: %w", err)
+		}
+	}
+
+	return resp, nil
 }

@@ -140,6 +140,8 @@ func (p *Parameter) flashWrite(ctx xcontext.Context, arg string) error {
 		return fmt.Errorf("pdu could not be powered on")
 	}
 
+	time.Sleep(5 * time.Second)
+
 	return nil
 }
 
