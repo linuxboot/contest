@@ -34,6 +34,7 @@ import (
 	echo "github.com/linuxboot/contest/plugins/teststeps/echo"
 	exec "github.com/linuxboot/contest/plugins/teststeps/exec"
 	hwaas "github.com/linuxboot/contest/plugins/teststeps/hwaas"
+	ping "github.com/linuxboot/contest/plugins/teststeps/ping"
 	qemu "github.com/linuxboot/contest/plugins/teststeps/qemu"
 	randecho "github.com/linuxboot/contest/plugins/teststeps/randecho"
 	sleep "github.com/linuxboot/contest/plugins/teststeps/sleep"
@@ -59,6 +60,7 @@ func getPluginConfig() *server.PluginConfig {
 	pc.TestStepLoaders = append(pc.TestStepLoaders, sleep.Load)
 	pc.TestStepLoaders = append(pc.TestStepLoaders, sshcmd.Load)
 	pc.TestStepLoaders = append(pc.TestStepLoaders, sshcopy.Load)
+	pc.TestStepLoaders = append(pc.TestStepLoaders, ping.Load)
 	pc.TestStepLoaders = append(pc.TestStepLoaders, dutctl.Load)
 	pc.TestStepLoaders = append(pc.TestStepLoaders, hwaas.Load)
 	pc.TestStepLoaders = append(pc.TestStepLoaders, qemu.Load)
