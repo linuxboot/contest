@@ -220,7 +220,7 @@ func (hws *HWaaS) Run(ctx xcontext.Context, ch test.TestStepChannels, params tes
 
 					if len(args) >= 2 {
 						if args[1] == "hard" {
-							if err := parameter.powerOffSoft(ctx); err != nil {
+							if err := parameter.powerOffHard(ctx); err != nil {
 								returnFunc(err)
 
 								return err
