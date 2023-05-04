@@ -20,7 +20,7 @@ func (p *Parameter) powerOn(ctx xcontext.Context) error {
 	if err != nil {
 		return err
 	}
-	if statusCode == 200 {
+	if statusCode == http.StatusOK {
 		state, err := p.getState(ctx, "reset")
 		if err != nil {
 			return err
@@ -43,7 +43,7 @@ func (p *Parameter) powerOn(ctx xcontext.Context) error {
 		return err
 	}
 
-	if statusCode == 200 {
+	if statusCode == http.StatusOK {
 		log.Infof("pdu powered on")
 	} else {
 		return fmt.Errorf("pdu could not be powered on")
@@ -56,7 +56,7 @@ func (p *Parameter) powerOn(ctx xcontext.Context) error {
 	if err != nil {
 		return err
 	}
-	if statusCode == 200 {
+	if statusCode == http.StatusOK {
 		log.Infof("dut is starting")
 
 		time.Sleep(5 * time.Second)
@@ -77,8 +77,8 @@ func (p *Parameter) powerOn(ctx xcontext.Context) error {
 	return nil
 }
 
-// powerOff turns off the device and ensures that -> pdu is off & reset is on.
-func (p *Parameter) powerOff(ctx xcontext.Context) error {
+// powerOffSoft turns off the device.
+func (p *Parameter) powerOffSoft(ctx xcontext.Context) error {
 	log := ctx.Logger()
 
 	// First check if device needs to be powered down
@@ -94,10 +94,10 @@ func (p *Parameter) powerOff(ctx xcontext.Context) error {
 		if err != nil {
 			return err
 		}
-		if statusCode == 200 {
+		if statusCode == http.StatusOK {
 			log.Infof("dut is shutting down")
 
-			time.Sleep(15 * time.Second)
+			time.Sleep(12 * time.Second)
 		} else {
 			log.Infof("dut is was not powered down gracefully")
 		}
@@ -105,12 +105,21 @@ func (p *Parameter) powerOff(ctx xcontext.Context) error {
 
 	time.Sleep(time.Second)
 
+	log.Infof("successfully powered down dut soft")
+
+	return nil
+}
+
+// powerOffHard ensures that -> pdu is off & reset is on.
+func (p *Parameter) powerOffHard(ctx xcontext.Context) error {
+	log := ctx.Logger()
+
 	// Than turn off the pdu, even if the graceful shutdown was not working
 	statusCode, err := p.pressPDU(ctx, http.MethodDelete)
 	if err != nil {
 		return err
 	}
-	if statusCode == 200 {
+	if statusCode == http.StatusOK {
 		log.Infof("pdu powered off")
 	} else {
 		log.Infof("pdu could not be powered off")
@@ -125,8 +134,8 @@ func (p *Parameter) powerOff(ctx xcontext.Context) error {
 	if err != nil {
 		return err
 	}
-	if statusCode == 200 {
-		state, err = p.getState(ctx, "reset")
+	if statusCode == http.StatusOK {
+		state, err := p.getState(ctx, "reset")
 		if err != nil {
 			return err
 		}
@@ -140,7 +149,7 @@ func (p *Parameter) powerOff(ctx xcontext.Context) error {
 		return fmt.Errorf("reset switch could not be turned on")
 	}
 
-	log.Infof("successfully powered down dut")
+	log.Infof("successfully powered down dut hard")
 
 	return nil
 }
@@ -228,7 +237,7 @@ func (p *Parameter) getState(ctx xcontext.Context, command string) (string, erro
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != 200 {
+	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("vcc pin status could not be retrieved")
 	}
 

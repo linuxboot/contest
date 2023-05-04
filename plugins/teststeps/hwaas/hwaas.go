@@ -212,10 +212,24 @@ func (hws *HWaaS) Run(ctx xcontext.Context, ch test.TestStepChannels, params tes
 					return nil
 
 				case "off":
-					if err := parameter.powerOff(ctx); err != nil {
+					if err := parameter.powerOffSoft(ctx); err != nil {
 						returnFunc(err)
 
 						return err
+					}
+
+					if len(args) >= 2 {
+						if args[1] == "hard" {
+							if err := parameter.powerOffSoft(ctx); err != nil {
+								returnFunc(err)
+
+								return err
+							}
+						} else {
+							returnFunc(fmt.Errorf("failed to execute the power off command. The last argument is not valid. The only possible value is 'hard'."))
+
+							return fmt.Errorf("failed to execute the power off command. The last argument is not valid. The only possible value is 'hard'.")
+						}
 					}
 
 					return nil
@@ -235,6 +249,14 @@ func (hws *HWaaS) Run(ctx xcontext.Context, ch test.TestStepChannels, params tes
 				switch args[0] {
 				case "write":
 					if err := parameter.flashWrite(ctx, args[1]); err != nil {
+						returnFunc(err)
+
+						return err
+					}
+
+					return nil
+				case "read":
+					if err := parameter.flashRead(ctx, args[1]); err != nil {
 						returnFunc(err)
 
 						return err

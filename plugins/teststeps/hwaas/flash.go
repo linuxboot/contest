@@ -32,7 +32,7 @@ func (p *Parameter) flashWrite(ctx xcontext.Context, arg string) error {
 		if err != nil {
 			return err
 		}
-		if statusCode == 200 {
+		if statusCode == http.StatusOK {
 			log.Infof("pdu powered off")
 		} else {
 
@@ -46,7 +46,7 @@ func (p *Parameter) flashWrite(ctx xcontext.Context, arg string) error {
 		if err != nil {
 			return err
 		}
-		if statusCode == 200 {
+		if statusCode == http.StatusOK {
 			state, err = p.getState(ctx, "reset")
 			if err != nil {
 				return err
@@ -111,7 +111,7 @@ func (p *Parameter) flashWrite(ctx xcontext.Context, arg string) error {
 	if err != nil {
 		return err
 	}
-	if statusCode == 200 {
+	if statusCode == http.StatusOK {
 		state, err := p.getState(ctx, "reset")
 		if err != nil {
 			return err
@@ -134,13 +134,32 @@ func (p *Parameter) flashWrite(ctx xcontext.Context, arg string) error {
 		return err
 	}
 
-	if statusCode == 200 {
+	if statusCode == http.StatusOK {
 		log.Infof("pdu powered on")
 	} else {
 		return fmt.Errorf("pdu could not be powered on")
 	}
 
 	time.Sleep(5 * time.Second)
+
+	return nil
+}
+
+// flashRead executes the flash read command.
+func (p *Parameter) flashRead(ctx xcontext.Context, arg string) error {
+	log := ctx.Logger()
+
+	if arg == "" {
+		return fmt.Errorf("no file was set to read or write")
+	}
+
+	endpoint := fmt.Sprintf("%s:%s/contexts/%s/machines/%s/auxiliaries/%s/api/flash", p.hostname, p.port, p.contextID, p.machineID, p.deviceID)
+
+	if err := readTarget(endpoint, arg); err != nil {
+		return err
+	}
+
+	log.Infof("binary image downloaded successfully")
 
 	return nil
 }
@@ -167,33 +186,76 @@ func getTargetState(ctx xcontext.Context, endpoint string) (getFlash, error) {
 	return data, nil
 }
 
+// readTarget downloads the binary from the target and stores it at 'filePath'.
+func readTarget(endpoint string, filePath string) error {
+	// create the http request
+	req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("%s%s", endpoint, "/file"), nil)
+	if err != nil {
+		return fmt.Errorf("failed to create the http request: %v", err)
+	}
+
+	// execute the http request
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to do the http request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("failed to download binary")
+	}
+
+	// open/create file and copy the http response body into it
+	file, err := os.OpenFile(filePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+	if err != nil {
+		return fmt.Errorf("failed to open/create file at the provided path: %v", err)
+	}
+	defer file.Close()
+
+	_, err = io.Copy(file, resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to copy binary to file: %v", err)
+	}
+
+	return nil
+}
+
 // flashTarget flashes the target.
 func flashTarget(ctx xcontext.Context, endpoint string, filePath string) error {
-	file, _ := os.Open(filePath)
+	// open the binary that shall be flashed
+	file, err := os.Open(filePath)
+	if err != nil {
+		return fmt.Errorf("failed to open the file at the provided path: %v", err)
+	}
 	defer file.Close()
 
 	body := &bytes.Buffer{}
 	writer := multipart.NewWriter(body)
-	form, _ := writer.CreateFormFile("file", filepath.Base(filePath))
+	form, err := writer.CreateFormFile("file", filepath.Base(filePath))
+	if err != nil {
+		return fmt.Errorf("failed to create the form-data header: %v", err)
+	}
 	io.Copy(form, file)
 	writer.Close()
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPut, fmt.Sprintf("%s%s", endpoint, "/file"), body)
+	// create the http request
+	req, err := http.NewRequest(http.MethodPut, fmt.Sprintf("%s%s", endpoint, "/file"), body)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to create the http request: %v", err)
 	}
-
+	// add the file to the header
 	req.Header.Add("Content-Type", writer.FormDataContentType())
 
+	// execute the http request
 	client := &http.Client{}
-
 	resp, err := client.Do(req)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to do the http request: %v", err)
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != 200 {
+	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("failed to upload binary")
 	}
 
@@ -213,7 +275,7 @@ func flashTarget(ctx xcontext.Context, endpoint string, filePath string) error {
 		return fmt.Errorf("failed to do http request")
 	}
 
-	if resp.StatusCode != 201 {
+	if resp.StatusCode != http.StatusCreated {
 		return fmt.Errorf("failed to flash binary on target: %v: %v", resp.StatusCode, resp.Body)
 	}
 
