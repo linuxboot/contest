@@ -38,6 +38,7 @@ import (
 	randecho "github.com/linuxboot/contest/plugins/teststeps/randecho"
 	sleep "github.com/linuxboot/contest/plugins/teststeps/sleep"
 	sshcmd "github.com/linuxboot/contest/plugins/teststeps/sshcmd"
+	sshcopy "github.com/linuxboot/contest/plugins/teststeps/sshcopy"
 
 	// the reporter plugins
 	noop "github.com/linuxboot/contest/plugins/reporters/noop"
@@ -57,6 +58,7 @@ func getPluginConfig() *server.PluginConfig {
 	pc.TestStepLoaders = append(pc.TestStepLoaders, randecho.Load)
 	pc.TestStepLoaders = append(pc.TestStepLoaders, sleep.Load)
 	pc.TestStepLoaders = append(pc.TestStepLoaders, sshcmd.Load)
+	pc.TestStepLoaders = append(pc.TestStepLoaders, sshcopy.Load)
 	pc.TestStepLoaders = append(pc.TestStepLoaders, dutctl.Load)
 	pc.TestStepLoaders = append(pc.TestStepLoaders, hwaas.Load)
 	pc.TestStepLoaders = append(pc.TestStepLoaders, qemu.Load)
