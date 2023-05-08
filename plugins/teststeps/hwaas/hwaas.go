@@ -2,7 +2,6 @@ package hwaas
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -50,11 +49,18 @@ type getState struct {
 var Name = "HWaaS"
 
 // We need a default timeout to avoid endless running tests.
-const defaultTimeoutParameter time.Duration = 15 * time.Minute
+const (
+	defaultTimeoutParameter time.Duration = 15 * time.Minute
+	defaultContextID        string        = "0fb4acd8-e429-11ed-b5ea-0242ac120002"
+	defaultMachineID        string        = "machine"
+	defaultDeviceID         string        = "device"
+	defaultHost             string        = "http://9e-hwaas-aux1.lab.9e.network"
+	defaultPort             string        = "8080"
+)
 
 // HWaaS is used to run arbitrary commands as test steps.
 type HWaaS struct {
-	hostname  *test.Param
+	host      *test.Param
 	port      *test.Param
 	contextID *test.Param
 	machineID *test.Param
@@ -64,7 +70,7 @@ type HWaaS struct {
 }
 
 type Parameter struct {
-	hostname  string
+	host      string
 	port      string
 	contextID string
 	machineID string
@@ -108,13 +114,13 @@ func (hws *HWaaS) Run(ctx xcontext.Context, ch test.TestStepChannels, params tes
 		)
 
 		// expand all variables
-		parameter.hostname, err = hws.hostname.Expand(target)
+		parameter.host, err = hws.host.Expand(target)
 		if err != nil {
 			returnFunc(fmt.Errorf("failed to expand variable 'hostname': %v", err))
 
 			return err
 		}
-		if parameter.hostname == "" {
+		if parameter.host == "" {
 			returnFunc(fmt.Errorf("variable 'hostname' must not be empty: %v", err))
 
 			return err
@@ -285,33 +291,33 @@ func (hws *HWaaS) Run(ctx xcontext.Context, ch test.TestStepChannels, params tes
 
 func (hws *HWaaS) validateAndPopulate(params test.TestStepParameters) error {
 	// validate the hwaas hostname
-	hws.hostname = params.GetOne("hostname")
-	if hws.hostname.IsEmpty() {
-		return errors.New("invalid or missing 'hostname' parameter, must be exactly one string")
+	hws.host = params.GetOne("host")
+	if hws.host.IsEmpty() {
+		hws.host = test.NewParam(defaultHost)
 	}
 
 	// validate the hwaas port
 	hws.port = params.GetOne("port")
 	if hws.port.IsEmpty() {
-		return errors.New("invalid or missing 'port' parameter, must be exactly one string")
+		hws.port = test.NewParam(defaultPort)
 	}
 
 	// validate the hwaas context ID
 	hws.contextID = params.GetOne("contextID")
 	if hws.contextID.IsEmpty() {
-		return errors.New("invalid or missing 'contextID' parameter, must be exactly one string")
+		hws.contextID = test.NewParam(defaultContextID)
 	}
 
 	// validate the hwaas machine ID
 	hws.machineID = params.GetOne("machineID")
 	if hws.machineID.IsEmpty() {
-		return errors.New("invalid or missing 'machineID' parameter, must be exactly one string")
+		hws.machineID = test.NewParam(defaultMachineID)
 	}
 
 	// validate the hwaas device ID
 	hws.deviceID = params.GetOne("deviceID")
 	if hws.deviceID.IsEmpty() {
-		return errors.New("invalid or missing 'deviceID' parameter, must be exactly one string")
+		hws.deviceID = test.NewParam(defaultDeviceID)
 	}
 
 	// validate the hwaas command
@@ -346,8 +352,6 @@ func Load() (string, test.TestStepFactory, []event.Name) {
 // endpoint: api endpoint that shall be requested
 // body: the body of the request
 func HTTPRequest(ctx xcontext.Context, method string, endpoint string, body io.Reader) (*http.Response, error) {
-	log := ctx.Logger()
-
 	client := &http.Client{}
 
 	req, err := http.NewRequestWithContext(ctx, method, endpoint, body)
@@ -358,19 +362,6 @@ func HTTPRequest(ctx xcontext.Context, method string, endpoint string, body io.R
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err
-	}
-
-	jsonBody, err := json.Marshal(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal resp.Body: %v", err)
-	}
-
-	if ctx.Writer() != nil {
-		writer := ctx.Writer()
-		_, err := writer.Write(jsonBody)
-		if err != nil {
-			log.Warnf("writing to ctx.Writer failed: %w", err)
-		}
 	}
 
 	return resp, nil

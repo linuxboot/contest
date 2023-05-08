@@ -158,7 +158,7 @@ func (p *Parameter) powerOffHard(ctx xcontext.Context) error {
 // duration can be set from 0s to 20s.
 func (p *Parameter) postPower(ctx xcontext.Context, duration string) (int, error) {
 	endpoint := fmt.Sprintf("%s:%s/contexts/%s/machines/%s/auxiliaries/%s/api/power",
-		p.hostname, p.port, p.contextID, p.machineID, p.deviceID)
+		p.host, p.port, p.contextID, p.machineID, p.deviceID)
 
 	postPower := postPower{
 		Duration: duration,
@@ -186,7 +186,7 @@ func (p *Parameter) pressPDU(ctx xcontext.Context, method string) (int, error) {
 		return 0, fmt.Errorf("invalid method")
 	}
 
-	endpoint := fmt.Sprintf("%s:%s/contexts/%s/machines/%s/power", p.hostname, p.port, p.contextID, p.machineID)
+	endpoint := fmt.Sprintf("%s:%s/contexts/%s/machines/%s/power", p.host, p.port, p.contextID, p.machineID)
 
 	resp, err := HTTPRequest(ctx, method, endpoint, bytes.NewBuffer(nil))
 	if err != nil {
@@ -205,7 +205,7 @@ func (p *Parameter) postReset(ctx xcontext.Context, state string) (int, error) {
 	}
 
 	endpoint := fmt.Sprintf("%s:%s/contexts/%s/machines/%s/auxiliaries/%s/api/reset",
-		p.hostname, p.port, p.contextID, p.machineID, p.deviceID)
+		p.host, p.port, p.contextID, p.machineID, p.deviceID)
 
 	postReset := postReset{
 		State: state,
@@ -229,7 +229,7 @@ func (p *Parameter) postReset(ctx xcontext.Context, state string) (int, error) {
 // The input parameter command should have one of this values.
 func (p *Parameter) getState(ctx xcontext.Context, command string) (string, error) {
 	endpoint := fmt.Sprintf("%s:%s/contexts/%s/machines/%s/auxiliaries/%s/api/%s",
-		p.hostname, p.port, p.contextID, p.machineID, p.deviceID, command)
+		p.host, p.port, p.contextID, p.machineID, p.deviceID, command)
 
 	resp, err := HTTPRequest(ctx, http.MethodGet, endpoint, bytes.NewBuffer(nil))
 	if err != nil {

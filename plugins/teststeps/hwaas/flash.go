@@ -62,7 +62,7 @@ func (p *Parameter) flashWrite(ctx xcontext.Context, arg string) error {
 		}
 	}
 
-	endpoint := fmt.Sprintf("%s:%s/contexts/%s/machines/%s/auxiliaries/%s/api/flash", p.hostname, p.port, p.contextID, p.machineID, p.deviceID)
+	endpoint := fmt.Sprintf("%s:%s/contexts/%s/machines/%s/auxiliaries/%s/api/flash", p.host, p.port, p.contextID, p.machineID, p.deviceID)
 
 	targetInfo, err := getTargetState(ctx, endpoint)
 	if err != nil {
@@ -91,7 +91,9 @@ func (p *Parameter) flashWrite(ctx xcontext.Context, arg string) error {
 			break
 		}
 		if targetInfo.State == "busy" {
-			log.Infof("target is currently busy")
+			time.Sleep(time.Second)
+
+			continue
 		}
 		if targetInfo.State == "error" {
 			log.Infof("error while flashing: %s", targetInfo.Error)
@@ -99,8 +101,6 @@ func (p *Parameter) flashWrite(ctx xcontext.Context, arg string) error {
 		if time.Now().Sub(timestamp) >= defaultTimeoutParameter {
 			return fmt.Errorf("flashing failed: timeout")
 		}
-
-		time.Sleep(time.Second)
 	}
 
 	log.Infof("successfully flashed binary")
@@ -153,9 +153,9 @@ func (p *Parameter) flashRead(ctx xcontext.Context, arg string) error {
 		return fmt.Errorf("no file was set to read or write")
 	}
 
-	endpoint := fmt.Sprintf("%s:%s/contexts/%s/machines/%s/auxiliaries/%s/api/flash", p.hostname, p.port, p.contextID, p.machineID, p.deviceID)
+	endpoint := fmt.Sprintf("%s:%s/contexts/%s/machines/%s/auxiliaries/%s/api/flash", p.host, p.port, p.contextID, p.machineID, p.deviceID)
 
-	if err := readTarget(endpoint, arg); err != nil {
+	if err := readTarget(ctx, endpoint, arg); err != nil {
 		return err
 	}
 
@@ -167,9 +167,25 @@ func (p *Parameter) flashRead(ctx xcontext.Context, arg string) error {
 // getTargetState returns the flash state of the target.
 // If an error occured, the field error is filled.
 func getTargetState(ctx xcontext.Context, endpoint string) (getFlash, error) {
+	log := ctx.Logger()
+
 	resp, err := HTTPRequest(ctx, http.MethodGet, endpoint, bytes.NewBuffer(nil))
 	if err != nil {
 		return getFlash{}, fmt.Errorf("failed to do http request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	jsonBody, err := json.Marshal(resp.Body)
+	if err != nil {
+		return getFlash{}, fmt.Errorf("failed to marshal resp.Body: %v", err)
+	}
+
+	if ctx.Writer() != nil {
+		writer := ctx.Writer()
+		_, err := writer.Write(jsonBody)
+		if err != nil {
+			log.Warnf("writing to ctx.Writer failed: %w", err)
+		}
 	}
 
 	body, err := io.ReadAll(resp.Body)
@@ -187,23 +203,32 @@ func getTargetState(ctx xcontext.Context, endpoint string) (getFlash, error) {
 }
 
 // readTarget downloads the binary from the target and stores it at 'filePath'.
-func readTarget(endpoint string, filePath string) error {
-	// create the http request
-	req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("%s%s", endpoint, "/file"), nil)
-	if err != nil {
-		return fmt.Errorf("failed to create the http request: %v", err)
-	}
+func readTarget(ctx xcontext.Context, endpoint string, filePath string) error {
+	log := ctx.Logger()
 
-	// execute the http request
-	client := &http.Client{}
-	resp, err := client.Do(req)
+	endpoint = fmt.Sprintf("%s%s", endpoint, "/file")
+
+	resp, err := HTTPRequest(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
-		return fmt.Errorf("failed to do the http request: %v", err)
+		return fmt.Errorf("failed to do http request")
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("failed to download binary")
+	}
+
+	jsonBody, err := json.Marshal(resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to marshal resp.Body: %v", err)
+	}
+
+	if ctx.Writer() != nil {
+		writer := ctx.Writer()
+		_, err := writer.Write(jsonBody)
+		if err != nil {
+			log.Warnf("writing to ctx.Writer failed: %w", err)
+		}
 	}
 
 	// open/create file and copy the http response body into it
@@ -223,6 +248,8 @@ func readTarget(endpoint string, filePath string) error {
 
 // flashTarget flashes the target.
 func flashTarget(ctx xcontext.Context, endpoint string, filePath string) error {
+	log := ctx.Logger()
+
 	// open the binary that shall be flashed
 	file, err := os.Open(filePath)
 	if err != nil {
@@ -240,7 +267,7 @@ func flashTarget(ctx xcontext.Context, endpoint string, filePath string) error {
 	writer.Close()
 
 	// create the http request
-	req, err := http.NewRequest(http.MethodPut, fmt.Sprintf("%s%s", endpoint, "/file"), body)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPut, fmt.Sprintf("%s%s", endpoint, "/file"), body)
 	if err != nil {
 		return fmt.Errorf("failed to create the http request: %v", err)
 	}
@@ -273,6 +300,19 @@ func flashTarget(ctx xcontext.Context, endpoint string, filePath string) error {
 	resp, err = HTTPRequest(ctx, http.MethodPost, endpoint, bytes.NewBuffer(flashBody))
 	if err != nil {
 		return fmt.Errorf("failed to do http request")
+	}
+
+	jsonBody, err := json.Marshal(resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to marshal resp.Body: %v", err)
+	}
+
+	if ctx.Writer() != nil {
+		writer := ctx.Writer()
+		_, err := writer.Write(jsonBody)
+		if err != nil {
+			log.Warnf("writing to ctx.Writer failed: %w", err)
+		}
 	}
 
 	if resp.StatusCode != http.StatusCreated {
