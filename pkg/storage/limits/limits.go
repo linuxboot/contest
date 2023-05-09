@@ -33,7 +33,7 @@ func NewValidator() *Validator {
 type Validator struct{}
 
 // MaxTestNameLen is a max length of test name field
-const MaxTestNameLen = 32
+const MaxTestNameLen = 64
 
 // ValidateTestName retruns error if the test name does not match storage limitations
 func (v *Validator) ValidateTestName(testName string) error {
@@ -41,7 +41,7 @@ func (v *Validator) ValidateTestName(testName string) error {
 }
 
 // MaxTestStepLabelLen is a max length of test step label field
-const MaxTestStepLabelLen = 32
+const MaxTestStepLabelLen = 64
 
 // ValidateTestStepLabel retruns error if the test step label does not match storage limitations
 func (v *Validator) ValidateTestStepLabel(testStepLabel string) error {
