@@ -140,51 +140,26 @@ func (s *GRPCServer) StatusJob(ctx context.Context, req *connect.Request[contest
 		return fmt.Errorf("JobID does not exist.")
 	}
 
-	startResponse, err := s.getResponseFromAPI(req.Msg)
-	if err != nil {
-		s.ctx.Errorf("getResponseFromAPI: %w", err)
-
-		return fmt.Errorf("getResponseFromAPI() = '%w'", err)
-	}
-
-	if startResponse.Status == nil {
-		s.ctx.Errorf("api.Status(): Returned job.Status == nil")
-
-		return fmt.Errorf("api.Status(): Returned job.Status == nil")
-	}
-
-	reportBytes, err := json.Marshal(startResponse.Status)
-	if err != nil {
-		s.ctx.Errorf("Unable to Marshal Status")
-
-		return fmt.Errorf("Unable to Marshal Status")
-	}
-
-	if err := stream.Send(&contestlistener.StatusJobResponse{
-		Status: startResponse.Status.State,
-		Error:  startResponse.Status.StateErrMsg,
-		Report: reportBytes,
-	}); err != nil {
-		return err
-	}
-
-	if startResponse.Status.State == string(job.EventJobCompleted) {
-		return nil
-	}
-
 	for {
 
-		r, err := s.getResponseFromAPI(req.Msg)
+		resp, err := s.getResponseFromAPI(req.Msg)
 		if err != nil {
 			s.ctx.Errorf("getResponseFromAPI: %w", err)
 
 			return fmt.Errorf("getResponseFromAPI() = '%w'", err)
 		}
 
-		if r.Status == nil {
+		if resp.Status == nil {
 			s.ctx.Errorf("api.Status(): Returned job.Status == nil")
 
 			return fmt.Errorf("api.Status(): Returned job.Status == nil")
+		}
+
+		reportBytes, err := json.Marshal(resp.Status)
+		if err != nil {
+			s.ctx.Errorf("Unable to Marshal Status")
+
+			return fmt.Errorf("Unable to Marshal Status")
 		}
 
 		buf := make([]byte, 1024)
@@ -192,8 +167,9 @@ func (s *GRPCServer) StatusJob(ctx context.Context, req *connect.Request[contest
 		if n > 0 {
 			// DEBUG
 			if err := stream.Send(&contestlistener.StatusJobResponse{
-				Status: r.Status.State,
-				Error:  r.Status.StateErrMsg,
+				Status: resp.Status.State,
+				Error:  resp.Status.StateErrMsg,
+				Report: reportBytes,
 				Log:    buf[:n],
 			}); err != nil {
 				return err
@@ -204,11 +180,11 @@ func (s *GRPCServer) StatusJob(ctx context.Context, req *connect.Request[contest
 			continue
 		}
 
-		fmt.Printf("Job State: %s read %d\n", r.Status.State, n)
+		fmt.Printf("Job State: %s read %d\n", resp.Status.State, n)
 
 		// Job is not running anymore
-		if r.Status.State != string(job.EventJobStarted) {
-			break
+		if resp.Status.State != string(job.EventJobStarted) {
+			return nil
 		}
 
 		if err != nil {
@@ -222,36 +198,6 @@ func (s *GRPCServer) StatusJob(ctx context.Context, req *connect.Request[contest
 		// Buffer was full - let's poll faster again.
 		time.Sleep(waitForUpdate)
 	}
-
-	r, err := s.getResponseFromAPI(req.Msg)
-	if err != nil {
-		s.ctx.Errorf("getResponseFromAPI: %w", err)
-
-		return fmt.Errorf("getResponseFromAPI() = '%w'", err)
-	}
-
-	if r.Status == nil {
-		s.ctx.Errorf("api.Status(): Returned job.Status == nil")
-
-		return fmt.Errorf("api.Status(): Returned job.Status == nil")
-	}
-
-	reportBytes, err = json.Marshal(r.Status)
-	if err != nil {
-		s.ctx.Errorf("Unable to Marshal Status")
-
-		return fmt.Errorf("Unable to Marshal Status")
-	}
-
-	if err := stream.Send(&contestlistener.StatusJobResponse{
-		Status: r.Status.State,
-		Error:  r.Status.StateErrMsg,
-		Report: reportBytes,
-	}); err != nil {
-		return err
-	}
-
-	return nil
 }
 
 func (s *GRPCServer) getResponseFromAPI(msg *contestlistener.StatusJobRequest) (api.ResponseDataStatus, error) {
