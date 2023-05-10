@@ -15,7 +15,7 @@ TestDescriptors:
           TestName: literal test
           Steps:
               - name: cmd
-                label: some label
+                label: somelabel
                 parameters:
                     executable: [echo]
                     args: ["Title={{ Title .FQDN }}, ToUpper={{ ToUpper .FQDN }}"]

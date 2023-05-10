@@ -24,7 +24,7 @@
                 "Steps": [
                     {
                         "name": "cmd",
-                        "label": "some label",
+                        "label": "somelabel",
                         "parameters": {
                             "executable": [
                                 "echo"

@@ -70,6 +70,14 @@ go get -u github.com/linuxboot/contest/cmds/contest
 
 This will download and build the `contest` sample program, and will add it to your Go binary path.
 
+To build the sample server from a local checkout of the Git repo, e.g. for
+development purposes:
+
+```
+cd cmds/contest
+go build .
+```
+
 ## Running the sample server
 
 There is a sample server under [cmds/contest](cmds/contest). All it does is to
@@ -83,52 +91,96 @@ a different one or build your own.
 After building the sample server as explained in the [Building
 ConTest](#building-contest) section, run it with no arguments:
 ```
-$ contest
-[2020-02-10T20:37:10Z]  INFO pkg/pluginregistry: Registering target manager csvfiletargetmanager
-[2020-02-10T20:37:10Z]  INFO pkg/pluginregistry: Registering target manager targetlist
-[2020-02-10T20:37:10Z]  INFO pkg/pluginregistry: Registering test fetcher uri
-[2020-02-10T20:37:10Z]  INFO pkg/pluginregistry: Registering test fetcher literal
-[2020-02-10T20:37:10Z]  INFO pkg/pluginregistry: Registering test step echo
-[2020-02-10T20:37:10Z]  INFO pkg/pluginregistry: Registering test step slowecho
-[2020-02-10T20:37:10Z]  INFO pkg/pluginregistry: Registering test step example
-[2020-02-10T20:37:10Z]  INFO pkg/pluginregistry: Registering test step cmd
-[2020-02-10T20:37:10Z]  INFO pkg/pluginregistry: Registering test step sshcmd
-[2020-02-10T20:37:10Z]  INFO pkg/pluginregistry: Registering test step randecho
-[2020-02-10T20:37:10Z]  INFO pkg/pluginregistry: Registering test step terminalexpect
-[2020-02-10T20:37:10Z]  INFO pkg/pluginregistry: Registering reporter targetsuccess
-[2020-02-10T20:37:10Z]  INFO pkg/pluginregistry: Registering reporter noop
-[2020-02-10T20:37:10Z]  INFO contest: Using database URI: contest:contest@tcp(localhost:3306)/contest?parseTime=true
-[2020-02-10T20:37:10Z]  INFO contest: JobManager &{jobs:map[] jobRunner:0xc000021b10 jobsMu:{state:0 sema:0} jobsWg:{noCopy:{} state1:[0 0 0]} jobRequestManager:{JobRequestEmitter:{} JobRequestFetcher:{}} jobReportManager:{JobReportEmitter:{} JobReportFetcher:{}} frameworkEvManager:{FrameworkEventEmitter:{} FrameworkEventFetcher:{}} testEvManager:{} apiListener:0xd0dbc0 apiCancel:0xc000030660 pluginRegistry:0xc000072480}
-[2020-02-10T20:37:10Z]  INFO listeners/httplistener: Started HTTP API listener on :8080
+$ cd cmds/contest
+$ go build .
+$ ./contest
+[2023-05-10T13:59:26.361+02:00 I pluginregistry.go:63] Registering target manager csvfiletargetmanager
+[2023-05-10T13:59:26.361+02:00 I pluginregistry.go:63] Registering target manager targetlist
+[2023-05-10T13:59:26.361+02:00 I pluginregistry.go:76] Registering test fetcher literal
+[2023-05-10T13:59:26.361+02:00 I pluginregistry.go:76] Registering test fetcher uri
+[2023-05-10T13:59:26.361+02:00 I pluginregistry.go:89] Registering test step cmd
+[2023-05-10T13:59:26.361+02:00 I pluginregistry.go:89] Registering test step cpucmd
+[2023-05-10T13:59:26.361+02:00 I pluginregistry.go:89] Registering test step echo
+[2023-05-10T13:59:26.362+02:00 I pluginregistry.go:89] Registering test step exec
+[2023-05-10T13:59:26.362+02:00 I pluginregistry.go:89] Registering test step gathercmd
+[2023-05-10T13:59:26.362+02:00 I pluginregistry.go:89] Registering test step randecho
+[2023-05-10T13:59:26.362+02:00 I pluginregistry.go:89] Registering test step sleep
+[2023-05-10T13:59:26.362+02:00 I pluginregistry.go:89] Registering test step sshcmd
+[2023-05-10T13:59:26.362+02:00 I pluginregistry.go:113] Registering reporter noop
+[2023-05-10T13:59:26.362+02:00 I pluginregistry.go:113] Registering reporter targetsuccess
+[2023-05-10T13:59:26.362+02:00 I server.go:207] Using database URI for primary storage: contest:contest@tcp(localhost:3306)/contest?parseTime=true
+[2023-05-10T13:59:26.370+02:00 I server.go:221] Storage version: 7
+[2023-05-10T13:59:26.370+02:00 I server.go:227] Using database URI for replica storage: contest:contest@tcp(localhost:3306)/contest?parseTime=true
+[2023-05-10T13:59:26.372+02:00 I server.go:241] Storage version: 7
+[2023-05-10T13:59:26.372+02:00 I server.go:269] Locker engine set to auto, using DBLocker
+[2023-05-10T13:59:26.375+02:00 D storage.go:52] consistency model check: <nil>
+[2023-05-10T13:59:26.375+02:00 I jobmanager.go:228] Found 0 zombie jobs for /yourservername
+[2023-05-10T13:59:26.375+02:00 D httplistener.go:253] Serving a listener
+[2023-05-10T13:59:26.376+02:00 I httplistener.go:230] Started HTTP API listener on :8080
 ```
 
 The server is informing us that it started the HTTP API listener on port 8080, after registering various types of plugins: target managers, test fetchers, test steps, and reporters.
 
-ConTest also requires a database to store its state, events and other data.
-The schema is defined under [docker/mysql/initdb.sql](docker/mysql/initdb.sql)
-so you can create your own. We provide a docker image to bring up a database, so
-you can use it with the sample server. Just run
+## Database
+
+ConTest requires a database to store its state, events and other data.
+
+* DB name and default user are defined in [docker/mysql/initdb.sql](docker/mysql/initdb.sql)
+* DB schema is defined in [db/rdbms/schema/v0/create_contest_db.sql](db/rdbms/schema/v0/create_contest_db.sql)
+* DB migrations are defined in the [db/rdbms/migration directory](db/rdbms/migration)
+
+### Using docker
+
+We provide a docker image to bring up a database, so you can use it with the
+sample server. Just run
 ```
 docker-compose up mysql
 ```
-
 from the top directory of ConTest's source code.
+
+### Using a local mysql instance
+
+If you don't want to run Docker, or if you have already a mysql instance you
+want to use, you can:
+
+1. Either create a "contest" local database and a "contest" user as described
+in the `initdb.sql` script:
+
+```
+mysql -u root -p < docker/mysql/initdb.sql
+```
+
+2. Load the database schema
+
+```
+mysql -u contest -p < db/rdbms/schema/v0/create_contest_db.sql
+```
+
+3. Run all migrations
+
+```
+cd tools/migration/rdbms
+go run . -dir ../../../db/rdbms/migration up
+```
 
 Once the database is up, it will possible to submit test jobs through the client,
 as shown in the next section.
 
-### Submitting jobs to the sample server
+
+## Submitting jobs to the sample server
 
 ConTest has no official CLI, because every user is different. However we provide
 a sample CLI based on cleartext HTTP that will communicate to the HTTP API. All
 you need to do is building the sample ConTest server as described above, and run
-the CLI tool under [cmds/clients/contestcli-http](cmds/clients/contestcli-http).
+the CLI tool under [cmds/clients/contestcli](cmds/clients/contestcli).
 The tool is very simple:
 ```
-$ ./contestcli-http -h
-Usage of contestcli-http:
+$ cd cmds/clients/contestcli
+$ go build .
+$ ./contestcli -h
+Usage of contestcli:
 
-  contestcli-http [args] command
+  contestcli [args] command
 
 command: start, stop, status, retry, version
   start
@@ -144,17 +196,17 @@ command: start, stop, status, retry, version
 
 args:
   -addr string
-    	ConTest server [scheme://]host:port[/basepath] to connect to (default "http://localhost:8080")
+      ConTest server [scheme://]host:port[/basepath] to connect to (default "http://localhost:8080")
   -r string
-    	Identifier of the requestor of the API call (default "contestcli-http")
+      Identifier of the requestor of the API call (default "contestcli")
 exit status 2
 ```
 
 To run a job, just feed a [job descriptor](#job-descriptors) to the client's `start` command, e.g. using
-[start-literal.json](cmds/clients/contestcli-http/start-literal.json):
+[start-literal.json](cmds/clients/contestcli/descriptors/start-literal.json):
 
 ```
-$ ./contestcli-http start < start-literal.json
+$ ./contestcli start < descriptors/start-literal.json
 
 [..output showing the job descriptor...]
 
@@ -320,7 +372,7 @@ A job descriptor has to declare:
 * how to report success or failure
 
 An example of a job descriptor that runs a command over SSH to a target host
-is available at [cmds/clients/http/start.json](cmd/clients/http/start.json), reported below and
+is available at [cmds/clients/contestcli/descriptors/start.json](cmds/clients/contestcli/descriptors/start.json), reported below and
 commented for clarity:
 ```
 {
