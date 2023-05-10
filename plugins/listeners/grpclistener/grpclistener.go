@@ -162,42 +162,56 @@ func (s *GRPCServer) StatusJob(ctx context.Context, req *connect.Request[contest
 			return fmt.Errorf("Unable to Marshal Status")
 		}
 
-		buf := make([]byte, 1024)
-		n, err := s.Endpoints[int(req.Msg.JobId)].buffer.Read(buf)
-		if n > 0 {
-			// DEBUG
-			if err := stream.Send(&contestlistener.StatusJobResponse{
-				Status: resp.Status.State,
-				Error:  resp.Status.StateErrMsg,
-				Report: reportBytes,
-				Log:    buf[:n],
-			}); err != nil {
-				return err
-			}
+		if err := stream.Send(&contestlistener.StatusJobResponse{
+			Status: resp.Status.State,
+			Error:  resp.Status.StateErrMsg,
+			Report: reportBytes,
+		}); err != nil {
+			return err
 		}
 
-		if n == 1024 {
-			continue
-		}
-
-		fmt.Printf("Job State: %s read %d\n", resp.Status.State, n)
+		fmt.Printf("Job State: %s\n", resp.Status.State)
 
 		// Job is not running anymore
 		if resp.Status.State != string(job.EventJobStarted) {
-			return nil
-		}
-
-		if err != nil {
-			if err == io.EOF {
-				time.Sleep(waitForUpdate)
-				continue
-			}
-			return err
+			break
 		}
 
 		// Buffer was full - let's poll faster again.
 		time.Sleep(waitForUpdate)
 	}
+
+	resp, err := s.getResponseFromAPI(req.Msg)
+	if err != nil {
+		s.ctx.Errorf("getResponseFromAPI: %w", err)
+
+		return fmt.Errorf("getResponseFromAPI() = '%w'", err)
+	}
+
+	if resp.Status == nil {
+		s.ctx.Errorf("api.Status(): Returned job.Status == nil")
+
+		return fmt.Errorf("api.Status(): Returned job.Status == nil")
+	}
+
+	reportBytes, err := json.Marshal(resp.Status)
+	if err != nil {
+		s.ctx.Errorf("Unable to Marshal Status")
+
+		return fmt.Errorf("Unable to Marshal Status")
+	}
+
+	if err := stream.Send(&contestlistener.StatusJobResponse{
+		Status: resp.Status.State,
+		Error:  resp.Status.StateErrMsg,
+		Report: reportBytes,
+	}); err != nil {
+		return err
+	}
+
+	fmt.Printf("Last Job State: %s\n", resp.Status.State)
+
+	return nil
 }
 
 func (s *GRPCServer) getResponseFromAPI(msg *contestlistener.StatusJobRequest) (api.ResponseDataStatus, error) {
