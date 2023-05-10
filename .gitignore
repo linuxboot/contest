@@ -1,6 +1,7 @@
 cmds/contest/contest
 cmds/clients/contestcli/contestcli
 cmds/contest-generator/contest-generator
+tools/migration/rdbms/rdbms
 .*.swp
 profile.out
 .DS_Store
