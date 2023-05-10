@@ -42,33 +42,64 @@ import (
 // Name is the name used to look this plugin up.
 var Name = "SSHCmd"
 
-// Events is used by the framework to determine which events this plugin will
-// emit. Any emitted event that is not registered here will cause the plugin to
-// fail.
-var Events = []event.Name{}
-
 const (
 	defaultSSHPort          = 22
 	defaultTimeoutParameter = "10m"
 )
 
+const (
+	EventStdout = event.Name("Stdout")
+	EventStderr = event.Name("Stderr")
+)
+
+var Events = []event.Name{
+	EventStdout,
+	EventStderr,
+}
+
+type eventStdoutPayload struct {
+	Msg string
+}
+
+type eventStderrPayload struct {
+	Msg string
+}
+
 // SSHCmd is used to run arbitrary commands as test steps.
 type SSHCmd struct {
-	Host            *test.Param
-	Port            *test.Param
-	User            *test.Param
-	PrivateKeyFile  *test.Param
-	Password        *test.Param
-	Executable      *test.Param
-	Args            []test.Param
-	Expect          *test.Param
-	Timeout         *test.Param
-	SkipIfEmptyHost *test.Param
+	Host                   *test.Param
+	Port                   *test.Param
+	User                   *test.Param
+	PrivateKeyFile         *test.Param
+	Password               *test.Param
+	Executable             *test.Param
+	Args                   []test.Param
+	Expect                 *test.Param
+	Timeout                *test.Param
+	SkipIfEmptyHost        *test.Param
+	emitStdout, emitStderr bool
 }
 
 // Name returns the plugin name.
 func (ts SSHCmd) Name() string {
 	return Name
+}
+
+func emitEvent(ctx xcontext.Context, name event.Name, payload interface{}, tgt *target.Target, ev testevent.Emitter) error {
+	payloadStr, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("cannot encode payload for event '%s': %v", name, err)
+	}
+	rm := json.RawMessage(payloadStr)
+	evData := testevent.Data{
+		EventName: name,
+		Target:    tgt,
+		Payload:   &rm,
+	}
+	if err := ev.Emit(ctx, evData); err != nil {
+		return fmt.Errorf("cannot emit event EventCmdStart: %v", err)
+	}
+	return nil
 }
 
 // Run executes the cmd step.
@@ -85,6 +116,23 @@ func (ts *SSHCmd) Run(ctx xcontext.Context, ch test.TestStepChannels, params tes
 	// substitution cannot, because the targets are not known at that time.
 	if err := ts.validateAndPopulate(params); err != nil {
 		return nil, err
+	}
+
+	returnFunc := func(stdout, stderr bytes.Buffer, target *target.Target, err error) error {
+		if ts.emitStdout {
+			log.Infof("Emitting stdout event")
+			if err := emitEvent(ctx, EventStdout, eventStdoutPayload{Msg: stdout.String()}, target, ev); err != nil {
+				log.Warnf("Failed to emit event: %v", err)
+			}
+		}
+		if ts.emitStderr {
+			log.Infof("Emitting stderr event")
+			if err := emitEvent(ctx, EventStderr, eventStderrPayload{Msg: stderr.String()}, target, ev); err != nil {
+				log.Warnf("Failed to emit event: %v", err)
+			}
+		}
+
+		return err
 	}
 
 	f := func(ctx xcontext.Context, target *target.Target) error {
@@ -249,8 +297,9 @@ func (ts *SSHCmd) Run(ctx xcontext.Context, ch test.TestStepChannels, params tes
 						matches := re.FindAll(stdout.Bytes(), -1)
 						if len(matches) > 0 {
 							log.Infof("match for regex '%s' found", expect)
+							return returnFunc(stdout, stderr, target, nil)
 						} else {
-							return fmt.Errorf("match for %s not found for target %v", expect, target)
+							return returnFunc(stdout, stderr, target, fmt.Errorf("match for %s not found for target %v", expect, target))
 						}
 					}
 				} else {
@@ -265,11 +314,11 @@ func (ts *SSHCmd) Run(ctx xcontext.Context, ch test.TestStepChannels, params tes
 					matches := re.FindAll(stdout.Bytes(), -1)
 					if len(matches) > 0 {
 						log.Infof("match for regex '%s' found", expect)
-						return nil
+						return returnFunc(stdout, stderr, target, nil)
 					}
 				}
 				if time.Now().After(timeTimeout) {
-					return fmt.Errorf("timed out after %s", timeout)
+					return returnFunc(stdout, stderr, target, fmt.Errorf("timed out after %s", timeout))
 				}
 				// This is needed to keep the connection to the server alive
 				if keepAliveCnt%20 == 0 {
@@ -281,6 +330,7 @@ func (ts *SSHCmd) Run(ctx xcontext.Context, ch test.TestStepChannels, params tes
 			}
 		}
 	}
+
 	return teststeps.ForEachTarget(Name, ctx, ch, f)
 }
 
@@ -329,6 +379,27 @@ func (ts *SSHCmd) validateAndPopulate(params test.TestStepParameters) error {
 	}
 
 	ts.SkipIfEmptyHost = params.GetOne("skip_if_empty_host")
+
+	// validate emit_stdout
+	emitStdoutParam := params.GetOne("emit_stdout")
+	if !emitStdoutParam.IsEmpty() {
+		v, err := strconv.ParseBool(emitStdoutParam.String())
+		if err != nil {
+			return fmt.Errorf("invalid non-boolean `emit_stdout` parameter: %v", err)
+		}
+		ts.emitStdout = v
+	}
+
+	// validate emit_stderr
+	emitStderrParam := params.GetOne("emit_stderr")
+	if !emitStderrParam.IsEmpty() {
+		v, err := strconv.ParseBool(emitStderrParam.String())
+		if err != nil {
+			return fmt.Errorf("invalid non-boolean `emit_stderr` parameter: %v", err)
+		}
+		ts.emitStderr = v
+	}
+
 	return nil
 }
 
