@@ -11,12 +11,16 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/linuxboot/contest/pkg/event/testevent"
+	"github.com/linuxboot/contest/pkg/target"
 	"github.com/linuxboot/contest/pkg/xcontext"
 )
 
 // flashWrite executes the flash write command.
-func (p *Parameter) flashWrite(ctx xcontext.Context, arg string) error {
+func (p *Parameter) flashWrite(ctx xcontext.Context, arg string, target *target.Target, ev testevent.Emitter) error {
 	log := ctx.Logger()
+
+	var stdout string
 
 	if arg == "" {
 		return fmt.Errorf("no file was set to read or write")
@@ -33,12 +37,9 @@ func (p *Parameter) flashWrite(ctx xcontext.Context, arg string) error {
 			return err
 		}
 		if statusCode == http.StatusOK {
-			log.Infof("pdu powered off")
+			toStdout(ctx, &stdout, "pdu was set to state 'off'")
 		} else {
-
-			log.Infof("pdu could not be powered off")
-
-			return fmt.Errorf("pdu could not be powered off")
+			return fmt.Errorf("pdu could not set to state 'off'")
 		}
 
 		// Than pull the reset switch on on
@@ -53,12 +54,12 @@ func (p *Parameter) flashWrite(ctx xcontext.Context, arg string) error {
 			}
 
 			if state == "on" {
-				log.Infof("reset is in state on")
+				toStdout(ctx, &stdout, "reset is in state 'on'")
 			} else {
-				return fmt.Errorf("reset switch could not be turned on")
+				return fmt.Errorf("reset could not be set to state 'on'")
 			}
 		} else {
-			return fmt.Errorf("reset switch could not be turned on")
+			return fmt.Errorf("reset could not be set to state 'on'")
 		}
 	}
 
@@ -69,7 +70,7 @@ func (p *Parameter) flashWrite(ctx xcontext.Context, arg string) error {
 		return err
 	}
 	if targetInfo.State == "busy" {
-		return fmt.Errorf("target is currently busy")
+		return fmt.Errorf("DUT is currently busy")
 	}
 	if targetInfo.State == "error" {
 		log.Infof("error from last flash: %s", targetInfo.Error)
@@ -77,7 +78,7 @@ func (p *Parameter) flashWrite(ctx xcontext.Context, arg string) error {
 
 	err = flashTarget(ctx, endpoint, arg)
 	if err != nil {
-		return fmt.Errorf("flashing %s failed: %v\n", arg, err)
+		return fmt.Errorf("flashing DUT with %s failed: %v\n", arg, err)
 	}
 
 	timestamp := time.Now()
@@ -96,14 +97,14 @@ func (p *Parameter) flashWrite(ctx xcontext.Context, arg string) error {
 			continue
 		}
 		if targetInfo.State == "error" {
-			log.Infof("error while flashing: %s", targetInfo.Error)
+			return fmt.Errorf("error while flashing DUT: %s", targetInfo.Error)
 		}
 		if time.Now().Sub(timestamp) >= defaultTimeoutParameter {
-			return fmt.Errorf("flashing failed: timeout")
+			return fmt.Errorf("flashing DUT failed: timeout")
 		}
 	}
 
-	log.Infof("successfully flashed binary")
+	toStdout(ctx, &stdout, "successfully flashed binary on DUT")
 
 	// Make device bootable again reset switch on off
 	// Pull reset to off
@@ -118,7 +119,7 @@ func (p *Parameter) flashWrite(ctx xcontext.Context, arg string) error {
 		}
 
 		if state == "off" {
-			log.Infof("reset is in state off")
+			toStdout(ctx, &stdout, "reset was set to state 'off'")
 		} else {
 			return fmt.Errorf("reset switch could not be turned off")
 		}
@@ -135,19 +136,28 @@ func (p *Parameter) flashWrite(ctx xcontext.Context, arg string) error {
 	}
 
 	if statusCode == http.StatusOK {
-		log.Infof("pdu powered on")
+		toStdout(ctx, &stdout, "pdu was set to state 'on'")
 	} else {
 		return fmt.Errorf("pdu could not be powered on")
 	}
 
 	time.Sleep(5 * time.Second)
 
+	if p.emitStdout {
+		log.Infof("Emitting stdout event")
+		if err := emitEvent(ctx, EventStdout, eventStdoutPayload{Msg: stdout}, target, ev); err != nil {
+			log.Warnf("Failed to emit event: %v", err)
+		}
+	}
+
 	return nil
 }
 
 // flashRead executes the flash read command.
-func (p *Parameter) flashRead(ctx xcontext.Context, arg string) error {
+func (p *Parameter) flashRead(ctx xcontext.Context, arg string, target *target.Target, ev testevent.Emitter) error {
 	log := ctx.Logger()
+
+	var stdout string
 
 	if arg == "" {
 		return fmt.Errorf("no file was set to read or write")
@@ -159,7 +169,14 @@ func (p *Parameter) flashRead(ctx xcontext.Context, arg string) error {
 		return err
 	}
 
-	log.Infof("binary image downloaded successfully")
+	toStdout(ctx, &stdout, "binary image downloaded successfully")
+
+	if p.emitStdout {
+		log.Infof("Emitting stdout event")
+		if err := emitEvent(ctx, EventStdout, eventStdoutPayload{Msg: stdout}, target, ev); err != nil {
+			log.Warnf("Failed to emit event: %v", err)
+		}
+	}
 
 	return nil
 }

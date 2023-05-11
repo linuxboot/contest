@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/google/uuid"
@@ -48,6 +49,24 @@ type getState struct {
 // Name is the name used to look this plugin up.
 var Name = "HWaaS"
 
+const (
+	EventStdout = event.Name("Stdout")
+	EventStderr = event.Name("Stderr")
+)
+
+var Events = []event.Name{
+	EventStdout,
+	EventStderr,
+}
+
+type eventStdoutPayload struct {
+	Msg string
+}
+
+type eventStderrPayload struct {
+	Msg string
+}
+
 // We need a default timeout to avoid endless running tests.
 const (
 	defaultTimeoutParameter time.Duration = 15 * time.Minute
@@ -60,28 +79,47 @@ const (
 
 // HWaaS is used to run arbitrary commands as test steps.
 type HWaaS struct {
-	host      *test.Param
-	port      *test.Param
-	contextID *test.Param
-	machineID *test.Param
-	deviceID  *test.Param
-	command   *test.Param  // Command that shall be run on the dut.
-	args      []test.Param // Arguments that the command need.
+	host                   *test.Param
+	port                   *test.Param
+	contextID              *test.Param
+	machineID              *test.Param
+	deviceID               *test.Param
+	command                *test.Param  // Command that shall be run on the dut.
+	args                   []test.Param // Arguments that the command need.
+	emitStdout, emitStderr bool
 }
 
 type Parameter struct {
-	host      string
-	port      string
-	contextID string
-	machineID string
-	deviceID  string
-	command   string
-	args      []string
+	host                   string
+	port                   string
+	contextID              string
+	machineID              string
+	deviceID               string
+	command                string
+	args                   []string
+	emitStdout, emitStderr bool
 }
 
 // Name returns the plugin name.
 func (hws HWaaS) Name() string {
 	return Name
+}
+
+func emitEvent(ctx xcontext.Context, name event.Name, payload interface{}, tgt *target.Target, ev testevent.Emitter) error {
+	payloadStr, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("cannot encode payload for event '%s': %v", name, err)
+	}
+	rm := json.RawMessage(payloadStr)
+	evData := testevent.Data{
+		EventName: name,
+		Target:    tgt,
+		Payload:   &rm,
+	}
+	if err := ev.Emit(ctx, evData); err != nil {
+		return fmt.Errorf("cannot emit event EventCmdStart: %v", err)
+	}
+	return nil
 }
 
 // Run executes the cmd step.
@@ -204,12 +242,15 @@ func (hws *HWaaS) Run(ctx xcontext.Context, ch test.TestStepChannels, params tes
 
 		parameter.args = args
 
+		parameter.emitStdout = hws.emitStdout
+		parameter.emitStderr = hws.emitStderr
+
 		switch parameter.command {
 		case "power":
 			if len(args) >= 1 {
 				switch args[0] {
 				case "on":
-					if err := parameter.powerOn(ctx); err != nil {
+					if err := parameter.powerOn(ctx, target, ev); err != nil {
 						returnFunc(err)
 
 						return err
@@ -218,7 +259,7 @@ func (hws *HWaaS) Run(ctx xcontext.Context, ch test.TestStepChannels, params tes
 					return nil
 
 				case "off":
-					if err := parameter.powerOffSoft(ctx); err != nil {
+					if err := parameter.powerOffSoft(ctx, target, ev); err != nil {
 						returnFunc(err)
 
 						return err
@@ -226,7 +267,7 @@ func (hws *HWaaS) Run(ctx xcontext.Context, ch test.TestStepChannels, params tes
 
 					if len(args) >= 2 {
 						if args[1] == "hard" {
-							if err := parameter.powerOffHard(ctx); err != nil {
+							if err := parameter.powerOffHard(ctx, target, ev); err != nil {
 								returnFunc(err)
 
 								return err
@@ -254,7 +295,7 @@ func (hws *HWaaS) Run(ctx xcontext.Context, ch test.TestStepChannels, params tes
 			if len(args) >= 2 {
 				switch args[0] {
 				case "write":
-					if err := parameter.flashWrite(ctx, args[1]); err != nil {
+					if err := parameter.flashWrite(ctx, args[1], target, ev); err != nil {
 						returnFunc(err)
 
 						return err
@@ -262,7 +303,7 @@ func (hws *HWaaS) Run(ctx xcontext.Context, ch test.TestStepChannels, params tes
 
 					return nil
 				case "read":
-					if err := parameter.flashRead(ctx, args[1]); err != nil {
+					if err := parameter.flashRead(ctx, args[1], target, ev); err != nil {
 						returnFunc(err)
 
 						return err
@@ -329,6 +370,26 @@ func (hws *HWaaS) validateAndPopulate(params test.TestStepParameters) error {
 	// validate the hwaas command args
 	hws.args = params.Get("args")
 
+	// validate emit_stdout
+	emitStdoutParam := params.GetOne("emit_stdout")
+	if !emitStdoutParam.IsEmpty() {
+		v, err := strconv.ParseBool(emitStdoutParam.String())
+		if err != nil {
+			return fmt.Errorf("invalid non-boolean `emit_stdout` parameter: %v", err)
+		}
+		hws.emitStdout = v
+	}
+
+	// validate emit_stderr
+	emitStderrParam := params.GetOne("emit_stderr")
+	if !emitStderrParam.IsEmpty() {
+		v, err := strconv.ParseBool(emitStderrParam.String())
+		if err != nil {
+			return fmt.Errorf("invalid non-boolean `emit_stderr` parameter: %v", err)
+		}
+		hws.emitStderr = v
+	}
+
 	return nil
 }
 
@@ -365,4 +426,12 @@ func HTTPRequest(ctx xcontext.Context, method string, endpoint string, body io.R
 	}
 
 	return resp, nil
+}
+
+func toStdout(ctx xcontext.Context, stdout *string, output string) {
+	log := ctx.Logger()
+
+	*stdout = fmt.Sprintf("%s%s\n", *stdout, output)
+
+	log.Infof(output)
 }

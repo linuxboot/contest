@@ -8,45 +8,58 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/linuxboot/contest/pkg/event/testevent"
+	"github.com/linuxboot/contest/pkg/target"
 	"github.com/linuxboot/contest/pkg/xcontext"
 )
 
 // powerOn turns on the device. To power the device on we have to fulfill this requirements -> reset is off -> pdu is on.
-func (p *Parameter) powerOn(ctx xcontext.Context) error {
+func (p *Parameter) powerOn(ctx xcontext.Context, target *target.Target, ev testevent.Emitter) error {
 	log := ctx.Logger()
 
-	// First pull reset switch on off
-	statusCode, err := p.postReset(ctx, "off")
+	var stdout string
+
+	state, err := p.getState(ctx, "reset")
 	if err != nil {
 		return err
 	}
-	if statusCode == http.StatusOK {
-		state, err := p.getState(ctx, "reset")
+
+	if state == "on" {
+		// First pull reset switch on off
+		statusCode, err := p.postReset(ctx, "off")
 		if err != nil {
 			return err
 		}
+		if statusCode == http.StatusOK {
+			state, err := p.getState(ctx, "reset")
+			if err != nil {
+				return err
+			}
 
-		if state == "off" {
-			log.Infof("reset is in state off")
+			if state == "off" {
+				toStdout(ctx, &stdout, "reset was set to state 'off'")
+			} else {
+				return fmt.Errorf("reset could not be set to state 'off'")
+			}
 		} else {
-			return fmt.Errorf("reset switch could not be turned off")
+			return fmt.Errorf("reset could not be set to state 'off'")
 		}
 	} else {
-		return fmt.Errorf("reset switch could not be turned off")
+		toStdout(ctx, &stdout, "reset is in state 'off'")
 	}
 
 	time.Sleep(time.Second)
 
 	// Than turn on the pdu again
-	statusCode, err = p.pressPDU(ctx, http.MethodPut)
+	statusCode, err := p.pressPDU(ctx, http.MethodPut)
 	if err != nil {
 		return err
 	}
 
 	if statusCode == http.StatusOK {
-		log.Infof("pdu powered on")
+		toStdout(ctx, &stdout, "pdu was set to state 'on'")
 	} else {
-		return fmt.Errorf("pdu could not be powered on")
+		return fmt.Errorf("pdu could not be set to state 'on'")
 	}
 
 	time.Sleep(time.Second)
@@ -57,29 +70,40 @@ func (p *Parameter) powerOn(ctx xcontext.Context) error {
 		return err
 	}
 	if statusCode == http.StatusOK {
-		log.Infof("dut is starting")
+		toStdout(ctx, &stdout, "DUT is starting")
 
 		time.Sleep(5 * time.Second)
 	} else {
-		return fmt.Errorf("device could not be turned on")
+		return fmt.Errorf("DUT could not be turned on")
 	}
 
 	// Check the led if the device is on
-	state, err := p.getState(ctx, "led")
+	state, err = p.getState(ctx, "led")
 	if err != nil {
 		return err
 	}
 
 	if state != "on" {
-		return fmt.Errorf("dut is not on")
+		return fmt.Errorf("DUT could not be powered on")
+	}
+
+	toStdout(ctx, &stdout, "DUT is powered 'on'")
+
+	if p.emitStdout {
+		log.Infof("Emitting stdout event")
+		if err := emitEvent(ctx, EventStdout, eventStdoutPayload{Msg: stdout}, target, ev); err != nil {
+			log.Warnf("Failed to emit event: %v", err)
+		}
 	}
 
 	return nil
 }
 
 // powerOffSoft turns off the device.
-func (p *Parameter) powerOffSoft(ctx xcontext.Context) error {
+func (p *Parameter) powerOffSoft(ctx xcontext.Context, target *target.Target, ev testevent.Emitter) error {
 	log := ctx.Logger()
+
+	var stdout string
 
 	// First check if device needs to be powered down
 	// Check the led if the device is on
@@ -95,24 +119,35 @@ func (p *Parameter) powerOffSoft(ctx xcontext.Context) error {
 			return err
 		}
 		if statusCode == http.StatusOK {
-			log.Infof("dut is shutting down")
+			toStdout(ctx, &stdout, "DUT is shutting 'off'")
 
 			time.Sleep(12 * time.Second)
 		} else {
-			log.Infof("dut is was not powered down gracefully")
+			toStdout(ctx, &stdout, "DUT could not be powered 'off' gracefully")
 		}
+	} else {
+		toStdout(ctx, &stdout, "DUT is already powered 'off'")
 	}
 
 	time.Sleep(time.Second)
 
-	log.Infof("successfully powered down dut soft")
+	toStdout(ctx, &stdout, "DUT successfully powered 'off'")
+
+	if p.emitStdout {
+		log.Infof("Emitting stdout event")
+		if err := emitEvent(ctx, EventStdout, eventStdoutPayload{Msg: stdout}, target, ev); err != nil {
+			log.Warnf("Failed to emit event: %v", err)
+		}
+	}
 
 	return nil
 }
 
 // powerOffHard ensures that -> pdu is off & reset is on.
-func (p *Parameter) powerOffHard(ctx xcontext.Context) error {
+func (p *Parameter) powerOffHard(ctx xcontext.Context, target *target.Target, ev testevent.Emitter) error {
 	log := ctx.Logger()
+
+	var stdout string
 
 	// Than turn off the pdu, even if the graceful shutdown was not working
 	statusCode, err := p.pressPDU(ctx, http.MethodDelete)
@@ -120,36 +155,49 @@ func (p *Parameter) powerOffHard(ctx xcontext.Context) error {
 		return err
 	}
 	if statusCode == http.StatusOK {
-		log.Infof("pdu powered off")
+		toStdout(ctx, &stdout, "pdu was set to state 'off'")
 	} else {
-		log.Infof("pdu could not be powered off")
-
-		return fmt.Errorf("pdu could not be powered off")
+		return fmt.Errorf("pdu could not set to state 'off'")
 	}
 
 	time.Sleep(time.Second)
 
-	// Than pull the reset switch on on
-	statusCode, err = p.postReset(ctx, "on")
+	state, err := p.getState(ctx, "reset")
 	if err != nil {
 		return err
 	}
-	if statusCode == http.StatusOK {
-		state, err := p.getState(ctx, "reset")
+	if state == "off" {
+		// Than pull the reset switch on on
+		statusCode, err = p.postReset(ctx, "on")
 		if err != nil {
 			return err
 		}
+		if statusCode == http.StatusOK {
+			state, err := p.getState(ctx, "reset")
+			if err != nil {
+				return err
+			}
 
-		if state == "on" {
-			log.Infof("reset is in state on")
+			if state == "on" {
+				toStdout(ctx, &stdout, "reset is in state 'on'")
+			} else {
+				return fmt.Errorf("reset could not set to state 'on'")
+			}
 		} else {
-			return fmt.Errorf("reset switch could not be turned on")
+			return fmt.Errorf("reset could not set to state 'on'")
 		}
 	} else {
-		return fmt.Errorf("reset switch could not be turned on")
+		toStdout(ctx, &stdout, "reset is in state 'on'")
 	}
 
-	log.Infof("successfully powered down dut hard")
+	toStdout(ctx, &stdout, "successfully cut off power from DUT")
+
+	if p.emitStdout {
+		log.Infof("Emitting stdout event")
+		if err := emitEvent(ctx, EventStdout, eventStdoutPayload{Msg: stdout}, target, ev); err != nil {
+			log.Warnf("Failed to emit event: %v", err)
+		}
+	}
 
 	return nil
 }
