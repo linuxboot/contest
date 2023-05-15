@@ -17,6 +17,9 @@ type JobID uint64
 // RunID represents the id of a run within the Job
 type RunID uint64
 
+// JobOwnerID represents a unique owner identifier of a given job
+type JobOwnerID uint64
+
 func (v JobID) String() string {
 	return strconv.FormatUint(uint64(v), 10)
 }
@@ -25,11 +28,16 @@ func (v RunID) String() string {
 	return strconv.FormatUint(uint64(v), 10)
 }
 
+func (v JobOwnerID) String() string {
+	return strconv.FormatUint(uint64(v), 10)
+}
+
 type key string
 
 const (
 	KeyJobID = key("job_id")
 	KeyRunID = key("run_id")
+	KeyJobOwnerID = key("job_owner_id")
 )
 
 // JobIDFromContext is a helper to get the JobID, this is useful
@@ -46,5 +54,13 @@ func JobIDFromContext(ctx xcontext.Context) (JobID, bool) {
 // guaranteed to work in TargetManagers, TestSteps and RunReporters
 func RunIDFromContext(ctx xcontext.Context) (RunID, bool) {
 	v, ok := ctx.Value(KeyRunID).(RunID)
+	return v, ok
+}
+
+// JobOwnerIDFromContext is a helper to get the JobOwnerID.
+// Not all context object everywhere have this set, but this is
+// guaranteed to work in TargetManagers, TestSteps and RunReporters
+func JobOwnerIDFromContext(ctx xcontext.Context) (JobOwnerID, bool) {
+	v, ok := ctx.Value(KeyJobOwnerID).(JobOwnerID)
 	return v, ok
 }
