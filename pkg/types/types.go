@@ -17,7 +17,7 @@ type JobID uint64
 // RunID represents the id of a run within the Job
 type RunID uint64
 
-// JobOwnerID represents a unique owner identifier of a job
+// JobOwnerID represents a unique owner identifier of a given job
 type JobOwnerID uint64
 
 func (v JobID) String() string {
@@ -60,7 +60,7 @@ func RunIDFromContext(ctx xcontext.Context) (RunID, bool) {
 // JobOwnerIDFromContext is a helper to get the JobOwnerID.
 // Not all context object everywhere have this set, but this is
 // guaranteed to work in TargetManagers, TestSteps and RunReporters
-func JobOwnerIDFromContext(ctx xcontext.Context) (RunID, bool) {
+func JobOwnerIDFromContext(ctx xcontext.Context) (JobOwnerID, bool) {
 	v, ok := ctx.Value(KeyJobOwnerID).(JobOwnerID)
 	return v, ok
 }
