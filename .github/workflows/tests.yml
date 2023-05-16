@@ -3,15 +3,53 @@ name: Tests
 on: [push]
 
 jobs:
+  linters:
+    name: linters
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Set up Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: 1.19
+      
+      - name: Setup gitconfig and ssh
+        env:
+          SSH_AUTH_SOCK: /tmp/ssh_agent.sock
+        run: |
+          echo '[url "git@github.com:"]
+            insteadOf = https://github.com/' >> ~/.gitconfig
+          ssh-agent -a $SSH_AUTH_SOCK > /dev/null
+          ssh-add - <<< "${{ secrets.SSH_KEY }}"
+      
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v3
+        with:
+          version: v1.52.2
+      
+      - name: Check if dependencies are up-to-date
+        env:
+          SSH_AUTH_SOCK: /tmp/ssh_agent.sock
+        run: |
+          go mod tidy
+          go mod verify
+          git status
+          if [[ -n "$(git status --porcelain)" ]]; then
+            echo 'go.mod/sum is out-of-date: run `go mod tidy` and then check in the changes'
+            echo 'If `go mod tidy` results in no changes, make sure you are using the latest 1.19 release of Go'
+            exit 1
+          fi
+
+
   test:
     runs-on: ubuntu-20.04
     steps:
       - uses: actions/checkout@v2
+      
       - uses: actions/setup-go@v2
         with:
-          stable: "false"
-          go-version: "1.16.2"
-      - name: Run Linters
-        run: ./run_lint.sh
+          go-version: 1.19
+
       - name: Run Tests
         run: CI=true ./run_tests.sh

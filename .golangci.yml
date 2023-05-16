@@ -1,0 +1,13 @@
+run:
+  timeout: 10m
+linters:
+  enable:
+    - staticcheck
+    - unused
+
+  disable:
+    - typecheck
+
+linters-settings:
+  lll:
+    line-length: 180
