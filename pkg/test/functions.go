@@ -12,6 +12,8 @@ import (
 )
 
 // funcMap is a map between function name and its implementation.
+//
+//nolint:staticcheck
 var funcMap = map[string]interface{}{
 	// some common pre-sets
 	"ToUpper": strings.ToUpper,

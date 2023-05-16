@@ -36,11 +36,6 @@ type postPower struct {
 	Duration string `json:"duration"` // possible values: 0s-20s
 }
 
-// this struct is the response for GET /flash/file
-type getFlashFile struct {
-	Output []byte `json:"output"`
-}
-
 // this struct can be used for GET /vcc /led /reset
 type getState struct {
 	State string `json:"state"` // possible values: "on" or "off"
@@ -51,19 +46,13 @@ var Name = "HWaaS"
 
 const (
 	EventStdout = event.Name("Stdout")
-	EventStderr = event.Name("Stderr")
 )
 
 var Events = []event.Name{
 	EventStdout,
-	EventStderr,
 }
 
 type eventStdoutPayload struct {
-	Msg string
-}
-
-type eventStderrPayload struct {
 	Msg string
 }
 
@@ -134,8 +123,6 @@ func (hws *HWaaS) Run(ctx xcontext.Context, ch test.TestStepChannels, params tes
 				log.Warnf("writing to ctx.Writer failed: %w", err)
 			}
 		}
-
-		return
 	}
 
 	// Validate the parameter

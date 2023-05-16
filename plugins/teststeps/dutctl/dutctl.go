@@ -50,23 +50,6 @@ func (d Dutctl) Name() string {
 	return Name
 }
 
-func emitEvent(ctx xcontext.Context, name event.Name, payload interface{}, tgt *target.Target, ev testevent.Emitter) error {
-	payloadStr, err := json.Marshal(payload)
-	if err != nil {
-		return fmt.Errorf("cannot encode payload for event '%s': %w", name, err)
-	}
-	rm := json.RawMessage(payloadStr)
-	evData := testevent.Data{
-		EventName: name,
-		Target:    tgt,
-		Payload:   &rm,
-	}
-	if err := ev.Emit(ctx, evData); err != nil {
-		return fmt.Errorf("cannot emit event EventURL: %w", err)
-	}
-	return nil
-}
-
 var (
 	Timeout     time.Duration
 	TimeTimeout time.Time
@@ -400,18 +383,18 @@ func serial(ctx xcontext.Context, dutInterface dutctl.DutCtl, expect string, inp
 	}
 	mw.AddWriter(dst)
 
-	go func(ctx xcontext.Context) error {
+	go func(ctx xcontext.Context) {
 		defer func() {
 			iface.Close()
 		}()
 		for {
 			select {
 			case <-ctx.Done():
-				return nil
+				return
 			default:
 				_, err = io.Copy(mw, iface)
 				if err != nil {
-					return fmt.Errorf("Failed to copy serial to stdout: %v", err)
+					log.Infof("Failed to copy data from serial to output: %v", err)
 				}
 			}
 		}

@@ -83,7 +83,7 @@ func (p *Ping) Run(ctx xcontext.Context, ch test.TestStepChannels, params test.T
 		}
 
 		timeTimeout := time.After(timeout)
-		ticker := time.Tick(time.Second)
+		ticker := time.NewTicker(time.Second)
 
 		time.Sleep(time.Second)
 
@@ -91,7 +91,7 @@ func (p *Ping) Run(ctx xcontext.Context, ch test.TestStepChannels, params test.T
 			select {
 			case <-timeTimeout:
 				return fmt.Errorf("timeout, port %s was not opened in time", port)
-			case <-ticker:
+			case <-ticker.C:
 				conn, err := net.Dial("tcp", fmt.Sprintf("%s:%s", host, port))
 				if err != nil {
 					break

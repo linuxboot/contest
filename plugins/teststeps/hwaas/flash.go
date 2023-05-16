@@ -99,7 +99,7 @@ func (p *Parameter) flashWrite(ctx xcontext.Context, arg string, target *target.
 		if targetInfo.State == "error" {
 			return fmt.Errorf("error while flashing DUT: %s", targetInfo.Error)
 		}
-		if time.Now().Sub(timestamp) >= defaultTimeoutParameter {
+		if time.Since(timestamp) >= defaultTimeoutParameter {
 			return fmt.Errorf("flashing DUT failed: timeout")
 		}
 	}
@@ -280,7 +280,11 @@ func flashTarget(ctx xcontext.Context, endpoint string, filePath string) error {
 	if err != nil {
 		return fmt.Errorf("failed to create the form-data header: %v", err)
 	}
-	io.Copy(form, file)
+
+	if _, err := io.Copy(form, file); err != nil {
+		return fmt.Errorf("failed to copy file into form writer: %v", err)
+	}
+
 	writer.Close()
 
 	// create the http request

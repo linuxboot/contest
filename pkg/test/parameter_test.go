@@ -17,10 +17,10 @@ import (
 func TestParameterExpand(t *testing.T) {
 	validExprs := [][4]string{
 		// expression, target FQDN, target ID, expected result
-		[4]string{"{{ ToLower .FQDN }}", "www.slackware.IT", "1234", "www.slackware.it"},
-		[4]string{"{{ .FQDN }}", "www.slackware.IT", "2345", "www.slackware.IT"},
-		[4]string{"{{ .FQDN }}", "www.slackware.it", "3456", "www.slackware.it"},
-		[4]string{"fqdn={{ .FQDN }}, id={{ .ID }}", "blah", "12345", "fqdn=blah, id=12345"},
+		{"{{ ToLower .FQDN }}", "www.slackware.IT", "1234", "www.slackware.it"},
+		{"{{ .FQDN }}", "www.slackware.IT", "2345", "www.slackware.IT"},
+		{"{{ .FQDN }}", "www.slackware.it", "3456", "www.slackware.it"},
+		{"fqdn={{ .FQDN }}, id={{ .ID }}", "blah", "12345", "fqdn=blah, id=12345"},
 	}
 	for _, x := range validExprs {
 		p := NewParam(x[0])
@@ -30,6 +30,7 @@ func TestParameterExpand(t *testing.T) {
 	}
 }
 
+//nolint:staticcheck
 func TestParameterExpandUserFunctions(t *testing.T) {
 	require.Error(t, UnregisterFunction("NoSuchFunction"))
 	customFunc := func(a ...string) (string, error) {
@@ -41,8 +42,8 @@ func TestParameterExpandUserFunctions(t *testing.T) {
 	require.NoError(t, RegisterFunction("CustomFunc", customFunc))
 	validExprs := [][4]string{
 		// expression, target FQDN, target ID, expected result
-		[4]string{"{{ CustomFunc .FQDN }}", "slackware.it", "1234", "Slackware.It"},
-		[4]string{"{{ CustomFunc .ID }}", "slackware.it", "a1234a", "A1234a"},
+		{"{{ CustomFunc .FQDN }}", "slackware.it", "1234", "Slackware.It"},
+		{"{{ CustomFunc .ID }}", "slackware.it", "a1234a", "A1234a"},
 	}
 	for _, x := range validExprs {
 		p := NewParam(x[0])

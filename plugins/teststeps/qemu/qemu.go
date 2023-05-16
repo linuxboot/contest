@@ -99,7 +99,7 @@ func (q *Qemu) validateAndPopulate(ctx xcontext.Context, params test.TestStepPar
 func (q *Qemu) Run(ctx xcontext.Context, ch test.TestStepChannels, params test.TestStepParameters, ev testevent.Emitter, resumeState json.RawMessage) (json.RawMessage, error) {
 	log := ctx.Logger()
 
-	if err := q.ValidateParameters(ctx, params); err != nil {
+	if err := q.validateAndPopulate(ctx, params); err != nil {
 		return nil, err
 	}
 	f := func(ctx xcontext.Context, target *target.Target) error {
@@ -124,7 +124,7 @@ func (q *Qemu) Run(ctx xcontext.Context, ch test.TestStepChannels, params test.T
 		}
 
 		// basic checks whether the executable is usable
-		if abs := filepath.IsAbs(targetQemu); abs == false {
+		if abs := filepath.IsAbs(targetQemu); !abs {
 			_, err := exec.LookPath(targetQemu)
 			if err != nil {
 				return fmt.Errorf("unable to find qemu executable in PATH: %w", err)
