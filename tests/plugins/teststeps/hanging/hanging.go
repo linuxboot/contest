@@ -31,7 +31,7 @@ func (ts *hanging) Name() string {
 // Run executes a step that does not process any targets and never returns.
 func (ts *hanging) Run(
 	ctx xcontext.Context,
-	ch test.TestStepChannels,
+	io test.TestStepInputOutput,
 	ev testevent.Emitter,
 	stepsVars test.StepsVariables,
 	inputParams test.TestStepParameters,

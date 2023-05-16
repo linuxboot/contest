@@ -85,7 +85,7 @@ func emitEvent(ctx xcontext.Context, name event.Name, payload interface{}, tgt *
 // Run executes the awsFileUpload.
 func (ts *FileUpload) Run(
 	ctx xcontext.Context,
-	ch test.TestStepChannels,
+	stepIO test.TestStepInputOutput,
 	ev testevent.Emitter,
 	stepsVars test.StepsVariables,
 	params test.TestStepParameters,
@@ -134,7 +134,7 @@ func (ts *FileUpload) Run(
 		}
 		return nil
 	}
-	return teststeps.ForEachTarget(Name, ctx, ch, f)
+	return teststeps.ForEachTarget(Name, ctx, stepIO, f)
 }
 
 // Retrieve all the parameters defines through the jobDesc

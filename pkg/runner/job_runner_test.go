@@ -58,9 +58,9 @@ func (s *JobRunnerSuite) TestSimpleJobStartFinish() {
 	var resultTargets []*target.Target
 
 	require.NoError(s.T(), s.RegisterStateFullStep(
-		func(ctx xcontext.Context, ch test.TestStepChannels, ev testevent.Emitter,
+		func(ctx xcontext.Context, io test.TestStepInputOutput, ev testevent.Emitter,
 			stepsVars test.StepsVariables, params test.TestStepParameters, resumeState json.RawMessage) (json.RawMessage, error) {
-			return teststeps.ForEachTarget(stateFullStepName, ctx, ch, func(ctx xcontext.Context, target *target.Target) error {
+			return teststeps.ForEachTarget(stateFullStepName, ctx, io, func(ctx xcontext.Context, target *target.Target) error {
 				assert.NotNil(s.T(), target)
 				mu.Lock()
 				defer mu.Unlock()
@@ -125,9 +125,9 @@ func (s *JobRunnerSuite) TestJobWithTestRetry() {
 	var callsCount int
 
 	require.NoError(s.T(), s.RegisterStateFullStep(
-		func(ctx xcontext.Context, ch test.TestStepChannels, ev testevent.Emitter,
+		func(ctx xcontext.Context, io test.TestStepInputOutput, ev testevent.Emitter,
 			stepsVars test.StepsVariables, params test.TestStepParameters, resumeState json.RawMessage) (json.RawMessage, error) {
-			return teststeps.ForEachTarget(stateFullStepName, ctx, ch, func(ctx xcontext.Context, target *target.Target) error {
+			return teststeps.ForEachTarget(stateFullStepName, ctx, io, func(ctx xcontext.Context, target *target.Target) error {
 				assert.NotNil(s.T(), target)
 				mu.Lock()
 				defer mu.Unlock()
@@ -456,7 +456,7 @@ func (s *JobRunnerSuite) TestResumeStateBadJobId() {
 const stateFullStepName = "statefull"
 
 type stateFullStep struct {
-	runFunction func(ctx xcontext.Context, ch test.TestStepChannels, ev testevent.Emitter,
+	runFunction func(ctx xcontext.Context, io test.TestStepInputOutput, ev testevent.Emitter,
 		stepsVars test.StepsVariables, params test.TestStepParameters, resumeState json.RawMessage) (json.RawMessage, error)
 	validateFunction func(ctx xcontext.Context, params test.TestStepParameters) error
 }
@@ -467,7 +467,7 @@ func (sfs *stateFullStep) Name() string {
 
 func (sfs *stateFullStep) Run(
 	ctx xcontext.Context,
-	ch test.TestStepChannels,
+	io test.TestStepInputOutput,
 	ev testevent.Emitter,
 	stepsVars test.StepsVariables,
 	params test.TestStepParameters,
@@ -476,7 +476,7 @@ func (sfs *stateFullStep) Run(
 	if sfs.runFunction == nil {
 		return nil, fmt.Errorf("stateFullStep run is not initialised")
 	}
-	return sfs.runFunction(ctx, ch, ev, stepsVars, params, resumeState)
+	return sfs.runFunction(ctx, io, ev, stepsVars, params, resumeState)
 }
 
 func (sfs *stateFullStep) ValidateParameters(ctx xcontext.Context, params test.TestStepParameters) error {

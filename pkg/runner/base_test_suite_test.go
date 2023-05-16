@@ -73,7 +73,7 @@ func (s *BaseTestSuite) TearDownTest() {
 }
 
 func (s *BaseTestSuite) RegisterStateFullStep(
-	runFunction func(ctx xcontext.Context, ch test.TestStepChannels, ev testevent.Emitter,
+	runFunction func(ctx xcontext.Context, io test.TestStepInputOutput, ev testevent.Emitter,
 		stepsVars test.StepsVariables, params test.TestStepParameters,
 		resumeState json.RawMessage) (json.RawMessage, error),
 	validateFunction func(ctx xcontext.Context, params test.TestStepParameters) error) error {

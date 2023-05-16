@@ -96,39 +96,42 @@ func truncate(in string, maxsize uint) string {
 	return in[:size]
 }
 
-func (ts *GatherCmd) acquireTargets(ctx xcontext.Context, ch test.TestStepChannels) ([]*target.Target, error) {
-	var targets []*target.Target
+func (ts *GatherCmd) acquireTargets(ctx xcontext.Context, stepIO test.TestStepInputOutput) ([]target.Target, error) {
+	ctx, cancel := xcontext.WithCancel(ctx, xcontext.ErrPaused)
+	defer cancel()
 
-	for {
+	go func() {
 		select {
-		case target, ok := <-ch.In:
-			if !ok {
-				ctx.Debugf("acquired %d targets", len(targets))
-				return targets, nil
-			}
-			targets = append(targets, target)
-
 		case <-ctx.Until(xcontext.ErrPaused):
-			ctx.Debugf("paused during target acquisition, acquired %d", len(targets))
-			return nil, xcontext.ErrPaused
-
+			cancel()
 		case <-ctx.Done():
-			ctx.Debugf("canceled during target acquisition, acquired %d", len(targets))
-			return nil, ctx.Err()
 		}
+	}()
+
+	var targets []target.Target
+	for {
+		tgt, err := stepIO.Get(ctx)
+		if err != nil {
+			return nil, err
+		}
+		if tgt == nil {
+			ctx.Debugf("acquired %d targets", len(targets))
+			return targets, nil
+		}
+		targets = append(targets, *tgt)
 	}
 }
 
-func (ts *GatherCmd) returnTargets(ctx xcontext.Context, ch test.TestStepChannels, targets []*target.Target) {
+func (ts *GatherCmd) returnTargets(ctx xcontext.Context, stepIO test.TestStepInputOutput, targets []target.Target) {
 	for _, target := range targets {
-		ch.Out <- test.TestStepResult{Target: target}
+		stepIO.Report(ctx, target, nil)
 	}
 }
 
 // Run executes the step
 func (ts *GatherCmd) Run(
 	ctx xcontext.Context,
-	ch test.TestStepChannels,
+	stepIO test.TestStepInputOutput,
 	emitter testevent.Emitter,
 	stepsVars test.StepsVariables,
 	params test.TestStepParameters,
@@ -141,11 +144,11 @@ func (ts *GatherCmd) Run(
 	}
 
 	// acquire all targets and hold them hostage until the cmd is done
-	targets, err := ts.acquireTargets(ctx, ch)
+	targets, err := ts.acquireTargets(ctx, stepIO)
 	if err != nil {
 		return nil, err
 	}
-	defer ts.returnTargets(ctx, ch, targets)
+	defer ts.returnTargets(ctx, stepIO, targets)
 
 	if len(targets) == 0 {
 		return nil, nil
@@ -154,7 +157,7 @@ func (ts *GatherCmd) Run(
 	// arbitrarily choose first target to associate events with, anyone would work
 	// but it is unnecessary to have the same event on all targets since this is a
 	// "gather" type plugin
-	eventTarget := targets[0]
+	eventTarget := &targets[0]
 
 	// used to manually cancel the exec if step becomes paused
 	ctx, cancel := xcontext.WithCancel(ctx)

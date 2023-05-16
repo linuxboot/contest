@@ -24,7 +24,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-
 	"regexp"
 	"strconv"
 	"time"
@@ -72,7 +71,7 @@ func (ts CPUCmd) Name() string {
 // Run executes the cmd step.
 func (ts *CPUCmd) Run(
 	ctx xcontext.Context,
-	ch test.TestStepChannels,
+	stepIO test.TestStepInputOutput,
 	ev testevent.Emitter,
 	stepsVars test.StepsVariables,
 	params test.TestStepParameters,
@@ -260,7 +259,7 @@ func (ts *CPUCmd) Run(
 			}
 		}
 	}
-	return teststeps.ForEachTarget(Name, ctx, ch, f)
+	return teststeps.ForEachTarget(Name, ctx, stepIO, f)
 }
 
 func (ts *CPUCmd) validateAndPopulate(params test.TestStepParameters) error {

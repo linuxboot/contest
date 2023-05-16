@@ -8,7 +8,6 @@ package badtargets
 import (
 	"encoding/json"
 	"fmt"
-
 	"github.com/linuxboot/contest/pkg/event"
 	"github.com/linuxboot/contest/pkg/event/testevent"
 	"github.com/linuxboot/contest/pkg/target"
@@ -33,65 +32,49 @@ func (ts *badTargets) Name() string {
 // Run executes a step that messes up the flow of targets.
 func (ts *badTargets) Run(
 	ctx xcontext.Context,
-	ch test.TestStepChannels,
+	io test.TestStepInputOutput,
 	ev testevent.Emitter,
 	stepsVars test.StepsVariables,
 	inputParams test.TestStepParameters,
 	resumeState json.RawMessage,
 ) (json.RawMessage, error) {
 	for {
-		select {
-		case tgt, ok := <-ch.In:
-			if !ok {
-				return nil, nil
+		tgt, err := io.Get(ctx)
+		if err != nil {
+			return nil, err
+		}
+		if tgt == nil {
+			return nil, nil
+		}
+
+		switch tgt.ID {
+		case "TDrop":
+			// ... crickets ...
+		case "TGood":
+			if err := io.Report(ctx, *tgt, nil); err != nil {
+				return nil, err
 			}
-			switch tgt.ID {
-			case "TDrop":
-				// ... crickets ...
-			case "TGood":
-				// We should not depend on pointer matching, so emit a copy.
-				tgt2 := *tgt
-				select {
-				case ch.Out <- test.TestStepResult{Target: &tgt2}:
-				case <-ctx.Done():
-					return nil, xcontext.ErrCanceled
-				}
-			case "TDup":
-				select {
-				case ch.Out <- test.TestStepResult{Target: tgt}:
-				case <-ctx.Done():
-					return nil, xcontext.ErrCanceled
-				}
-				select {
-				case ch.Out <- test.TestStepResult{Target: tgt}:
-				case <-ctx.Done():
-					return nil, xcontext.ErrCanceled
-				}
-			case "TExtra":
-				tgt2 := &target.Target{ID: "TExtra2"}
-				select {
-				case ch.Out <- test.TestStepResult{Target: tgt}:
-				case <-ctx.Done():
-					return nil, xcontext.ErrCanceled
-				}
-				select {
-				case ch.Out <- test.TestStepResult{Target: tgt2}:
-				case <-ctx.Done():
-					return nil, xcontext.ErrCanceled
-				}
-			case "T1":
-				// Mangle the returned target name.
-				tgt2 := &target.Target{ID: tgt.ID + "XXX"}
-				select {
-				case ch.Out <- test.TestStepResult{Target: tgt2}:
-				case <-ctx.Done():
-					return nil, xcontext.ErrCanceled
-				}
-			default:
-				return nil, fmt.Errorf("Unexpected target name: %q", tgt.ID)
+		case "TDup":
+			if err := io.Report(ctx, *tgt, nil); err != nil {
+				return nil, err
 			}
-		case <-ctx.Done():
-			return nil, xcontext.ErrCanceled
+			if err := io.Report(ctx, *tgt, nil); err != nil {
+				return nil, err
+			}
+		case "TExtra":
+			if err := io.Report(ctx, *tgt, nil); err != nil {
+				return nil, err
+			}
+			if err := io.Report(ctx, target.Target{ID: "TExtra2"}, nil); err != nil {
+				return nil, err
+			}
+		case "T1":
+			// Mangle the returned target name.
+			if err := io.Report(ctx, target.Target{ID: tgt.ID + "XXX"}, nil); err != nil {
+				return nil, err
+			}
+		default:
+			return nil, fmt.Errorf("unexpected target name: %q", tgt.ID)
 		}
 	}
 }

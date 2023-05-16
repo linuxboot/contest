@@ -46,7 +46,7 @@ func (ts *WaitPort) Name() string {
 // Run executes the cmd step.
 func (ts *WaitPort) Run(
 	ctx xcontext.Context,
-	ch test.TestStepChannels,
+	stepIO test.TestStepInputOutput,
 	ev testevent.Emitter,
 	stepsVars test.StepsVariables,
 	inputParams test.TestStepParameters,
@@ -141,7 +141,7 @@ func (ts *WaitPort) Run(
 		ctx.Infof("wait port plugin finished, err: '%v'", resultErr)
 		return resultErr
 	}
-	return teststeps.ForEachTargetWithResume(ctx, ch, resumeState, 0, f)
+	return teststeps.ForEachTargetWithResume(ctx, stepIO, resumeState, 0, f)
 }
 
 // ValidateParameters validates the parameters associated to the TestStep

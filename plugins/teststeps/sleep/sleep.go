@@ -70,7 +70,7 @@ type sleepStepData struct {
 // Run executes the step
 func (ss *sleepStep) Run(
 	ctx xcontext.Context,
-	ch test.TestStepChannels,
+	stepIO test.TestStepInputOutput,
 	ev testevent.Emitter,
 	stepsVars test.StepsVariables,
 	params test.TestStepParameters,
@@ -119,5 +119,5 @@ func (ss *sleepStep) Run(
 		return nil
 	}
 
-	return teststeps.ForEachTargetWithResume(ctx, ch, resumeState, 1, fn)
+	return teststeps.ForEachTargetWithResume(ctx, stepIO, resumeState, 1, fn)
 }
