@@ -56,6 +56,7 @@ func newReportingBundles(registry *pluginregistry.PluginRegistry, jobDescriptor 
 	return runReporterBundles, finalReporterBundles, nil
 }
 
+// newBundlesFromSteps creates bundles for the test
 func newBundlesFromSteps(ctx xcontext.Context, descriptors []*test.TestStepDescriptor, registry *pluginregistry.PluginRegistry) ([]test.TestStepBundle, error) {
 
 	// look up test step plugins in the plugin registry
@@ -83,22 +84,24 @@ func newBundlesFromSteps(ctx xcontext.Context, descriptors []*test.TestStepDescr
 
 }
 
-// newStepBundles creates bundles for the test
-func newStepBundles(ctx xcontext.Context, descriptors []*test.TestStepDescriptor, registry *pluginregistry.PluginRegistry) ([]test.TestStepBundle, error) {
-
-	testStepBundles, err := newBundlesFromSteps(ctx, descriptors, registry)
-	if err != nil {
-		return nil, fmt.Errorf("could not create test steps bundle: %w", err)
-	}
-
-	// verify that there are not duplicated labels
+func validateNoDuplicateLables(testStepBundles []test.TestStepBundle, cleanupStepBundles []test.TestStepBundle) error {
+	// verify that there are not duplicated labels across all test and cleanup steps.
+	// This is required later in the execution stage.
 	labels := make(map[string]bool)
 	for _, bundle := range testStepBundles {
 		if _, ok := labels[bundle.TestStepLabel]; ok {
-			return nil, fmt.Errorf("found duplicated labels: %s", bundle.TestStepLabel)
+			return fmt.Errorf("found duplicated labels across test steps: %s", bundle.TestStepLabel)
 		}
 		labels[bundle.TestStepLabel] = true
 	}
+
+	for _, bundle := range cleanupStepBundles {
+		if _, ok := labels[bundle.TestStepLabel]; ok {
+			return fmt.Errorf("found duplicated labels across cleanup steps: %s", bundle.TestStepLabel)
+		}
+		labels[bundle.TestStepLabel] = true
+	}
+
 	// TODO: verify that test variables refer to existing steps
-	return testStepBundles, nil
+	return nil
 }

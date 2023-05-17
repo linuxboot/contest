@@ -113,7 +113,7 @@ func buildTestsFromDescriptors(
 			return nil, err
 		}
 
-		bundleTest, err := newStepBundles(ctx, thisTestStepsDescriptors.TestSteps, registry)
+		bundleTest, err := newBundlesFromSteps(ctx, thisTestStepsDescriptors.TestSteps, registry)
 		if err != nil {
 			return nil, fmt.Errorf("could not create test steps bundles: %w", err)
 		}
@@ -127,7 +127,7 @@ func buildTestsFromDescriptors(
 			cleanupName   string
 		)
 		if len(thisTestStepsDescriptors.CleanupSteps) > 0 {
-			bundleCleanup, err = newStepBundles(ctx, thisTestStepsDescriptors.CleanupSteps, registry)
+			bundleCleanup, err = newBundlesFromSteps(ctx, thisTestStepsDescriptors.CleanupSteps, registry)
 			if err != nil {
 				return nil, fmt.Errorf("could not create cleanup test steps bundles: %w", err)
 			}
@@ -135,6 +135,9 @@ func buildTestsFromDescriptors(
 			if err := limits.NewValidator().ValidateTestName(cleanupName); err != nil {
 				return nil, err
 			}
+		}
+		if err := validateNoDuplicateLables(bundleTest, bundleCleanup); err != nil {
+			return nil, err
 		}
 		if td.Disabled {
 			continue
