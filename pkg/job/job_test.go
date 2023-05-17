@@ -32,7 +32,7 @@ func TestEmptyVersion(t *testing.T) {
 	require.EqualError(
 		t,
 		emptyVersionJD.CheckVersion(),
-		"Version Error: Empty Job Descriptor Version Field!",
+		"version Error: Empty Job Descriptor Version Field",
 	)
 }
 
@@ -41,12 +41,12 @@ func TestIncompatibleVersions(t *testing.T) {
 
 	cases = append(cases, Case{
 		fmt.Sprintf("%d.%d", JobDescriptorMajorVersion, JobDescriptorMinorVersion+1),
-		"Version Error: The Job Descriptor Version %s is not compatible with the server: %s",
+		"version Error: The Job Descriptor Version %s is not compatible with the server: %s",
 	})
 
 	cases = append(cases, Case{
 		fmt.Sprintf("%d.%d", JobDescriptorMajorVersion+1, JobDescriptorMinorVersion),
-		"Version Error: The Job Descriptor Version %s is not compatible with the server: %s",
+		"version Error: The Job Descriptor Version %s is not compatible with the server: %s",
 	})
 
 	for _, c := range cases {
@@ -61,13 +61,13 @@ func TestIncompatibleVersions(t *testing.T) {
 
 func TestInvalidVersion(t *testing.T) {
 	cases := []Case{
-		{"1.", "Version Error: strconv.Atoi: parsing \"\": invalid syntax"},
-		{".0", "Version Error: strconv.Atoi: parsing \"\": invalid syntax"},
-		{".", "Version Error: strconv.Atoi: parsing \"\": invalid syntax"},
-		{"1.a", "Version Error: strconv.Atoi: parsing \"a\": invalid syntax"},
-		{"a.0", "Version Error: strconv.Atoi: parsing \"a\": invalid syntax"},
-		{"123", "Version Error: Incorrect Job Descriptor Version 123"},
-		{"abc", "Version Error: Incorrect Job Descriptor Version abc"},
+		{"1.", "version Error: strconv.Atoi: parsing \"\": invalid syntax"},
+		{".0", "version Error: strconv.Atoi: parsing \"\": invalid syntax"},
+		{".", "version Error: strconv.Atoi: parsing \"\": invalid syntax"},
+		{"1.a", "version Error: strconv.Atoi: parsing \"a\": invalid syntax"},
+		{"a.0", "version Error: strconv.Atoi: parsing \"a\": invalid syntax"},
+		{"123", "version Error: Incorrect Job Descriptor Version 123"},
+		{"abc", "version Error: Incorrect Job Descriptor Version abc"},
 	}
 
 	for _, c := range cases {

@@ -66,20 +66,20 @@ func (d *Descriptor) Validate() error {
 // version against the supported one
 func (d *Descriptor) CheckVersion() error {
 	if d.Version == "" {
-		return fmt.Errorf("Version Error: Empty Job Descriptor Version Field!")
+		return fmt.Errorf("version Error: Empty Job Descriptor Version Field")
 	}
 	// Convert the version string into 2 numbers
 	versionNums := strings.Split(d.Version, ".")
 	if len(versionNums) != 2 {
-		return fmt.Errorf("Version Error: Incorrect Job Descriptor Version %v", d.Version)
+		return fmt.Errorf("version Error: Incorrect Job Descriptor Version %v", d.Version)
 	}
 	majorVersion, err := strconv.Atoi(versionNums[0])
 	if err != nil {
-		return fmt.Errorf("Version Error: %w", err)
+		return fmt.Errorf("version Error: %w", err)
 	}
 	minorVersion, err := strconv.Atoi(versionNums[1])
 	if err != nil {
-		return fmt.Errorf("Version Error: %w", err)
+		return fmt.Errorf("version Error: %w", err)
 	}
 
 	// checks the major, minor numbers against the supported version
@@ -87,7 +87,7 @@ func (d *Descriptor) CheckVersion() error {
 	// , return an error msg
 	if majorVersion != int(JobDescriptorMajorVersion) || minorVersion > int(JobDescriptorMinorVersion) {
 		return fmt.Errorf(
-			"Version Error: The Job Descriptor Version %s is not compatible with the server: %d.%d",
+			"version Error: The Job Descriptor Version %s is not compatible with the server: %d.%d",
 			d.Version,
 			JobDescriptorMajorVersion,
 			JobDescriptorMinorVersion,
