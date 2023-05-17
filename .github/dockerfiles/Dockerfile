@@ -12,7 +12,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 # Install packages
 RUN apt-get install -y git curl tzdata\ 
 	bison build-essential curl flex git gnat\
-	libncurses5-dev m4 zlib1g-dev bc libelf-dev qemu-system
+	libncurses5-dev m4 zlib1g-dev bc libelf-dev
 
 RUN dpkg-reconfigure --frontend noninteractive tzdata
 
@@ -37,6 +37,9 @@ RUN --mount=type=ssh go build ./cmds/contest
 FROM ubuntu:22.04
 
 COPY --from=builder /root/contest/contest /usr/local/bin/contest
+
+RUN apt-get update
+RUN apt-get install -y qemu-system
 
 # Start everything
 CMD contest -dbURI=""
