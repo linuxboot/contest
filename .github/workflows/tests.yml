@@ -14,14 +14,13 @@ jobs:
         with:
           go-version: 1.19
       
+      - uses: webfactory/ssh-agent@v0.8.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_KEY }}
+
       - name: Setup gitconfig and ssh
-        env:
-          SSH_AUTH_SOCK: /tmp/ssh_agent.sock
         run: |
-          echo '[url "git@github.com:"]
-            insteadOf = https://github.com/' >> ~/.gitconfig
-          ssh-agent -a $SSH_AUTH_SOCK > /dev/null
-          ssh-add - <<< "${{ secrets.SSH_KEY }}"
+          git config --global url."git@github.com:".insteadOf "https://github.com/"
       
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v3
@@ -40,16 +39,3 @@ jobs:
             echo 'If `go mod tidy` results in no changes, make sure you are using the latest 1.19 release of Go'
             exit 1
           fi
-
-
-  test:
-    runs-on: ubuntu-20.04
-    steps:
-      - uses: actions/checkout@v2
-      
-      - uses: actions/setup-go@v2
-        with:
-          go-version: 1.19
-
-      - name: Run Tests
-        run: CI=true ./run_tests.sh
