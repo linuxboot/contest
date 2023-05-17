@@ -26,6 +26,8 @@ type Test struct {
 	TargetManagerBundle *target.TargetManagerBundle
 	TestFetcherBundle   *TestFetcherBundle
 	RetryParameters     RetryParameters
+	CleanupName         string
+	CleanupStepsBundles []TestStepBundle
 }
 
 // TestDescriptor models the JSON encoded blob which is given as input to the
@@ -45,6 +47,10 @@ type TestDescriptor struct {
 	// TestFetcher-related parameters
 	TestFetcherName            string
 	TestFetcherFetchParameters json.RawMessage
+
+	// Cleanup steps parameters
+	CleanupFetcherName            string
+	CleanupFetcherFetchParameters json.RawMessage
 }
 
 // Validate performs sanity checks on the Descriptor

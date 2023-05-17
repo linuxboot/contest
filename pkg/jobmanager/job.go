@@ -113,13 +113,28 @@ func buildTestsFromDescriptors(
 			return nil, err
 		}
 
-		bundleTest, err := newStepBundles(ctx, thisTestStepsDescriptors, registry)
+		bundleTest, err := newStepBundles(ctx, thisTestStepsDescriptors.TestSteps, registry)
 		if err != nil {
-			return nil, fmt.Errorf("could not create step bundles: %w", err)
+			return nil, fmt.Errorf("could not create test steps bundles: %w", err)
 		}
 		testName := thisTestStepsDescriptors.TestName
 		if err := limits.NewValidator().ValidateTestName(testName); err != nil {
 			return nil, err
+		}
+
+		var (
+			bundleCleanup []test.TestStepBundle
+			cleanupName   string
+		)
+		if len(thisTestStepsDescriptors.CleanupSteps) > 0 {
+			bundleCleanup, err = newStepBundles(ctx, thisTestStepsDescriptors.CleanupSteps, registry)
+			if err != nil {
+				return nil, fmt.Errorf("could not create cleanup test steps bundles: %w", err)
+			}
+			cleanupName = thisTestStepsDescriptors.CleanupName
+			if err := limits.NewValidator().ValidateTestName(cleanupName); err != nil {
+				return nil, err
+			}
 		}
 		if td.Disabled {
 			continue
@@ -130,6 +145,8 @@ func buildTestsFromDescriptors(
 			TestFetcherBundle:   bundleTestFetcher,
 			TestStepsBundles:    bundleTest,
 			RetryParameters:     td.RetryParameters,
+			CleanupName:         cleanupName,
+			CleanupStepsBundles: bundleCleanup,
 		}
 		tests = append(tests, &test)
 	}

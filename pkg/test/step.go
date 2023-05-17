@@ -72,8 +72,10 @@ type TestStepLoader func() (string, TestStepFactory, []event.Name)
 // TestStepsDescriptors bundles together description of the test step
 // which constitute each test
 type TestStepsDescriptors struct {
-	TestName  string
-	TestSteps []*TestStepDescriptor
+	TestName     string
+	TestSteps    []*TestStepDescriptor
+	CleanupName  string
+	CleanupSteps []*TestStepDescriptor
 }
 
 // TestStepDescriptor is the definition of a test step matching a test step

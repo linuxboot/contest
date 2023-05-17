@@ -84,9 +84,9 @@ func newBundlesFromSteps(ctx xcontext.Context, descriptors []*test.TestStepDescr
 }
 
 // newStepBundles creates bundles for the test
-func newStepBundles(ctx xcontext.Context, descriptors test.TestStepsDescriptors, registry *pluginregistry.PluginRegistry) ([]test.TestStepBundle, error) {
+func newStepBundles(ctx xcontext.Context, descriptors []*test.TestStepDescriptor, registry *pluginregistry.PluginRegistry) ([]test.TestStepBundle, error) {
 
-	testStepBundles, err := newBundlesFromSteps(ctx, descriptors.TestSteps, registry)
+	testStepBundles, err := newBundlesFromSteps(ctx, descriptors, registry)
 	if err != nil {
 		return nil, fmt.Errorf("could not create test steps bundle: %w", err)
 	}

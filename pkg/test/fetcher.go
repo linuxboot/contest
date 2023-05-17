@@ -25,8 +25,12 @@ type TestFetcher interface {
 }
 
 // TestFetcherBundle bundles the selected TestFetcher together with its acquire
-// and release parameters based on the content of the job descriptor
+// and release parameters based on the content of the job descriptor.
+// The bundle contains also the selected TestFetcher for the cleanup steps, together
+// with its parameters.
 type TestFetcherBundle struct {
-	TestFetcher     TestFetcher
-	FetchParameters interface{}
+	TestFetcher       TestFetcher
+	FetchParameters   interface{}
+	CleanupFetcher    TestFetcher
+	CleanupParameters interface{}
 }
