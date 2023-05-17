@@ -28,6 +28,9 @@ import (
 	uri "github.com/linuxboot/contest/plugins/testfetchers/uri"
 
 	// the teststep plugins
+	bios_certificate "github.com/linuxboot/contest/plugins/teststeps/bios_certificate"
+	bios_setting_get "github.com/linuxboot/contest/plugins/teststeps/bios_settings_get"
+	bios_setting_set "github.com/linuxboot/contest/plugins/teststeps/bios_settings_set"
 	ts_cmd "github.com/linuxboot/contest/plugins/teststeps/cmd"
 	cpucmd "github.com/linuxboot/contest/plugins/teststeps/cpucmd"
 	dutctl "github.com/linuxboot/contest/plugins/teststeps/dutctl"
@@ -60,6 +63,9 @@ func getPluginConfig() *server.PluginConfig {
 	pc.TestStepLoaders = append(pc.TestStepLoaders, sleep.Load)
 	pc.TestStepLoaders = append(pc.TestStepLoaders, sshcmd.Load)
 	pc.TestStepLoaders = append(pc.TestStepLoaders, sshcopy.Load)
+	pc.TestStepLoaders = append(pc.TestStepLoaders, bios_setting_set.Load)
+	pc.TestStepLoaders = append(pc.TestStepLoaders, bios_setting_get.Load)
+	pc.TestStepLoaders = append(pc.TestStepLoaders, bios_certificate.Load)
 	pc.TestStepLoaders = append(pc.TestStepLoaders, ping.Load)
 	pc.TestStepLoaders = append(pc.TestStepLoaders, dutctl.Load)
 	pc.TestStepLoaders = append(pc.TestStepLoaders, hwaas.Load)
