@@ -44,16 +44,61 @@ func newJob(ctx xcontext.Context, registry *pluginregistry.PluginRegistry, jobDe
 		return nil, fmt.Errorf("error while building reporters bundles: %w", err)
 	}
 
-	tests := make([]*test.Test, 0, len(jobDescriptor.TestDescriptors))
 	stepsDescriptors, err := resolver.GetStepsDescriptors(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("could not get steps descriptors: %w", err)
 	}
 	if len(stepsDescriptors) != len(jobDescriptor.TestDescriptors) {
-		return nil, fmt.Errorf("length of steps descriptor must match lenght of test descriptors")
+		return nil, fmt.Errorf("length of steps descriptors must match lenght of test descriptors")
 	}
 
-	for index, td := range jobDescriptor.TestDescriptors {
+	tests, err := buildTestsFromDescriptors(ctx, registry, jobDescriptor.TestDescriptors, stepsDescriptors)
+	if err != nil {
+		return nil, fmt.Errorf("could not build test steps: %w", err)
+	}
+
+	extendedDescriptor := job.ExtendedDescriptor{
+		Descriptor:           *jobDescriptor,
+		TestStepsDescriptors: stepsDescriptors,
+	}
+
+	var targetManagerAcquireTimeout = pkg_config.TargetManagerAcquireTimeout
+	if jobDescriptor.TargetManagerAcquireTimeout != nil {
+		targetManagerAcquireTimeout = time.Duration(*jobDescriptor.TargetManagerAcquireTimeout)
+	}
+
+	var targetManagerReleaseTimeout = pkg_config.TargetManagerReleaseTimeout
+	if jobDescriptor.TargetManagerReleaseTimeout != nil {
+		targetManagerReleaseTimeout = time.Duration(*jobDescriptor.TargetManagerReleaseTimeout)
+	}
+
+	// The ID of the job object defaults to zero, and it's populated as soon as the job
+	// is persisted in storage.
+	job := job.Job{
+		ExtendedDescriptor:          &extendedDescriptor,
+		Name:                        jobDescriptor.JobName,
+		Tags:                        jobDescriptor.Tags,
+		Runs:                        jobDescriptor.Runs,
+		RunInterval:                 time.Duration(jobDescriptor.RunInterval),
+		TargetManagerAcquireTimeout: targetManagerAcquireTimeout,
+		TargetManagerReleaseTimeout: targetManagerReleaseTimeout,
+		Tests:                       tests,
+		RunReporterBundles:          runReportersBundle,
+		FinalReporterBundles:        finalReportersBundle,
+	}
+
+	return &job, nil
+}
+
+func buildTestsFromDescriptors(
+	ctx xcontext.Context,
+	registry *pluginregistry.PluginRegistry,
+	testDescriptors []*test.TestDescriptor,
+	stepsDescriptors []test.TestStepsDescriptors) ([]*test.Test, error) {
+
+	tests := make([]*test.Test, 0, len(testDescriptors))
+
+	for index, td := range testDescriptors {
 		thisTestStepsDescriptors := stepsDescriptors[index]
 
 		if err := td.Validate(); err != nil {
@@ -89,37 +134,7 @@ func newJob(ctx xcontext.Context, registry *pluginregistry.PluginRegistry, jobDe
 		tests = append(tests, &test)
 	}
 
-	extendedDescriptor := job.ExtendedDescriptor{
-		Descriptor:           *jobDescriptor,
-		TestStepsDescriptors: stepsDescriptors,
-	}
-
-	var targetManagerAcquireTimeout = pkg_config.TargetManagerAcquireTimeout
-	if jobDescriptor.TargetManagerAcquireTimeout != nil {
-		targetManagerAcquireTimeout = time.Duration(*jobDescriptor.TargetManagerAcquireTimeout)
-	}
-
-	var targetManagerReleaseTimeout = pkg_config.TargetManagerReleaseTimeout
-	if jobDescriptor.TargetManagerReleaseTimeout != nil {
-		targetManagerReleaseTimeout = time.Duration(*jobDescriptor.TargetManagerReleaseTimeout)
-	}
-
-	// The ID of the job object defaults to zero, and it's populated as soon as the job
-	// is persisted in storage.
-	job := job.Job{
-		ExtendedDescriptor:          &extendedDescriptor,
-		Name:                        jobDescriptor.JobName,
-		Tags:                        jobDescriptor.Tags,
-		Runs:                        jobDescriptor.Runs,
-		RunInterval:                 time.Duration(jobDescriptor.RunInterval),
-		TargetManagerAcquireTimeout: targetManagerAcquireTimeout,
-		TargetManagerReleaseTimeout: targetManagerReleaseTimeout,
-		Tests:                       tests,
-		RunReporterBundles:          runReportersBundle,
-		FinalReporterBundles:        finalReportersBundle,
-	}
-
-	return &job, nil
+	return tests, nil
 }
 
 // NewJobFromDescriptor creates a job object from a job descriptor
