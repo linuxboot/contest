@@ -1,9 +1,4 @@
-// Copyright (c) Facebook, Inc. and its affiliates.
-//
-// This source code is licensed under the MIT license found in the
-// LICENSE file in the root directory of this source tree.
-
-package transport_old
+package transport
 
 import (
 	"encoding/json"
@@ -14,20 +9,6 @@ import (
 	"github.com/linuxboot/contest/pkg/xcontext"
 )
 
-type Transport interface {
-	NewProcess(ctx xcontext.Context, bin string, args []string) (Process, error)
-}
-
-// ExitError is returned by Process.Wait when the controlled process exited with
-// a non-zero exit code (depending on transport)
-type ExitError struct {
-	ExitCode int
-}
-
-func (e *ExitError) Error() string {
-	return fmt.Sprintf("process exited with non-zero code: %d", e.ExitCode)
-}
-
 type Process interface {
 	Start(ctx xcontext.Context) error
 	Wait(ctx xcontext.Context) error
@@ -36,6 +17,10 @@ type Process interface {
 	StderrPipe() (io.Reader, error)
 
 	String() string
+}
+
+type Transport interface {
+	NewProcess(ctx xcontext.Context, bin string, args []string) (Process, error)
 }
 
 func NewTransport(proto string, configSource json.RawMessage, expander *test.ParamExpander) (Transport, error) {
@@ -59,4 +44,14 @@ func NewTransport(proto string, configSource json.RawMessage, expander *test.Par
 	default:
 		return nil, fmt.Errorf("no such transport: %v", proto)
 	}
+}
+
+// ExitError is returned by Process.Wait when the controlled process exited with
+// a non-zero exit code (depending on transport)
+type ExitError struct {
+	ExitCode int
+}
+
+func (e *ExitError) Error() string {
+	return fmt.Sprintf("process exited with non-zero code: %d", e.ExitCode)
 }

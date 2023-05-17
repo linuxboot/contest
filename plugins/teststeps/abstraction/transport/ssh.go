@@ -1,21 +1,99 @@
-// Copyright (c) Facebook, Inc. and its affiliates.
-//
-// This source code is licensed under the MIT license found in the
-// LICENSE file in the root directory of this source tree.
-
-package transport_old
+package transport
 
 import (
 	"bytes"
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
+	"net"
+	"strconv"
 	"time"
 
+	"github.com/insomniacslk/xjson"
 	"github.com/kballard/go-shellquote"
 	"github.com/linuxboot/contest/pkg/xcontext"
 	"golang.org/x/crypto/ssh"
 )
+
+type SSHTransportConfig struct {
+	Host string `json:"host,omitempty"`
+	Port int    `json:"port,omitempty"`
+
+	User         string `json:"user,omitempty"`
+	Password     string `json:"password,omitempty"`
+	IdentityFile string `json:"identity_file,omitempty"`
+
+	Timeout xjson.Duration `json:"timeout,omitempty"`
+}
+
+func DefaultSSHTransportConfig() SSHTransportConfig {
+	return SSHTransportConfig{
+		Port:    22,
+		Timeout: xjson.Duration(10 * time.Minute),
+	}
+}
+
+type SSHTransport struct {
+	SSHTransportConfig
+}
+
+func NewSSHTransport(config SSHTransportConfig) Transport {
+	return &SSHTransport{config}
+}
+
+func (st *SSHTransport) NewProcess(ctx xcontext.Context, bin string, args []string) (Process, error) {
+	var signer ssh.Signer
+	if st.IdentityFile != "" {
+		key, err := ioutil.ReadFile(st.IdentityFile)
+		if err != nil {
+			return nil, fmt.Errorf("cannot read private key at %s: %v", st.IdentityFile, err)
+		}
+		signer, err = ssh.ParsePrivateKey(key)
+		if err != nil {
+			return nil, fmt.Errorf("cannot parse private key: %v", err)
+		}
+	}
+
+	auth := []ssh.AuthMethod{}
+	if signer != nil {
+		auth = append(auth, ssh.PublicKeys(signer))
+	}
+	if st.Password != "" {
+		auth = append(auth, ssh.Password(st.Password))
+	}
+
+	addr := net.JoinHostPort(st.Host, strconv.Itoa(st.Port))
+	clientConfig := &ssh.ClientConfig{
+		User: st.User,
+		Auth: auth,
+		// TODO expose this in the plugin arguments
+		//HostKeyCallback: ssh.FixedHostKey(hostKey),
+		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		Timeout:         time.Duration(st.Timeout),
+	}
+
+	// stack mechanism similar to defer, but run after the exec process ends
+	stack := newDeferedStack()
+
+	client, err := ssh.Dial("tcp", addr, clientConfig)
+	if err != nil {
+		return nil, fmt.Errorf("cannot connect to SSH server %s: %v", addr, err)
+	}
+
+	// cleanup the ssh client after the operations have ended
+	stack.Add(func() {
+		if err := client.Close(); err != nil {
+			ctx.Warnf("failed to close SSH client: %v", err)
+		}
+	})
+
+	return st.new(ctx, client, bin, args, stack)
+}
+
+func (st *SSHTransport) new(ctx xcontext.Context, client *ssh.Client, bin string, args []string, stack *deferedStack) (Process, error) {
+	return newSSHProcess(ctx, client, bin, args, stack)
+}
 
 type sshProcess struct {
 	session       *ssh.Session
@@ -52,8 +130,9 @@ func newSSHProcessWithStdin(
 
 func (sp *sshProcess) Start(ctx xcontext.Context) error {
 	ctx.Debugf("starting remote binary: %s", sp.cmd)
+
 	if err := sp.session.Start(sp.cmd); err != nil {
-		return fmt.Errorf("failed to start process: %w", err)
+		return fmt.Errorf("failed to start process: %v", err)
 	}
 
 	go func() {
@@ -65,7 +144,7 @@ func (sp *sshProcess) Start(ctx xcontext.Context) error {
 			case <-time.After(5 * time.Second):
 				ctx.Debugf("sending sigcont to ssh server...")
 				if err := sp.session.Signal(ssh.Signal("CONT")); err != nil {
-					ctx.Warnf("failed to send CONT to ssh server: %w", err)
+					ctx.Warnf("failed to send CONT to ssh server: %v", err)
 				}
 
 			case <-ctx.Done():
@@ -75,7 +154,7 @@ func (sp *sshProcess) Start(ctx xcontext.Context) error {
 				// note: not all servers implement the signal message so this might
 				// not do anything; see comment about cancellation in Wait()
 				if err := sp.session.Signal(ssh.SIGKILL); err != nil {
-					ctx.Warnf("failed to send KILL on context cancel: %w", err)
+					ctx.Warnf("failed to send KILL on context cancel: %v", err)
 				}
 
 				sp.session.Close()
@@ -104,7 +183,7 @@ func (sp *sshProcess) Wait(ctx xcontext.Context) error {
 				return
 			}
 
-			errChan <- fmt.Errorf("failed to wait on process: %w", err)
+			errChan <- fmt.Errorf("failed to wait on process: %v", err)
 		}
 		errChan <- nil
 	}()
@@ -133,7 +212,7 @@ func (sp *sshProcess) Wait(ctx xcontext.Context) error {
 func (sp *sshProcess) StdoutPipe() (io.Reader, error) {
 	stdout, err := sp.session.StdoutPipe()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get stdout pipe")
+		return nil, fmt.Errorf("failed to get stdout pipe: %v", err)
 	}
 
 	return stdout, nil
@@ -142,7 +221,7 @@ func (sp *sshProcess) StdoutPipe() (io.Reader, error) {
 func (sp *sshProcess) StderrPipe() (io.Reader, error) {
 	stderr, err := sp.session.StderrPipe()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get stderr pipe")
+		return nil, fmt.Errorf("failed to get stderr pipe: %v", err)
 	}
 
 	return stderr, nil
