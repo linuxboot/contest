@@ -56,15 +56,15 @@ func (r *PluginRegistry) NewTestFetcherBundle(ctx xcontext.Context, testDescript
 		return nil, fmt.Errorf("could not get the desired TestFetcher (%s): %v", testDescriptor.TestFetcherName, err)
 	}
 	// FetchParameters
-	fp, err := testFetcher.ValidateFetchParameters(ctx, testDescriptor.TestFetcherFetchParameters)
+	fetchParameters, err := testFetcher.ValidateFetchParameters(ctx, testDescriptor.TestFetcherFetchParameters)
 	if err != nil {
 		return nil, fmt.Errorf("could not validate TestFetcher fetch parameters: %v", err)
 	}
 
 	// Initialization and validation of the optional CleanupFetcher and its parameters
 	var (
-		cleanupFetcher test.TestFetcher
-		cp             interface{}
+		cleanupFetcher    test.TestFetcher
+		cleanupParameters interface{}
 	)
 	if testDescriptor.CleanupFetcherName != "" {
 		cleanupFetcher, err = r.NewTestFetcher(testDescriptor.CleanupFetcherName)
@@ -73,7 +73,7 @@ func (r *PluginRegistry) NewTestFetcherBundle(ctx xcontext.Context, testDescript
 
 		}
 		// FetchParameters
-		cp, err = testFetcher.ValidateFetchParameters(ctx, testDescriptor.CleanupFetcherFetchParameters)
+		cleanupParameters, err = testFetcher.ValidateFetchParameters(ctx, testDescriptor.CleanupFetcherFetchParameters)
 		if err != nil {
 			return nil, fmt.Errorf("could not validate CleanupFetcher fetch parameters: %v", err)
 		}
@@ -81,9 +81,9 @@ func (r *PluginRegistry) NewTestFetcherBundle(ctx xcontext.Context, testDescript
 
 	testFetcherBundle := test.TestFetcherBundle{
 		TestFetcher:       testFetcher,
-		FetchParameters:   fp,
+		FetchParameters:   fetchParameters,
 		CleanupFetcher:    cleanupFetcher,
-		CleanupParameters: cp,
+		CleanupParameters: cleanupParameters,
 	}
 	return &testFetcherBundle, nil
 }

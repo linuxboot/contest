@@ -601,6 +601,44 @@ func (suite *TestJobManagerSuite) TestPauseAndFailToResume() {
 		true)
 }
 
+func (suite *TestJobManagerSuite) TestCleanup() {
+	var jobID types.JobID
+
+	// Run the job and wait for it to finish.
+	var err error
+
+	suite.startJobManager(false /* resumeJobs */)
+
+	jobID, err = suite.startJob(jobDescriptorCleanup)
+	require.NoError(suite.T(), err)
+
+	// JobManager will emit an EventJobStarted when the Job is started
+	ev, err := pollForEvent(suite.eventManager, job.EventJobCompleted, jobID, 2*time.Second)
+	require.NoError(suite.T(), err)
+	require.Equal(suite.T(), 1, len(ev))
+
+	suite.jmCancel()
+	select {
+	case <-suite.jobManagerCh:
+	case <-time.After(3 * time.Second):
+		suite.T().Errorf("JobManager should return within the timeout")
+	}
+
+	// Verify final target lock state.
+	suite.verifyTargetLockStatus([]string{"id1", "id2"}, false)
+
+	// Verify emitted events. Despite pausing ad different stages this should look perfectly normal.
+	require.Equal(suite.T(), strings.Replace(`
+{[JOBID 1 IntegrationTest: steps 0 ][Target{ID: "id1"} TargetAcquired]}
+{[JOBID 1 IntegrationTest: steps 0 hello_world][Target{ID: "id1"} TargetIn]}
+{[JOBID 1 IntegrationTest: steps 0 hello_world][Target{ID: "id1"} TargetOut]}
+{[JOBID 1 IntegrationTest: steps 0 goodbye_world][Target{ID: "id1"} TargetIn]}
+{[JOBID 1 IntegrationTest: steps 0 goodbye_world][Target{ID: "id1"} TargetOut]}
+{[JOBID 1 IntegrationTest: steps 0 ][Target{ID: "id1"} TargetReleased]}
+`, "JOBID", fmt.Sprintf("%d", jobID), -1),
+		suite.getTargetEvents("IntegrationTest: steps", "id1"))
+}
+
 func (suite *TestJobManagerSuite) getTargetEvents(testName, targetID string) string {
 	return suite.getEvents(testName, &targetID, nil)
 }

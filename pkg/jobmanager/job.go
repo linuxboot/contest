@@ -136,7 +136,7 @@ func buildTestsFromDescriptors(
 				return nil, err
 			}
 		}
-		if err := validateNoDuplicateLables(bundleTest, bundleCleanup); err != nil {
+		if err := validateNoDuplicateLabels(append(bundleTest, bundleCleanup...)); err != nil {
 			return nil, err
 		}
 		if td.Disabled {

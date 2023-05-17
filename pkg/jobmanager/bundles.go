@@ -84,22 +84,15 @@ func newBundlesFromSteps(ctx xcontext.Context, descriptors []*test.TestStepDescr
 
 }
 
-func validateNoDuplicateLables(testStepBundles []test.TestStepBundle, cleanupStepBundles []test.TestStepBundle) error {
+func validateNoDuplicateLabels(stepBundles []test.TestStepBundle) error {
 	// verify that there are not duplicated labels across all test and cleanup steps.
 	// This is required later in the execution stage.
-	labels := make(map[string]bool)
-	for _, bundle := range testStepBundles {
+	labels := make(map[string]struct{})
+	for _, bundle := range stepBundles {
 		if _, ok := labels[bundle.TestStepLabel]; ok {
-			return fmt.Errorf("found duplicated labels across test steps: %s", bundle.TestStepLabel)
+			return fmt.Errorf("found duplicated labels across test/cleanup steps: %s", bundle.TestStepLabel)
 		}
-		labels[bundle.TestStepLabel] = true
-	}
-
-	for _, bundle := range cleanupStepBundles {
-		if _, ok := labels[bundle.TestStepLabel]; ok {
-			return fmt.Errorf("found duplicated labels across cleanup steps: %s", bundle.TestStepLabel)
-		}
-		labels[bundle.TestStepLabel] = true
+		labels[bundle.TestStepLabel] = struct{}{}
 	}
 
 	// TODO: verify that test variables refer to existing steps
