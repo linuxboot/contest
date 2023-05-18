@@ -131,7 +131,6 @@ func (tl *TestListener) Serve(ctx xcontext.Context, contestApi *api.API) error {
 			return nil
 		}
 	}
-	return nil
 }
 
 func pollForEvent(eventManager frameworkevent.EmitterFetcher, ev event.Name, jobID types.JobID, timeout time.Duration) ([]frameworkevent.Event, error) {
