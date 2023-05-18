@@ -39,7 +39,7 @@ fi
 
 # Run integration tests collecting coverage only for the business logic (pkg directory)
 i=1
-for tag in integration integration_storage; do
+for tag in integration integration_admin integration_storage; do
     echo "Running integration tests with tag \"${tag}\""
     for d in $(go list -tags=${tag} ./tests/... | grep -Ev "integ$|common$|vendor"); do
         pflag=""
