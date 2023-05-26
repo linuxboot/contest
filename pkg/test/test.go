@@ -26,7 +26,6 @@ type Test struct {
 	TargetManagerBundle *target.TargetManagerBundle
 	TestFetcherBundle   *TestFetcherBundle
 	RetryParameters     RetryParameters
-	CleanupName         string
 	CleanupStepsBundles []TestStepBundle
 }
 

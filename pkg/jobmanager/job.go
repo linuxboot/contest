@@ -122,18 +122,11 @@ func buildTestsFromDescriptors(
 			return nil, err
 		}
 
-		var (
-			bundleCleanup []test.TestStepBundle
-			cleanupName   string
-		)
+		var bundleCleanup []test.TestStepBundle
 		if len(thisTestStepsDescriptors.CleanupSteps) > 0 {
 			bundleCleanup, err = newBundlesFromSteps(ctx, thisTestStepsDescriptors.CleanupSteps, registry)
 			if err != nil {
 				return nil, fmt.Errorf("could not create cleanup test steps bundles: %w", err)
-			}
-			cleanupName = thisTestStepsDescriptors.CleanupName
-			if err := limits.NewValidator().ValidateTestName(cleanupName); err != nil {
-				return nil, err
 			}
 		}
 		if err := validateNoDuplicateLabels(append(bundleTest, bundleCleanup...)); err != nil {
@@ -148,7 +141,6 @@ func buildTestsFromDescriptors(
 			TestFetcherBundle:   bundleTestFetcher,
 			TestStepsBundles:    bundleTest,
 			RetryParameters:     td.RetryParameters,
-			CleanupName:         cleanupName,
 			CleanupStepsBundles: bundleCleanup,
 		}
 		tests = append(tests, &test)

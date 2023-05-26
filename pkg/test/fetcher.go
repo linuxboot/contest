@@ -20,7 +20,7 @@ type TestFetcherLoader func() (string, TestFetcherFactory)
 // TestFetcher is an interface used to get the test to run on the selected
 // hosts.
 type TestFetcher interface {
-	ValidateFetchParameters(xcontext.Context, []byte) (interface{}, error)
+	ValidateFetchParameters(xcontext.Context, []byte, bool) (interface{}, error)
 	Fetch(xcontext.Context, interface{}) (string, []*TestStepDescriptor, error)
 }
 

@@ -74,7 +74,6 @@ type TestStepLoader func() (string, TestStepFactory, []event.Name)
 type TestStepsDescriptors struct {
 	TestName     string
 	TestSteps    []*TestStepDescriptor
-	CleanupName  string
 	CleanupSteps []*TestStepDescriptor
 }
 

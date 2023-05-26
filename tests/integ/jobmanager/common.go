@@ -632,11 +632,11 @@ func (suite *TestJobManagerSuite) TestCleanup() {
 {[JOBID 1 IntegrationTest: steps 0 ][Target{ID: "id1"} TargetAcquired]}
 {[JOBID 1 IntegrationTest: steps 0 hello_world][Target{ID: "id1"} TargetIn]}
 {[JOBID 1 IntegrationTest: steps 0 hello_world][Target{ID: "id1"} TargetOut]}
-{[JOBID 1 IntegrationTest: steps 0 goodbye_world][Target{ID: "id1"} TargetIn]}
-{[JOBID 1 IntegrationTest: steps 0 goodbye_world][Target{ID: "id1"} TargetOut]}
+{[JOBID 1 IntegrationTest: steps [CLEANUP] 0 goodbye_world][Target{ID: "id1"} TargetIn]}
+{[JOBID 1 IntegrationTest: steps [CLEANUP] 0 goodbye_world][Target{ID: "id1"} TargetOut]}
 {[JOBID 1 IntegrationTest: steps 0 ][Target{ID: "id1"} TargetReleased]}
 `, "JOBID", fmt.Sprintf("%d", jobID), -1),
-		suite.getTargetEvents([]string{"IntegrationTest: steps", "IntegrationTest: cleanup"}, "id1"))
+		suite.getTargetEvents([]string{"IntegrationTest: steps", "IntegrationTest: steps [CLEANUP]"}, "id1"))
 }
 
 func (suite *TestJobManagerSuite) getTargetEvents(testNames []string, targetID string) string {

@@ -44,12 +44,9 @@ func (f fetcherStepsResolver) GetStepsDescriptors(ctx xcontext.Context) ([]test.
 			return nil, err
 		}
 
-		var (
-			cleanupName        string
-			cleanupDescriptors []*test.TestStepDescriptor
-		)
+		var cleanupDescriptors []*test.TestStepDescriptor
 		if bundleTestFetcher.CleanupFetcher != nil {
-			cleanupName, cleanupDescriptors, err = bundleTestFetcher.CleanupFetcher.Fetch(ctx, bundleTestFetcher.CleanupParameters)
+			_, cleanupDescriptors, err = bundleTestFetcher.CleanupFetcher.Fetch(ctx, bundleTestFetcher.CleanupParameters)
 			if err != nil {
 				return nil, err
 			}
@@ -60,7 +57,6 @@ func (f fetcherStepsResolver) GetStepsDescriptors(ctx xcontext.Context) ([]test.
 			test.TestStepsDescriptors{
 				TestName:     testName,
 				TestSteps:    stepDescriptors,
-				CleanupName:  cleanupName,
 				CleanupSteps: cleanupDescriptors,
 			},
 		)
