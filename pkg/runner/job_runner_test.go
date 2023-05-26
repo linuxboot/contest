@@ -115,7 +115,7 @@ func (s *JobRunnerSuite) TestSimpleJobStartFinish() {
 {[1 1 SimpleTest 0 test_step_label][Target{ID: "T1"} TargetIn]}
 {[1 1 SimpleTest 0 test_step_label][Target{ID: "T1"} TargetOut]}
 {[1 1 SimpleTest 0 ][Target{ID: "T1"} TargetReleased]}
-`, s.MemoryStorage.GetTargetEvents(ctx, testName, "T1"))
+`, s.MemoryStorage.GetTargetEvents(ctx, []string{testName}, "T1"))
 }
 
 func (s *JobRunnerSuite) TestJobWithCleanupStepsStartToFinish() {
@@ -189,7 +189,7 @@ func (s *JobRunnerSuite) TestJobWithCleanupStepsStartToFinish() {
 {[1 1 SimpleTest 0 test_cleanup_step][Target{ID: "T1"} TargetIn]}
 {[1 1 SimpleTest 0 test_cleanup_step][Target{ID: "T1"} TargetOut]}
 {[1 1 SimpleTest 0 ][Target{ID: "T1"} TargetReleased]}
-`, s.MemoryStorage.GetTargetEvents(ctx, testName, "T1"))
+`, s.MemoryStorage.GetTargetEvents(ctx, []string{testName}, "T1"))
 }
 
 func (s *JobRunnerSuite) TestJobWithTestRetry() {
@@ -244,7 +244,7 @@ func (s *JobRunnerSuite) TestJobWithTestRetry() {
 		Tests: []*test.Test{
 			{
 				Name:        testName,
-				CleanupName: testName,
+				CleanupName: fmt.Sprintf("%s:CLEANUP", testName),
 				RetryParameters: test.RetryParameters{
 					NumRetries:    1,
 					RetryInterval: xjson.Duration(time.Millisecond), // make a small interval to test waiting branch
@@ -283,8 +283,8 @@ func (s *JobRunnerSuite) TestJobWithTestRetry() {
 {[1 1 SimpleTest 0 echo1_step_label][Target{ID: "T1"} TargetOut]}
 {[1 1 SimpleTest 0 test_step_label][Target{ID: "T1"} TargetIn]}
 {[1 1 SimpleTest 0 test_step_label][Target{ID: "T1"} TargetErr &"{\"Error\":\"some error\"}"]}
-{[1 1 SimpleTest 0 test_cleanup_step][Target{ID: "T1"} TargetIn]}
-{[1 1 SimpleTest 0 test_cleanup_step][Target{ID: "T1"} TargetOut]}
+{[1 1 SimpleTest:CLEANUP 0 test_cleanup_step][Target{ID: "T1"} TargetIn]}
+{[1 1 SimpleTest:CLEANUP 0 test_cleanup_step][Target{ID: "T1"} TargetOut]}
 {[1 1 SimpleTest 0 ][Target{ID: "T1"} TargetReleased]}
 {[1 1 SimpleTest 1 ][Target{ID: "T1"} TargetAcquired]}
 {[1 1 SimpleTest 1 echo1_step_label][Target{ID: "T1"} TargetIn]}
@@ -293,10 +293,10 @@ func (s *JobRunnerSuite) TestJobWithTestRetry() {
 {[1 1 SimpleTest 1 test_step_label][Target{ID: "T1"} TargetOut]}
 {[1 1 SimpleTest 1 echo2_step_label][Target{ID: "T1"} TargetIn]}
 {[1 1 SimpleTest 1 echo2_step_label][Target{ID: "T1"} TargetOut]}
-{[1 1 SimpleTest 1 test_cleanup_step][Target{ID: "T1"} TargetIn]}
-{[1 1 SimpleTest 1 test_cleanup_step][Target{ID: "T1"} TargetOut]}
+{[1 1 SimpleTest:CLEANUP 1 test_cleanup_step][Target{ID: "T1"} TargetIn]}
+{[1 1 SimpleTest:CLEANUP 1 test_cleanup_step][Target{ID: "T1"} TargetOut]}
 {[1 1 SimpleTest 1 ][Target{ID: "T1"} TargetReleased]}
-`, s.MemoryStorage.GetTargetEvents(ctx, testName, "T1"))
+`, s.MemoryStorage.GetTargetEvents(ctx, []string{testName, fmt.Sprintf("%s:CLEANUP", testName)}, "T1"))
 
 	require.Len(s.T(), reporter.runStatuses, 1)
 	require.Len(s.T(), reporter.runStatuses[0].TestStatuses, 1)
@@ -401,7 +401,7 @@ func (s *JobRunnerSuite) TestJobRetryOnFailedAcquire() {
 {[1 1 SimpleTest 1 test_cleanup_step_2][Target{ID: "T1"} TargetIn]}
 {[1 1 SimpleTest 1 test_cleanup_step_2][Target{ID: "T1"} TargetOut]}
 {[1 1 SimpleTest 1 ][Target{ID: "T1"} TargetReleased]}
-`, s.MemoryStorage.GetTestEvents(ctx, testName))
+`, s.MemoryStorage.GetTestEvents(ctx, []string{testName}))
 
 	require.Len(s.T(), reporter.runStatuses, 1)
 	require.Len(s.T(), reporter.runStatuses[0].TestStatuses, 1)
@@ -482,7 +482,7 @@ func (s *JobRunnerSuite) TestAcquireFailed() {
 	require.Equal(s.T(), `
 {[1 1 SimpleTest 0 ][(*Target)(nil) TargetAcquireErr &"{\"Error\":\"some error\"}"]}
 {[1 1 SimpleTest 1 ][(*Target)(nil) TargetAcquireErr &"{\"Error\":\"some error\"}"]}
-`, s.MemoryStorage.GetTestEvents(ctx, testName))
+`, s.MemoryStorage.GetTestEvents(ctx, []string{testName}))
 
 	require.Len(s.T(), reporter.runStatuses, 1)
 	require.Len(s.T(), reporter.runStatuses[0].TestStatuses, 1)

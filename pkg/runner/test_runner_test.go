@@ -164,13 +164,13 @@ func (s *TestRunnerSuite) Test1Step1Success() {
 	require.Equal(s.T(), `
 {[1 1 SimpleTest 0 Step1][(*Target)(nil) TestStepRunningEvent]}
 {[1 1 SimpleTest 0 Step1][(*Target)(nil) TestStepFinishedEvent]}
-`, s.MemoryStorage.GetStepEvents(ctx, testName, ""))
+`, s.MemoryStorage.GetStepEvents(ctx, []string{testName}, ""))
 	require.Equal(s.T(), `
 {[1 1 SimpleTest 0 Step1][Target{ID: "T1"} TargetIn]}
 {[1 1 SimpleTest 0 Step1][Target{ID: "T1"} TestStartedEvent]}
 {[1 1 SimpleTest 0 Step1][Target{ID: "T1"} TestFinishedEvent]}
 {[1 1 SimpleTest 0 Step1][Target{ID: "T1"} TargetOut]}
-`, s.MemoryStorage.GetTargetEvents(ctx, testName, "T1"))
+`, s.MemoryStorage.GetTargetEvents(ctx, []string{testName}, "T1"))
 
 	assert.NotNil(s.T(), stepOutputs)
 	require.Equal(s.T(), len(stepOutputs.stepsVariablesByTarget["T1"]), 0)
@@ -197,13 +197,13 @@ func (s *TestRunnerSuite) Test1StepLongerThanShutdown1Success() {
 	require.Equal(s.T(), `
 {[1 1 SimpleTest 0 Step1][(*Target)(nil) TestStepRunningEvent]}
 {[1 1 SimpleTest 0 Step1][(*Target)(nil) TestStepFinishedEvent]}
-`, s.MemoryStorage.GetStepEvents(ctx, testName, ""))
+`, s.MemoryStorage.GetStepEvents(ctx, []string{testName}, ""))
 	require.Equal(s.T(), `
 {[1 1 SimpleTest 0 Step1][Target{ID: "T1"} TargetIn]}
 {[1 1 SimpleTest 0 Step1][Target{ID: "T1"} TestStartedEvent]}
 {[1 1 SimpleTest 0 Step1][Target{ID: "T1"} TestFinishedEvent]}
 {[1 1 SimpleTest 0 Step1][Target{ID: "T1"} TargetOut]}
-`, s.MemoryStorage.GetTargetEvents(ctx, testName, "T1"))
+`, s.MemoryStorage.GetTargetEvents(ctx, []string{testName}, "T1"))
 
 	assert.NotNil(s.T(), stepOutputs)
 	require.Equal(s.T(), len(stepOutputs.stepsVariablesByTarget["T1"]), 0)
@@ -228,13 +228,13 @@ func (s *TestRunnerSuite) Test1Step1Fail() {
 	require.Equal(s.T(), `
 {[1 1 SimpleTest 0 Step1][(*Target)(nil) TestStepRunningEvent]}
 {[1 1 SimpleTest 0 Step1][(*Target)(nil) TestStepFinishedEvent]}
-`, s.MemoryStorage.GetStepEvents(ctx, testName, "Step1"))
+`, s.MemoryStorage.GetStepEvents(ctx, []string{testName}, "Step1"))
 	require.Equal(s.T(), `
 {[1 1 SimpleTest 0 Step1][Target{ID: "T1"} TargetIn]}
 {[1 1 SimpleTest 0 Step1][Target{ID: "T1"} TestStartedEvent]}
 {[1 1 SimpleTest 0 Step1][Target{ID: "T1"} TestFailedEvent]}
 {[1 1 SimpleTest 0 Step1][Target{ID: "T1"} TargetErr &"{\"Error\":\"target failed\"}"]}
-`, s.MemoryStorage.GetTargetEvents(ctx, testName, "T1"))
+`, s.MemoryStorage.GetTargetEvents(ctx, []string{testName}, "T1"))
 
 	assert.NotNil(s.T(), stepOutputs)
 	require.Equal(s.T(), len(stepOutputs.stepsVariablesByTarget["T1"]), 0)
@@ -256,19 +256,19 @@ func (s *TestRunnerSuite) Test1Step1Success1Fail() {
 	require.Equal(s.T(), `
 {[1 1 SimpleTest 0 Step1][(*Target)(nil) TestStepRunningEvent]}
 {[1 1 SimpleTest 0 Step1][(*Target)(nil) TestStepFinishedEvent]}
-`, s.MemoryStorage.GetStepEvents(ctx, testName, ""))
+`, s.MemoryStorage.GetStepEvents(ctx, []string{testName}, ""))
 	require.Equal(s.T(), `
 {[1 1 SimpleTest 0 Step1][Target{ID: "T1"} TargetIn]}
 {[1 1 SimpleTest 0 Step1][Target{ID: "T1"} TestStartedEvent]}
 {[1 1 SimpleTest 0 Step1][Target{ID: "T1"} TestFailedEvent]}
 {[1 1 SimpleTest 0 Step1][Target{ID: "T1"} TargetErr &"{\"Error\":\"target failed\"}"]}
-`, s.MemoryStorage.GetTargetEvents(ctx, testName, "T1"))
+`, s.MemoryStorage.GetTargetEvents(ctx, []string{testName}, "T1"))
 	require.Equal(s.T(), `
 {[1 1 SimpleTest 0 Step1][Target{ID: "T2"} TargetIn]}
 {[1 1 SimpleTest 0 Step1][Target{ID: "T2"} TestStartedEvent]}
 {[1 1 SimpleTest 0 Step1][Target{ID: "T2"} TestFinishedEvent]}
 {[1 1 SimpleTest 0 Step1][Target{ID: "T2"} TargetOut]}
-`, s.MemoryStorage.GetTargetEvents(ctx, testName, "T2"))
+`, s.MemoryStorage.GetTargetEvents(ctx, []string{testName}, "T2"))
 }
 
 // Three-step pipeline, two targets: T1 fails at step 1, T2 fails at step 2,
@@ -290,18 +290,18 @@ func (s *TestRunnerSuite) Test3StepsNotReachedStepNotRun() {
 	require.Equal(s.T(), `
 {[1 1 SimpleTest 0 Step1][(*Target)(nil) TestStepRunningEvent]}
 {[1 1 SimpleTest 0 Step1][(*Target)(nil) TestStepFinishedEvent]}
-`, s.MemoryStorage.GetStepEvents(ctx, testName, "Step1"))
+`, s.MemoryStorage.GetStepEvents(ctx, []string{testName}, "Step1"))
 	require.Equal(s.T(), `
 {[1 1 SimpleTest 0 Step2][(*Target)(nil) TestStepRunningEvent]}
 {[1 1 SimpleTest 0 Step2][(*Target)(nil) TestStepFinishedEvent]}
-`, s.MemoryStorage.GetStepEvents(ctx, testName, "Step2"))
-	require.Equal(s.T(), "\n\n", s.MemoryStorage.GetStepEvents(ctx, testName, "Step 3"))
+`, s.MemoryStorage.GetStepEvents(ctx, []string{testName}, "Step2"))
+	require.Equal(s.T(), "\n\n", s.MemoryStorage.GetStepEvents(ctx, []string{testName}, "Step 3"))
 	require.Equal(s.T(), `
 {[1 1 SimpleTest 0 Step1][Target{ID: "T1"} TargetIn]}
 {[1 1 SimpleTest 0 Step1][Target{ID: "T1"} TestStartedEvent]}
 {[1 1 SimpleTest 0 Step1][Target{ID: "T1"} TestFailedEvent]}
 {[1 1 SimpleTest 0 Step1][Target{ID: "T1"} TargetErr &"{\"Error\":\"target failed\"}"]}
-`, s.MemoryStorage.GetTargetEvents(ctx, testName, "T1"))
+`, s.MemoryStorage.GetTargetEvents(ctx, []string{testName}, "T1"))
 	require.Equal(s.T(), `
 {[1 1 SimpleTest 0 Step1][Target{ID: "T2"} TargetIn]}
 {[1 1 SimpleTest 0 Step1][Target{ID: "T2"} TestStartedEvent]}
@@ -311,7 +311,7 @@ func (s *TestRunnerSuite) Test3StepsNotReachedStepNotRun() {
 {[1 1 SimpleTest 0 Step2][Target{ID: "T2"} TestStartedEvent]}
 {[1 1 SimpleTest 0 Step2][Target{ID: "T2"} TestFailedEvent]}
 {[1 1 SimpleTest 0 Step2][Target{ID: "T2"} TargetErr &"{\"Error\":\"target failed\"}"]}
-`, s.MemoryStorage.GetTargetEvents(ctx, testName, "T2"))
+`, s.MemoryStorage.GetTargetEvents(ctx, []string{testName}, "T2"))
 }
 
 // A misbehaving step that fails to shut down properly after processing targets
@@ -329,7 +329,7 @@ func (s *TestRunnerSuite) TestNoReturnStepWithCorrectTargetForwarding() {
 	)
 	require.Error(s.T(), err)
 	require.IsType(s.T(), &cerrors.ErrTestStepsNeverReturned{}, err)
-	require.Contains(s.T(), s.MemoryStorage.GetStepEvents(ctx, testName, "Step1"), "step [Step1] did not return")
+	require.Contains(s.T(), s.MemoryStorage.GetStepEvents(ctx, []string{testName}, "Step1"), "step [Step1] did not return")
 }
 
 // A misbehaving step that panics.
@@ -346,8 +346,8 @@ func (s *TestRunnerSuite) TestStepPanics() {
 	)
 	require.Error(s.T(), err)
 	require.IsType(s.T(), &cerrors.ErrTestStepPaniced{}, err)
-	require.Equal(s.T(), "\n\n", s.MemoryStorage.GetTargetEvents(ctx, testName, "T1"))
-	require.Contains(s.T(), s.MemoryStorage.GetStepEvents(ctx, testName, "Step1"), "step Step1 paniced")
+	require.Equal(s.T(), "\n\n", s.MemoryStorage.GetTargetEvents(ctx, []string{testName}, "T1"))
+	require.Contains(s.T(), s.MemoryStorage.GetStepEvents(ctx, []string{testName}, "Step1"), "step Step1 paniced")
 }
 
 // A misbehaving step that closes its output channel.
@@ -367,10 +367,10 @@ func (s *TestRunnerSuite) TestStepClosesChannels() {
 	require.Equal(s.T(), `
 {[1 1 SimpleTest 0 Step1][Target{ID: "T1"} TargetIn]}
 {[1 1 SimpleTest 0 Step1][Target{ID: "T1"} TargetOut]}
-`, s.MemoryStorage.GetTargetEvents(ctx, testName, "T1"))
+`, s.MemoryStorage.GetTargetEvents(ctx, []string{testName}, "T1"))
 	require.Equal(s.T(), `
 {[1 1 SimpleTest 0 Step1][(*Target)(nil) TestError &"\"test step Step1 closed output channels (api violation)\""]}
-`, s.MemoryStorage.GetStepEvents(ctx, testName, "Step1"))
+`, s.MemoryStorage.GetStepEvents(ctx, []string{testName}, "Step1"))
 }
 
 // A misbehaving step that yields a result for a target that does not exist.
@@ -387,10 +387,10 @@ func (s *TestRunnerSuite) TestStepYieldsResultForNonexistentTarget() {
 	)
 	require.Error(s.T(), err)
 	require.IsType(s.T(), &cerrors.ErrTestStepReturnedUnexpectedResult{}, err)
-	require.Equal(s.T(), "\n\n", s.MemoryStorage.GetTargetEvents(ctx, testName, "TExtra2"))
+	require.Equal(s.T(), "\n\n", s.MemoryStorage.GetTargetEvents(ctx, []string{testName}, "TExtra2"))
 	require.Equal(s.T(), `
 {[1 1 SimpleTest 0 Step1][(*Target)(nil) TestError &"\"test step Step1 returned unexpected result for TExtra2\""]}
-`, s.MemoryStorage.GetStepEvents(ctx, testName, "Step1"))
+`, s.MemoryStorage.GetStepEvents(ctx, []string{testName}, "Step1"))
 }
 
 // A misbehaving step that yields a duplicate result for a target.
@@ -478,9 +478,9 @@ func (s *TestRunnerSuite) TestRandomizedMultiStep() {
 {[1 1 SimpleTest 0 Step1][Target{ID: "%s"} TestFinishedEvent]}
 {[1 1 SimpleTest 0 Step1][Target{ID: "%s"} TargetOut]}
 `, tgt.ID, tgt.ID, tgt.ID, tgt.ID),
-			common.GetTestEventsAsString(ctx, s.MemoryStorage.Storage, testName, &tgt.ID, &s1n))
+			common.GetTestEventsAsString(ctx, s.MemoryStorage.Storage, []string{testName}, &tgt.ID, &s1n))
 		s3n := "Step3"
-		if strings.Contains(common.GetTestEventsAsString(ctx, s.MemoryStorage.Storage, testName, &tgt.ID, &s3n), "TestFinishedEvent") {
+		if strings.Contains(common.GetTestEventsAsString(ctx, s.MemoryStorage.Storage, []string{testName}, &tgt.ID, &s3n), "TestFinishedEvent") {
 			numFinished++
 		}
 	}
@@ -575,7 +575,7 @@ func (s *TestRunnerSuite) TestVariables() {
 		require.Empty(s.T(), resumeState)
 	}
 
-	targetEvents := s.MemoryStorage.GetTargetEvents(ctx, testName, "T1")
+	targetEvents := s.MemoryStorage.GetTargetEvents(ctx, []string{testName}, "T1")
 	require.Contains(s.T(), targetEvents,
 		`{[1 1 SimpleTest 0 step1][Target{ID: "T1"} VariableEmitted &"{\"Name\":\"target_id\",\"Value\":\"\\\"T1\\\"\"}"]}`)
 	require.Contains(s.T(), targetEvents,
@@ -664,7 +664,7 @@ func (s *TestRunnerSuite) TestPauseResumeSimple() {
 {[1 5 SimpleTest 0 %[1]s][(*Target)(nil) TestStepFinishedEvent]}
 `, stepid)
 
-		require.Equal(s.T(), expected, s.MemoryStorage.GetStepEvents(ctx, testName, stepid))
+		require.Equal(s.T(), expected, s.MemoryStorage.GetStepEvents(ctx, []string{testName}, stepid))
 	}
 
 	// T1 failed entirely within the first run.
@@ -673,7 +673,7 @@ func (s *TestRunnerSuite) TestPauseResumeSimple() {
 {[1 1 SimpleTest 0 Step1][Target{ID: "T1"} TestStartedEvent]}
 {[1 1 SimpleTest 0 Step1][Target{ID: "T1"} TestFailedEvent]}
 {[1 1 SimpleTest 0 Step1][Target{ID: "T1"} TargetErr &"{\"Error\":\"target failed\"}"]}
-`, s.MemoryStorage.GetTargetEvents(ctx, testName, "T1"))
+`, s.MemoryStorage.GetTargetEvents(ctx, []string{testName}, "T1"))
 
 	// T2 and T3 ran in both.
 	require.Equal(s.T(), `
@@ -689,5 +689,5 @@ func (s *TestRunnerSuite) TestPauseResumeSimple() {
 {[1 5 SimpleTest 0 Step3][Target{ID: "T2"} TestStartedEvent]}
 {[1 5 SimpleTest 0 Step3][Target{ID: "T2"} TestFinishedEvent]}
 {[1 5 SimpleTest 0 Step3][Target{ID: "T2"} TargetOut]}
-`, s.MemoryStorage.GetTargetEvents(ctx, testName, "T2"))
+`, s.MemoryStorage.GetTargetEvents(ctx, []string{testName}, "T2"))
 }

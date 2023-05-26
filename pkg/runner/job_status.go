@@ -81,7 +81,7 @@ func (jr *JobRunner) buildTestStepStatus(ctx xcontext.Context, coordinates job.T
 	testEvents, err := jr.testEvManager.Fetch(ctx,
 		testevent.QueryJobID(coordinates.JobID),
 		testevent.QueryRunID(coordinates.RunID),
-		testevent.QueryTestName(coordinates.TestName),
+		testevent.QueryTestNames([]string{coordinates.TestName}),
 		testevent.QueryTestStepLabel(coordinates.TestStepLabel),
 	)
 	if err != nil {
@@ -168,7 +168,7 @@ func (jr *JobRunner) buildTestStatus(ctx xcontext.Context, coordinates job.TestC
 	targetAcquiredEvents, err := jr.testEvManager.Fetch(ctx,
 		testevent.QueryJobID(coordinates.JobID),
 		testevent.QueryRunID(coordinates.RunID),
-		testevent.QueryTestName(coordinates.TestName),
+		testevent.QueryTestNames([]string{coordinates.TestName}),
 		testevent.QueryEventNames([]event.Name{target.EventTargetAcquired, target.EventTargetAcquireErr}),
 	)
 	if err != nil {

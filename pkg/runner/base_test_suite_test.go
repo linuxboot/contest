@@ -39,16 +39,16 @@ func NewMemoryStorageEngine() (*MemoryStorageEngine, error) {
 	}, nil
 }
 
-func (mse *MemoryStorageEngine) GetStepEvents(ctx xcontext.Context, testName string, stepLabel string) string {
-	return common.GetTestEventsAsString(ctx, mse.Storage, testName, nil, &stepLabel)
+func (mse *MemoryStorageEngine) GetStepEvents(ctx xcontext.Context, testNames []string, stepLabel string) string {
+	return common.GetTestEventsAsString(ctx, mse.Storage, testNames, nil, &stepLabel)
 }
 
-func (mse *MemoryStorageEngine) GetTargetEvents(ctx xcontext.Context, testName string, targetID string) string {
-	return common.GetTestEventsAsString(ctx, mse.Storage, testName, &targetID, nil)
+func (mse *MemoryStorageEngine) GetTargetEvents(ctx xcontext.Context, testNames []string, targetID string) string {
+	return common.GetTestEventsAsString(ctx, mse.Storage, testNames, &targetID, nil)
 }
 
-func (mse *MemoryStorageEngine) GetTestEvents(ctx xcontext.Context, testName string) string {
-	return common.GetTestEventsAsString(ctx, mse.Storage, testName, nil, nil)
+func (mse *MemoryStorageEngine) GetTestEvents(ctx xcontext.Context, testNames []string) string {
+	return common.GetTestEventsAsString(ctx, mse.Storage, testNames, nil, nil)
 }
 
 type BaseTestSuite struct {

@@ -565,7 +565,7 @@ func (suite *TestJobManagerSuite) testPauseAndResume(
 {[JOBID 2 IntegrationTest: resume 0 Step2][Target{ID: "id1"} TargetOut]}
 {[JOBID 2 IntegrationTest: resume 0 ][Target{ID: "id1"} TargetReleased]}
 `, "JOBID", fmt.Sprintf("%d", jobID), -1),
-			suite.getTargetEvents("IntegrationTest: resume", "id1"))
+			suite.getTargetEvents([]string{"IntegrationTest: resume"}, "id1"))
 	}
 }
 
@@ -636,15 +636,15 @@ func (suite *TestJobManagerSuite) TestCleanup() {
 {[JOBID 1 IntegrationTest: steps 0 goodbye_world][Target{ID: "id1"} TargetOut]}
 {[JOBID 1 IntegrationTest: steps 0 ][Target{ID: "id1"} TargetReleased]}
 `, "JOBID", fmt.Sprintf("%d", jobID), -1),
-		suite.getTargetEvents("IntegrationTest: steps", "id1"))
+		suite.getTargetEvents([]string{"IntegrationTest: steps", "IntegrationTest: cleanup"}, "id1"))
 }
 
-func (suite *TestJobManagerSuite) getTargetEvents(testName, targetID string) string {
-	return suite.getEvents(testName, &targetID, nil)
+func (suite *TestJobManagerSuite) getTargetEvents(testNames []string, targetID string) string {
+	return suite.getEvents(testNames, &targetID, nil)
 }
 
-func (suite *TestJobManagerSuite) getEvents(testName string, targetID, stepLabel *string) string {
-	return testsCommon.GetTestEventsAsString(suite.jmCtx, suite.txStorage, testName, targetID, stepLabel)
+func (suite *TestJobManagerSuite) getEvents(testNames []string, targetID, stepLabel *string) string {
+	return testsCommon.GetTestEventsAsString(suite.jmCtx, suite.txStorage, testNames, targetID, stepLabel)
 }
 
 func (suite *TestJobManagerSuite) TestJobManagerJobStartSingle() {

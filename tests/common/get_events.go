@@ -21,13 +21,13 @@ func eventToStringNoTime(ev testevent.Event) string {
 	return fmt.Sprintf("{%s%s}", ev.Header, ev.Data)
 }
 
-func getEventsAsString(ctx xcontext.Context, st storage.EventStorage, jobID types.JobID, testName string, eventNames []event.Name, targetID, stepLabel *string) string {
+func getEventsAsString(ctx xcontext.Context, st storage.EventStorage, jobID types.JobID, testNames []string, eventNames []event.Name, targetID, stepLabel *string) string {
 	var qp []testevent.QueryField
 	if jobID != 0 {
 		qp = append(qp, testevent.QueryJobID(jobID))
 	}
-	if testName != "" {
-		qp = append(qp, testevent.QueryTestName(testName))
+	if len(testNames) > 0 {
+		qp = append(qp, testevent.QueryTestNames(testNames))
 	}
 	if len(eventNames) > 0 {
 		qp = append(qp, testevent.QueryEventNames(eventNames))
@@ -60,11 +60,11 @@ func getEventsAsString(ctx xcontext.Context, st storage.EventStorage, jobID type
 // GetJobEventsAsString queries storage for particular test's events,
 // further filtering by target ID and/or step label.
 func GetJobEventsAsString(ctx xcontext.Context, st storage.EventStorage, jobID types.JobID, eventNames []event.Name) string {
-	return getEventsAsString(ctx, st, jobID, "", eventNames, nil, nil)
+	return getEventsAsString(ctx, st, jobID, nil, eventNames, nil, nil)
 }
 
 // GetTestEventsAsString queries storage for particular test's events,
 // further filtering by target ID and/or step label.
-func GetTestEventsAsString(ctx xcontext.Context, st storage.EventStorage, testName string, targetID, stepLabel *string) string {
-	return getEventsAsString(ctx, st, 0, testName, nil, targetID, stepLabel)
+func GetTestEventsAsString(ctx xcontext.Context, st storage.EventStorage, testNames []string, targetID, stepLabel *string) string {
+	return getEventsAsString(ctx, st, 0, testNames, nil, targetID, stepLabel)
 }
