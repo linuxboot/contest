@@ -37,6 +37,33 @@ func assembleQuery(baseQuery safesql.TrustedSQLString, selectClauses []safesql.T
 	return baseQuery, nil
 }
 
+func buildInQuery(baseQuery safesql.TrustedSQLString, fieldName safesql.TrustedSQLString, fieldValues []string) ([]safesql.TrustedSQLString, []interface{}) {
+	selectClauses := []safesql.TrustedSQLString{}
+	fields := []interface{}{}
+
+	if len(fieldValues) == 1 {
+		selectClauses = append(selectClauses, safesql.TrustedSQLStringConcat(fieldName, safesql.New("=?")))
+	} else {
+		var queryStr safesql.TrustedSQLString
+		queryStr = safesql.TrustedSQLStringConcat(fieldName, safesql.New(" in"))
+		for i := 0; i < len(fieldValues); i++ {
+			if i == 0 {
+				queryStr = safesql.TrustedSQLStringConcat(queryStr, safesql.New(" (?"))
+			} else if i < len(fieldValues)-1 {
+				queryStr = safesql.TrustedSQLStringConcat(queryStr, safesql.New(", ?"))
+			} else {
+				queryStr = safesql.TrustedSQLStringConcat(queryStr, safesql.New(", ?)"))
+			}
+		}
+		selectClauses = append(selectClauses, queryStr)
+	}
+	for i := 0; i < len(fieldValues); i++ {
+		fields = append(fields, fieldValues[i])
+	}
+
+	return selectClauses, fields
+}
+
 func buildEventQuery(baseQuery safesql.TrustedSQLString, eventQuery *event.Query) ([]safesql.TrustedSQLString, []interface{}) {
 	selectClauses := []safesql.TrustedSQLString{}
 	fields := []interface{}{}
@@ -47,25 +74,13 @@ func buildEventQuery(baseQuery safesql.TrustedSQLString, eventQuery *event.Query
 	}
 
 	if eventQuery != nil && len(eventQuery.EventNames) != 0 {
-		if len(eventQuery.EventNames) == 1 {
-			selectClauses = append(selectClauses, safesql.New("event_name=?"))
-		} else {
-			var queryStr safesql.TrustedSQLString
-			queryStr = safesql.New("event_name in")
-			for i := 0; i < len(eventQuery.EventNames); i++ {
-				if i == 0 {
-					queryStr = safesql.TrustedSQLStringConcat(queryStr, safesql.New(" (?"))
-				} else if i < len(eventQuery.EventNames)-1 {
-					queryStr = safesql.TrustedSQLStringConcat(queryStr, safesql.New(", ?"))
-				} else {
-					queryStr = safesql.TrustedSQLStringConcat(queryStr, safesql.New(", ?)"))
-				}
-			}
-			selectClauses = append(selectClauses, queryStr)
+		eventNames := []string{}
+		for _, name := range eventQuery.EventNames {
+			eventNames = append(eventNames, string(name))
 		}
-		for i := 0; i < len(eventQuery.EventNames); i++ {
-			fields = append(fields, eventQuery.EventNames[i])
-		}
+		eventClauses, eventFields := buildInQuery(baseQuery, safesql.New("event_name"), eventNames)
+		selectClauses = append(selectClauses, eventClauses...)
+		fields = append(fields, eventFields...)
 	}
 	if eventQuery != nil && !eventQuery.EmittedStartTime.IsZero() {
 		selectClauses = append(selectClauses, safesql.New("emit_time>=?"))
@@ -100,9 +115,10 @@ func buildTestEventQuery(baseQuery safesql.TrustedSQLString, testEventQuery *tes
 		fields = append(fields, testEventQuery.RunID)
 	}
 
-	if testEventQuery.TestName != "" {
-		selectClauses = append(selectClauses, safesql.New("test_name=?"))
-		fields = append(fields, testEventQuery.TestName)
+	if len(testEventQuery.TestNames) > 0 {
+		testClauses, testFields := buildInQuery(baseQuery, safesql.New("test_name"), testEventQuery.TestNames)
+		selectClauses = append(selectClauses, testClauses...)
+		fields = append(fields, testFields...)
 	}
 	if testEventQuery.TestStepLabel != "" {
 		selectClauses = append(selectClauses, safesql.New("test_step_label=?"))

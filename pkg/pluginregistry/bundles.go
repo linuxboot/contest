@@ -7,6 +7,7 @@ package pluginregistry
 
 import (
 	"fmt"
+
 	"github.com/linuxboot/contest/pkg/job"
 	"github.com/linuxboot/contest/pkg/target"
 	"github.com/linuxboot/contest/pkg/test"
@@ -55,14 +56,34 @@ func (r *PluginRegistry) NewTestFetcherBundle(ctx xcontext.Context, testDescript
 		return nil, fmt.Errorf("could not get the desired TestFetcher (%s): %v", testDescriptor.TestFetcherName, err)
 	}
 	// FetchParameters
-	fp, err := testFetcher.ValidateFetchParameters(ctx, testDescriptor.TestFetcherFetchParameters)
+	fetchParameters, err := testFetcher.ValidateFetchParameters(ctx, testDescriptor.TestFetcherFetchParameters, true)
 	if err != nil {
 		return nil, fmt.Errorf("could not validate TestFetcher fetch parameters: %v", err)
 	}
 
+	// Initialization and validation of the optional CleanupFetcher and its parameters
+	var (
+		cleanupFetcher    test.TestFetcher
+		cleanupParameters interface{}
+	)
+	if testDescriptor.CleanupFetcherName != "" {
+		cleanupFetcher, err = r.NewTestFetcher(testDescriptor.CleanupFetcherName)
+		if err != nil {
+			return nil, fmt.Errorf("could not get the desired CleanupFetcher (%s): %v", testDescriptor.CleanupFetcherName, err)
+
+		}
+		// FetchParameters
+		cleanupParameters, err = testFetcher.ValidateFetchParameters(ctx, testDescriptor.CleanupFetcherFetchParameters, false)
+		if err != nil {
+			return nil, fmt.Errorf("could not validate CleanupFetcher fetch parameters: %v", err)
+		}
+	}
+
 	testFetcherBundle := test.TestFetcherBundle{
-		TestFetcher:     testFetcher,
-		FetchParameters: fp,
+		TestFetcher:       testFetcher,
+		FetchParameters:   fetchParameters,
+		CleanupFetcher:    cleanupFetcher,
+		CleanupParameters: cleanupParameters,
 	}
 	return &testFetcherBundle, nil
 }

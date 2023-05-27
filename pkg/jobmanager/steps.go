@@ -32,19 +32,35 @@ type fetcherStepsResolver struct {
 }
 
 func (f fetcherStepsResolver) GetStepsDescriptors(ctx xcontext.Context) ([]test.TestStepsDescriptors, error) {
-
 	var descriptors []test.TestStepsDescriptors
 	for _, testDescriptor := range f.jobDescriptor.TestDescriptors {
 		bundleTestFetcher, err := f.registry.NewTestFetcherBundle(ctx, testDescriptor)
 		if err != nil {
 			return nil, err
 		}
-		testName, stepDescriptors, err := bundleTestFetcher.TestFetcher.Fetch(ctx, bundleTestFetcher.FetchParameters)
 
+		testName, stepDescriptors, err := bundleTestFetcher.TestFetcher.Fetch(ctx, bundleTestFetcher.FetchParameters)
 		if err != nil {
 			return nil, err
 		}
-		descriptors = append(descriptors, test.TestStepsDescriptors{TestName: testName, TestSteps: stepDescriptors})
+
+		var cleanupDescriptors []*test.TestStepDescriptor
+		if bundleTestFetcher.CleanupFetcher != nil {
+			_, cleanupDescriptors, err = bundleTestFetcher.CleanupFetcher.Fetch(ctx, bundleTestFetcher.CleanupParameters)
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		descriptors = append(
+			descriptors,
+			test.TestStepsDescriptors{
+				TestName:     testName,
+				TestSteps:    stepDescriptors,
+				CleanupSteps: cleanupDescriptors,
+			},
+		)
 	}
+
 	return descriptors, nil
 }

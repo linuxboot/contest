@@ -45,12 +45,12 @@ type URI struct {
 
 // ValidateFetchParameters performs sanity checks on the fields of the
 // parameters that will be passed to Fetch.
-func (tf URI) ValidateFetchParameters(_ xcontext.Context, params []byte) (interface{}, error) {
+func (tf URI) ValidateFetchParameters(_ xcontext.Context, params []byte, requireName bool) (interface{}, error) {
 	var fp FetchParameters
 	if err := json.Unmarshal(params, &fp); err != nil {
 		return nil, err
 	}
-	if fp.TestName == "" {
+	if requireName && fp.TestName == "" {
 		return nil, fmt.Errorf("test name cannot be empty for fetch parameters")
 	}
 	if fp.URI == nil {

@@ -96,7 +96,9 @@ func (tr *TestRunner) Run(
 	t *test.Test, targets []*target.Target,
 	emitterFactory TestStepEventsEmitterFactory,
 	resumeState json.RawMessage,
-) (json.RawMessage, map[string]error, error) {
+	stepOutputs *testStepsVariables,
+	stepBundlesToRun []test.TestStepBundle,
+) (json.RawMessage, map[string]error, *testStepsVariables, error) {
 
 	// Peel off contexts used for steps and target handlers.
 	runCtx, runCancel := xcontext.WithCancel(ctx)
@@ -109,10 +111,10 @@ func (tr *TestRunner) Run(
 	if len(resumeState) > 0 {
 		ctx.Debugf("Attempting to resume from state: %s", string(resumeState))
 		if err := json.Unmarshal(resumeState, &rs); err != nil {
-			return nil, nil, fmt.Errorf("invalid resume state: %w", err)
+			return nil, nil, nil, fmt.Errorf("invalid resume state: %w", err)
 		}
 		if rs.Version != resumeStateStructVersion {
-			return nil, nil, fmt.Errorf("incompatible resume state version %d (want %d)",
+			return nil, nil, nil, fmt.Errorf("incompatible resume state version %d (want %d)",
 				rs.Version, resumeStateStructVersion)
 		}
 		targetStates = rs.Targets
@@ -137,11 +139,11 @@ func (tr *TestRunner) Run(
 	}
 
 	emitterForStep := make(map[string]testevent.Emitter)
-	for _, sb := range t.TestStepsBundles {
+	for _, sb := range stepBundlesToRun {
 		emitterForStep[sb.TestStepLabel] = emitterFactory.New(sb.TestStepLabel)
 	}
 
-	stepOutputs, err := newTestStepsVariables(t.TestStepsBundles, func(tgtID string, stepLabel string, name string, value json.RawMessage) {
+	onStepOutputAdded := func(tgtID string, stepLabel string, name string, value json.RawMessage) {
 		emitter := emitterForStep[stepLabel]
 		if emitter == nil {
 			runCtx.Errorf("not found events emitter for step: '%s'", stepLabel)
@@ -160,22 +162,27 @@ func (tr *TestRunner) Run(
 		if err := emitEvent(runCtx, emitter, EventVariableEmitted, tgs.tgt, payload); err != nil {
 			runCtx.Errorf("failed to emit event: '%v'", err)
 		}
-	})
-	if err != nil {
-		ctx.Errorf("Failed to initialise test steps variables: %v", err)
-		return nil, nil, err
 	}
 
-	for targetID, targetState := range targetStates {
-		if err := stepOutputs.initTargetStepsVariables(targetID, targetState.StepsVariables); err != nil {
-			ctx.Errorf("Failed to initialise test steps variables for target: %s: %v", targetID, err)
-			return nil, nil, err
+	var err error
+	if stepOutputs == nil {
+		stepOutputs, err = newTestStepsVariables(append(t.TestStepsBundles, t.CleanupStepsBundles...), onStepOutputAdded)
+		if err != nil {
+			ctx.Errorf("Failed to initialise test steps variables: %v", err)
+			return nil, nil, nil, err
+		}
+
+		for targetID, targetState := range targetStates {
+			if err := stepOutputs.initTargetStepsVariables(targetID, targetState.StepsVariables); err != nil {
+				ctx.Errorf("Failed to initialise test steps variables for target: %s: %v", targetID, err)
+				return nil, nil, nil, err
+			}
 		}
 	}
 
 	// Set up the pipeline
-	stepsErrorsCh := make(chan error, len(t.TestStepsBundles))
-	for i, sb := range t.TestStepsBundles {
+	stepsErrorsCh := make(chan error, len(stepBundlesToRun))
+	for i, sb := range stepBundlesToRun {
 		var srs json.RawMessage
 		if i < len(rs.StepResumeState) && string(rs.StepResumeState[i]) != "null" {
 			srs = rs.StepResumeState[i]
@@ -269,7 +276,7 @@ func (tr *TestRunner) Run(
 		tgs.StepsVariables, err = stepOutputs.getTargetStepsVariables(tgt.ID)
 		if err != nil {
 			ctx.Errorf("Failed to get steps variables: %v", err)
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
 		stepErr := tr.steps[tgs.CurStep].GetError()
 		if tgs.CurPhase == targetStepPhaseRun {
@@ -291,7 +298,7 @@ func (tr *TestRunner) Run(
 
 	// Is there a useful error to report?
 	if runErr != nil {
-		return nil, nil, runErr
+		return nil, nil, nil, runErr
 	}
 
 	// Have we been asked to pause? If yes, is it safe to do so?
@@ -309,7 +316,7 @@ func (tr *TestRunner) Run(
 		resumeState, runErr = json.Marshal(rs)
 		if runErr != nil {
 			ctx.Errorf("unable to serialize the state: %s", runErr)
-			return nil, nil, runErr
+			return nil, nil, nil, runErr
 		}
 		ctx.Debugf("resume state: %s", resumeState)
 		runErr = xcontext.ErrPaused
@@ -324,7 +331,7 @@ func (tr *TestRunner) Run(
 			targetsResults[id] = nil
 		}
 	}
-	return resumeState, targetsResults, runErr
+	return resumeState, targetsResults, stepOutputs, runErr
 }
 
 func (tr *TestRunner) waitSteps(ctx xcontext.Context) ([]json.RawMessage, error) {

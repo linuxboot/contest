@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"golang.org/x/exp/slices"
+
 	"github.com/benbjohnson/clock"
 	"github.com/insomniacslk/xjson"
 	"github.com/stretchr/testify/assert"
@@ -113,7 +115,80 @@ func (s *JobRunnerSuite) TestSimpleJobStartFinish() {
 {[1 1 SimpleTest 0 test_step_label][Target{ID: "T1"} TargetIn]}
 {[1 1 SimpleTest 0 test_step_label][Target{ID: "T1"} TargetOut]}
 {[1 1 SimpleTest 0 ][Target{ID: "T1"} TargetReleased]}
-`, s.MemoryStorage.GetTargetEvents(ctx, testName, "T1"))
+`, s.MemoryStorage.GetTargetEvents(ctx, []string{testName}, "T1"))
+}
+
+func (s *JobRunnerSuite) TestJobWithCleanupStepsStartToFinish() {
+	ctx, cancel := logrusctx.NewContext(logger.LevelDebug)
+	defer cancel()
+
+	var mu sync.Mutex
+	var resultTargets []*target.Target
+
+	require.NoError(s.T(), s.RegisterStateFullStep(
+		func(ctx xcontext.Context, ch test.TestStepChannels, ev testevent.Emitter,
+			stepsVars test.StepsVariables, params test.TestStepParameters, resumeState json.RawMessage) (json.RawMessage, error) {
+			return teststeps.ForEachTarget(stateFullStepName, ctx, ch, func(ctx xcontext.Context, target *target.Target) error {
+				assert.NotNil(s.T(), target)
+				mu.Lock()
+				defer mu.Unlock()
+				if !slices.Contains(resultTargets, target) {
+					resultTargets = append(resultTargets, target)
+				}
+				return nil
+			})
+		},
+		nil,
+	))
+
+	acquireParameters := targetlist.AcquireParameters{
+		Targets: []*target.Target{
+			{
+				ID: "T1",
+			},
+		},
+	}
+
+	j := job.Job{
+		ID:                          1,
+		Runs:                        1,
+		TargetManagerAcquireTimeout: 10 * time.Second,
+		TargetManagerReleaseTimeout: 10 * time.Second,
+		Tests: []*test.Test{
+			{
+				Name: testName,
+				TargetManagerBundle: &target.TargetManagerBundle{
+					AcquireParameters: acquireParameters,
+					TargetManager:     targetlist.New(),
+				},
+				TestStepsBundles: []test.TestStepBundle{
+					s.NewStep(ctx, "test_step_label", stateFullStepName, nil),
+				},
+				CleanupStepsBundles: []test.TestStepBundle{
+					s.NewStep(ctx, "test_cleanup_step", stateFullStepName, nil),
+				},
+			},
+		},
+	}
+
+	jsm := storage.NewJobStorageManager(s.MemoryStorage.StorageEngineVault)
+	jr := NewJobRunner(jsm, s.MemoryStorage.StorageEngineVault, clock.New(), time.Second)
+	require.NotNil(s.T(), jr)
+
+	resumeState, err := jr.Run(ctx, &j, nil)
+	require.NoError(s.T(), err)
+	require.Nil(s.T(), resumeState)
+
+	require.Equal(s.T(), acquireParameters.Targets, resultTargets)
+
+	require.Equal(s.T(), `
+{[1 1 SimpleTest 0 ][Target{ID: "T1"} TargetAcquired]}
+{[1 1 SimpleTest 0 test_step_label][Target{ID: "T1"} TargetIn]}
+{[1 1 SimpleTest 0 test_step_label][Target{ID: "T1"} TargetOut]}
+{[1 1 SimpleTest [CLEANUP] 0 test_cleanup_step][Target{ID: "T1"} TargetIn]}
+{[1 1 SimpleTest [CLEANUP] 0 test_cleanup_step][Target{ID: "T1"} TargetOut]}
+{[1 1 SimpleTest 0 ][Target{ID: "T1"} TargetReleased]}
+`, s.MemoryStorage.GetTargetEvents(ctx, []string{testName, fmt.Sprintf("%s [CLEANUP]", testName)}, "T1"))
 }
 
 func (s *JobRunnerSuite) TestJobWithTestRetry() {
@@ -134,7 +209,9 @@ func (s *JobRunnerSuite) TestJobWithTestRetry() {
 				defer func() {
 					callsCount++
 				}()
-				resultTargets = append(resultTargets, target)
+				if !slices.Contains(resultTargets, target) {
+					resultTargets = append(resultTargets, target)
+				}
 				if callsCount == 0 {
 					return fmt.Errorf("some error")
 				}
@@ -183,6 +260,9 @@ func (s *JobRunnerSuite) TestJobWithTestRetry() {
 						"text": {*test.NewParam("world")},
 					}),
 				},
+				CleanupStepsBundles: []test.TestStepBundle{
+					s.NewStep(ctx, "test_cleanup_step", stateFullStepName, nil),
+				},
 			},
 		},
 	}
@@ -201,6 +281,8 @@ func (s *JobRunnerSuite) TestJobWithTestRetry() {
 {[1 1 SimpleTest 0 echo1_step_label][Target{ID: "T1"} TargetOut]}
 {[1 1 SimpleTest 0 test_step_label][Target{ID: "T1"} TargetIn]}
 {[1 1 SimpleTest 0 test_step_label][Target{ID: "T1"} TargetErr &"{\"Error\":\"some error\"}"]}
+{[1 1 SimpleTest [CLEANUP] 0 test_cleanup_step][Target{ID: "T1"} TargetIn]}
+{[1 1 SimpleTest [CLEANUP] 0 test_cleanup_step][Target{ID: "T1"} TargetOut]}
 {[1 1 SimpleTest 0 ][Target{ID: "T1"} TargetReleased]}
 {[1 1 SimpleTest 1 ][Target{ID: "T1"} TargetAcquired]}
 {[1 1 SimpleTest 1 echo1_step_label][Target{ID: "T1"} TargetIn]}
@@ -209,8 +291,10 @@ func (s *JobRunnerSuite) TestJobWithTestRetry() {
 {[1 1 SimpleTest 1 test_step_label][Target{ID: "T1"} TargetOut]}
 {[1 1 SimpleTest 1 echo2_step_label][Target{ID: "T1"} TargetIn]}
 {[1 1 SimpleTest 1 echo2_step_label][Target{ID: "T1"} TargetOut]}
+{[1 1 SimpleTest [CLEANUP] 1 test_cleanup_step][Target{ID: "T1"} TargetIn]}
+{[1 1 SimpleTest [CLEANUP] 1 test_cleanup_step][Target{ID: "T1"} TargetOut]}
 {[1 1 SimpleTest 1 ][Target{ID: "T1"} TargetReleased]}
-`, s.MemoryStorage.GetTargetEvents(ctx, testName, "T1"))
+`, s.MemoryStorage.GetTargetEvents(ctx, []string{testName, fmt.Sprintf("%s [CLEANUP]", testName)}, "T1"))
 
 	require.Len(s.T(), reporter.runStatuses, 1)
 	require.Len(s.T(), reporter.runStatuses[0].TestStatuses, 1)
@@ -284,6 +368,14 @@ func (s *JobRunnerSuite) TestJobRetryOnFailedAcquire() {
 						"text": {*test.NewParam("hello")},
 					}),
 				},
+				CleanupStepsBundles: []test.TestStepBundle{
+					s.NewStep(ctx, "test_cleanup_step_1", echo.Name, map[string][]test.Param{
+						"text": {*test.NewParam("Cleanup 1")},
+					}),
+					s.NewStep(ctx, "test_cleanup_step_2", echo.Name, map[string][]test.Param{
+						"text": {*test.NewParam("Cleanup 2")},
+					}),
+				},
 			},
 		},
 	}
@@ -301,8 +393,12 @@ func (s *JobRunnerSuite) TestJobRetryOnFailedAcquire() {
 {[1 1 SimpleTest 1 ][Target{ID: "T1"} TargetAcquired]}
 {[1 1 SimpleTest 1 echo1_step_label][Target{ID: "T1"} TargetIn]}
 {[1 1 SimpleTest 1 echo1_step_label][Target{ID: "T1"} TargetOut]}
+{[1 1 SimpleTest [CLEANUP] 1 test_cleanup_step_1][Target{ID: "T1"} TargetIn]}
+{[1 1 SimpleTest [CLEANUP] 1 test_cleanup_step_1][Target{ID: "T1"} TargetOut]}
+{[1 1 SimpleTest [CLEANUP] 1 test_cleanup_step_2][Target{ID: "T1"} TargetIn]}
+{[1 1 SimpleTest [CLEANUP] 1 test_cleanup_step_2][Target{ID: "T1"} TargetOut]}
 {[1 1 SimpleTest 1 ][Target{ID: "T1"} TargetReleased]}
-`, s.MemoryStorage.GetTestEvents(ctx, testName))
+`, s.MemoryStorage.GetTestEvents(ctx, []string{testName, fmt.Sprintf("%s [CLEANUP]", testName)}))
 
 	require.Len(s.T(), reporter.runStatuses, 1)
 	require.Len(s.T(), reporter.runStatuses[0].TestStatuses, 1)
@@ -363,6 +459,11 @@ func (s *JobRunnerSuite) TestAcquireFailed() {
 						"text": {*test.NewParam("hello")},
 					}),
 				},
+				CleanupStepsBundles: []test.TestStepBundle{
+					s.NewStep(ctx, "test_cleanup_step_1", echo.Name, map[string][]test.Param{
+						"text": {*test.NewParam("Cleanup 1")},
+					}),
+				},
 			},
 		},
 	}
@@ -378,7 +479,7 @@ func (s *JobRunnerSuite) TestAcquireFailed() {
 	require.Equal(s.T(), `
 {[1 1 SimpleTest 0 ][(*Target)(nil) TargetAcquireErr &"{\"Error\":\"some error\"}"]}
 {[1 1 SimpleTest 1 ][(*Target)(nil) TargetAcquireErr &"{\"Error\":\"some error\"}"]}
-`, s.MemoryStorage.GetTestEvents(ctx, testName))
+`, s.MemoryStorage.GetTestEvents(ctx, []string{testName}))
 
 	require.Len(s.T(), reporter.runStatuses, 1)
 	require.Len(s.T(), reporter.runStatuses[0].TestStatuses, 1)

@@ -136,7 +136,7 @@ func TestSuccessfulCompletion(t *testing.T) {
 		tr := runner.NewTestRunner()
 
 		eventsFactory := runner.NewTestStepEventsEmitterFactory(storageEngineVault, jobID, runID, "", 0)
-		_, _, err := tr.Run(ctx, &test.Test{TestStepsBundles: testSteps}, targets, eventsFactory, nil)
+		_, _, _, err := tr.Run(ctx, &test.Test{TestStepsBundles: testSteps}, targets, eventsFactory, nil, nil, testSteps)
 		errCh <- err
 	}()
 

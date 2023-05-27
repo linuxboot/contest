@@ -42,7 +42,7 @@ func TestMemory_GetTestEvents(t *testing.T) {
 		Header: &testevent.Header{
 			JobID:         1,
 			RunID:         5,
-			TestName:      "test_name",
+			TestName:      "test_name_1",
 			TestStepLabel: "test_label_1",
 		},
 		Data: &testevent.Data{},
@@ -55,7 +55,7 @@ func TestMemory_GetTestEvents(t *testing.T) {
 		Header: &testevent.Header{
 			JobID:         1,
 			RunID:         5,
-			TestName:      "test_name",
+			TestName:      "test_name_2",
 			TestStepLabel: "test_label_2",
 		},
 		Data: &testevent.Data{},
@@ -65,7 +65,7 @@ func TestMemory_GetTestEvents(t *testing.T) {
 
 	query, err := testevent.BuildQuery(
 		testevent.QueryRunID(5),
-		testevent.QueryTestName("test_name"),
+		testevent.QueryTestNames([]string{"test_name_1", "test_name_2"}),
 	)
 	require.NoError(t, err)
 

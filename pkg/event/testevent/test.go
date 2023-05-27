@@ -54,7 +54,7 @@ func New(header *Header, data *Data) Event {
 type Query struct {
 	event.Query
 	RunID         types.RunID
-	TestName      string
+	TestNames     []string
 	TestStepLabel string
 }
 
@@ -88,7 +88,7 @@ type queryFieldJobID types.JobID
 type queryFieldEventNames []event.Name
 type queryFieldEmittedStartTime time.Time
 type queryFieldEmittedEndTime time.Time
-type queryFieldTestName string
+type queryFieldTestNames []string
 type queryFieldTestStepLabel string
 type queryFieldRunID types.RunID
 
@@ -122,10 +122,10 @@ func (value queryFieldEmittedEndTime) queryFieldPointer(query *Query) interface{
 }
 
 // QueryTestName sets the TestName field of the Query object
-func QueryTestName(testName string) QueryField {
-	return queryFieldTestName(testName)
+func QueryTestNames(testNames []string) QueryField {
+	return queryFieldTestNames(testNames)
 }
-func (value queryFieldTestName) queryFieldPointer(query *Query) interface{} { return &query.TestName }
+func (value queryFieldTestNames) queryFieldPointer(query *Query) interface{} { return &query.TestNames }
 
 // QueryTestStepLabel sets the TestStepLabel field of the Query object
 func QueryTestStepLabel(testStepLabel string) QueryField {

@@ -44,49 +44,17 @@ func newJob(ctx xcontext.Context, registry *pluginregistry.PluginRegistry, jobDe
 		return nil, fmt.Errorf("error while building reporters bundles: %w", err)
 	}
 
-	tests := make([]*test.Test, 0, len(jobDescriptor.TestDescriptors))
 	stepsDescriptors, err := resolver.GetStepsDescriptors(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("could not get steps descriptors: %w", err)
 	}
 	if len(stepsDescriptors) != len(jobDescriptor.TestDescriptors) {
-		return nil, fmt.Errorf("length of steps descriptor must match lenght of test descriptors")
+		return nil, fmt.Errorf("length of steps descriptors must match lenght of test descriptors")
 	}
 
-	for index, td := range jobDescriptor.TestDescriptors {
-		thisTestStepsDescriptors := stepsDescriptors[index]
-
-		if err := td.Validate(); err != nil {
-			return nil, fmt.Errorf("could not validate test descriptor: %w", err)
-		}
-		bundleTargetManager, err := registry.NewTargetManagerBundle(td)
-		if err != nil {
-			return nil, err
-		}
-		bundleTestFetcher, err := registry.NewTestFetcherBundle(ctx, td)
-		if err != nil {
-			return nil, err
-		}
-
-		bundleTest, err := newStepBundles(ctx, thisTestStepsDescriptors, registry)
-		if err != nil {
-			return nil, fmt.Errorf("could not create step bundles: %w", err)
-		}
-		testName := thisTestStepsDescriptors.TestName
-		if err := limits.NewValidator().ValidateTestName(testName); err != nil {
-			return nil, err
-		}
-		if td.Disabled {
-			continue
-		}
-		test := test.Test{
-			Name:                testName,
-			TargetManagerBundle: bundleTargetManager,
-			TestFetcherBundle:   bundleTestFetcher,
-			TestStepsBundles:    bundleTest,
-			RetryParameters:     td.RetryParameters,
-		}
-		tests = append(tests, &test)
+	tests, err := buildTestsFromDescriptors(ctx, registry, jobDescriptor.TestDescriptors, stepsDescriptors)
+	if err != nil {
+		return nil, fmt.Errorf("could not build test steps: %w", err)
 	}
 
 	extendedDescriptor := job.ExtendedDescriptor{
@@ -120,6 +88,65 @@ func newJob(ctx xcontext.Context, registry *pluginregistry.PluginRegistry, jobDe
 	}
 
 	return &job, nil
+}
+
+func buildTestsFromDescriptors(
+	ctx xcontext.Context,
+	registry *pluginregistry.PluginRegistry,
+	testDescriptors []*test.TestDescriptor,
+	stepsDescriptors []test.TestStepsDescriptors) ([]*test.Test, error) {
+
+	tests := make([]*test.Test, 0, len(testDescriptors))
+
+	for index, td := range testDescriptors {
+		thisTestStepsDescriptors := stepsDescriptors[index]
+
+		if err := td.Validate(); err != nil {
+			return nil, fmt.Errorf("could not validate test descriptor: %w", err)
+		}
+		bundleTargetManager, err := registry.NewTargetManagerBundle(td)
+		if err != nil {
+			return nil, err
+		}
+		bundleTestFetcher, err := registry.NewTestFetcherBundle(ctx, td)
+		if err != nil {
+			return nil, err
+		}
+
+		bundleTest, err := newBundlesFromSteps(ctx, thisTestStepsDescriptors.TestSteps, registry)
+		if err != nil {
+			return nil, fmt.Errorf("could not create test steps bundles: %w", err)
+		}
+		testName := thisTestStepsDescriptors.TestName
+		if err := limits.NewValidator().ValidateTestName(testName); err != nil {
+			return nil, err
+		}
+
+		var bundleCleanup []test.TestStepBundle
+		if len(thisTestStepsDescriptors.CleanupSteps) > 0 {
+			bundleCleanup, err = newBundlesFromSteps(ctx, thisTestStepsDescriptors.CleanupSteps, registry)
+			if err != nil {
+				return nil, fmt.Errorf("could not create cleanup test steps bundles: %w", err)
+			}
+		}
+		if err := validateNoDuplicateLabels(append(bundleTest, bundleCleanup...)); err != nil {
+			return nil, err
+		}
+		if td.Disabled {
+			continue
+		}
+		test := test.Test{
+			Name:                testName,
+			TargetManagerBundle: bundleTargetManager,
+			TestFetcherBundle:   bundleTestFetcher,
+			TestStepsBundles:    bundleTest,
+			RetryParameters:     td.RetryParameters,
+			CleanupStepsBundles: bundleCleanup,
+		}
+		tests = append(tests, &test)
+	}
+
+	return tests, nil
 }
 
 // NewJobFromDescriptor creates a job object from a job descriptor

@@ -115,7 +115,7 @@ func (suite *TestEventsSuite) TestRetrieveSingleTestEvent() {
 	err := populateTestEvents(suite.txStorage, emitTime)
 	require.NoError(suite.T(), err)
 
-	testEventQuery := mustBuildQuery(suite.T(), testevent.QueryTestName("ATestName"))
+	testEventQuery := mustBuildQuery(suite.T(), testevent.QueryTestNames([]string{"ATestName"}))
 	results, err := suite.txStorage.GetTestEvents(ctx, testEventQuery)
 
 	require.NoError(suite.T(), err)

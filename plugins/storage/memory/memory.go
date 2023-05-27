@@ -20,6 +20,7 @@ import (
 	"github.com/linuxboot/contest/pkg/storage"
 	"github.com/linuxboot/contest/pkg/types"
 	"github.com/linuxboot/contest/pkg/xcontext"
+	"golang.org/x/exp/slices"
 )
 
 // Memory implements a storage engine which stores everything in memory. This
@@ -55,7 +56,7 @@ func emptyFrameworkEventQuery(eventQuery *frameworkevent.Query) bool {
 // values. If so, the Query is considered "empty" and doesn't result in
 // any lookup in the database
 func emptyTestEventQuery(eventQuery *testevent.Query) bool {
-	return emptyEventQuery(&eventQuery.Query) && eventQuery.TestName == "" && eventQuery.TestStepLabel == ""
+	return emptyEventQuery(&eventQuery.Query) && (eventQuery.TestNames == nil || len(eventQuery.TestNames) == 0) && eventQuery.TestStepLabel == ""
 }
 
 // StoreTestEvent stores a test event into the database
@@ -105,9 +106,9 @@ func eventTimeMatch(queryStartTime, queryEndTime time.Time, emittedTime time.Tim
 	return true
 }
 
-func eventTestMatch(queryTestName, testName string) bool {
-	if queryTestName != "" && testName != queryTestName {
-		return false
+func eventTestsMatch(queryTestNames []string, testName string) bool {
+	if len(queryTestNames) > 0 {
+		return slices.Contains(queryTestNames, testName)
 	}
 	return true
 }
@@ -135,7 +136,7 @@ func (m *Memory) GetTestEvents(_ xcontext.Context, eventQuery *testevent.Query) 
 			eventRunMatch(eventQuery.RunID, event.Header.RunID) &&
 			eventNameMatch(eventQuery.EventNames, event.Data.EventName) &&
 			eventTimeMatch(eventQuery.EmittedStartTime, eventQuery.EmittedEndTime, event.EmitTime) &&
-			eventTestMatch(eventQuery.TestName, event.Header.TestName) &&
+			eventTestsMatch(eventQuery.TestNames, event.Header.TestName) &&
 			eventTestStepMatch(eventQuery.TestStepLabel, event.Header.TestStepLabel) {
 			matchingTestEvents = append(matchingTestEvents, event)
 		}

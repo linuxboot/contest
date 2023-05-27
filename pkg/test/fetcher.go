@@ -20,13 +20,17 @@ type TestFetcherLoader func() (string, TestFetcherFactory)
 // TestFetcher is an interface used to get the test to run on the selected
 // hosts.
 type TestFetcher interface {
-	ValidateFetchParameters(xcontext.Context, []byte) (interface{}, error)
+	ValidateFetchParameters(xcontext.Context, []byte, bool) (interface{}, error)
 	Fetch(xcontext.Context, interface{}) (string, []*TestStepDescriptor, error)
 }
 
 // TestFetcherBundle bundles the selected TestFetcher together with its acquire
-// and release parameters based on the content of the job descriptor
+// and release parameters based on the content of the job descriptor.
+// The bundle contains also the selected TestFetcher for the cleanup steps, together
+// with its parameters.
 type TestFetcherBundle struct {
-	TestFetcher     TestFetcher
-	FetchParameters interface{}
+	TestFetcher       TestFetcher
+	FetchParameters   interface{}
+	CleanupFetcher    TestFetcher
+	CleanupParameters interface{}
 }

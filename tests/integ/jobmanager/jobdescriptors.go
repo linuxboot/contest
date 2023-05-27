@@ -116,6 +116,35 @@ var jobDescriptorSlowEcho = descriptorMust(jobDescriptorTemplate, `
        "TestName": "IntegrationTest: slow echo"
    }`)
 
+var jobDescriptorCleanup = descriptorMust(jobDescriptorTemplate, `
+   "TestFetcherFetchParameters": {
+       "Steps": [
+           {
+               "name": "slowecho",
+               "label": "hello_world",
+               "parameters": {
+                 "sleep": ["0.5"],
+                 "text": ["Hello world"]
+               }
+           }
+       ],
+       "TestName": "IntegrationTest: steps"
+   },
+   "CleanupFetcherName": "literal",
+   "CleanupFetcherFetchParameters": {
+        "Steps": [
+            {
+                "name": "slowecho",
+                "label": "goodbye_world",
+                "parameters": {
+                    "sleep": ["0.5"],
+                    "text": ["Goodbye World"]
+                }
+            }
+        ],
+        "TestName": "IntegrationTest: cleanup"
+   }`)
+
 var jobDescriptorFailure = descriptorMust(jobDescriptorTemplate, `
    "TestFetcherFetchParameters": {
        "Steps": [

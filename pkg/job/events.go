@@ -92,9 +92,13 @@ type PauseEventPayload struct {
 	NextTestAttempt *time.Time  `json:"NTA,omitempty"`
 	// If we are sleeping before the run, this will specify when the run should begin.
 	StartAt *time.Time `json:"S,omitempty"`
-	// Otherwise, if test execution is in progress targets and runner state will be populated.
-	Targets         []*target.Target `json:"TT,omitempty"`
-	TestRunnerState json.RawMessage  `json:"TRS,omitempty"`
+	// Otherwise, if test execution is in progress targets and runner states will be populated.
+	Targets []*target.Target `json:"TT,omitempty"`
+	// Tests are run by the job runner serially. These two objects are interlinked, but by the
+	// nature of the serial run inside the job runner they cannot diverge, because they are saved
+	// together at the same time and as well restored together at the same time.
+	TestRunnerState    json.RawMessage `json:"TRS,omitempty"`
+	CleanupRunnerState json.RawMessage `json:"CRS,omitempty"`
 }
 
 func (pp *PauseEventPayload) String() string {

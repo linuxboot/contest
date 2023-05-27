@@ -45,7 +45,7 @@ func TestCmdPlugin(t *testing.T) {
 	go func() {
 		tr := runner.NewTestRunner()
 		eventsFactory := runner.NewTestStepEventsEmitterFactory(storageEngineVault, jobID, runID, "", 0)
-		_, _, err := tr.Run(stateCtx, &test.Test{TestStepsBundles: testSteps}, targets, eventsFactory, nil)
+		_, _, _, err := tr.Run(stateCtx, &test.Test{TestStepsBundles: testSteps}, targets, eventsFactory, nil, nil, testSteps)
 		errCh <- err
 	}()
 
