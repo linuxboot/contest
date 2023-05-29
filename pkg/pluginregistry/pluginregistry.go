@@ -6,15 +6,16 @@
 package pluginregistry
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"sync"
 
 	"github.com/linuxboot/contest/pkg/event"
 	"github.com/linuxboot/contest/pkg/job"
+	"github.com/linuxboot/contest/pkg/logging"
 	"github.com/linuxboot/contest/pkg/target"
 	"github.com/linuxboot/contest/pkg/test"
-	"github.com/linuxboot/contest/pkg/xcontext"
 )
 
 // PluginRegistry manages all the plugins available in the system. It associates Plugin
@@ -23,7 +24,7 @@ import (
 type PluginRegistry struct {
 	lock sync.RWMutex
 
-	Context xcontext.Context
+	Context context.Context
 
 	// TargetManagers collects a mapping of Plugin Name <-> TargetManager constructor
 	TargetManagers map[string]target.TargetManagerFactory
@@ -43,7 +44,7 @@ type PluginRegistry struct {
 }
 
 // NewPluginRegistry constructs a new empty plugin registry
-func NewPluginRegistry(ctx xcontext.Context) *PluginRegistry {
+func NewPluginRegistry(ctx context.Context) *PluginRegistry {
 	pr := PluginRegistry{
 		Context: ctx,
 	}
@@ -60,7 +61,7 @@ func (r *PluginRegistry) RegisterTargetManager(pluginName string, tmf target.Tar
 	pluginName = strings.ToLower(pluginName)
 	r.lock.Lock()
 	defer r.lock.Unlock()
-	r.Context.Infof("Registering target manager %s", pluginName)
+	logging.Infof(r.Context, "Registering target manager %s", pluginName)
 	if _, found := r.TargetManagers[pluginName]; found {
 		return fmt.Errorf("TargetManager %s already registered", pluginName)
 	}
@@ -73,7 +74,7 @@ func (r *PluginRegistry) RegisterTestFetcher(pluginName string, tff test.TestFet
 	pluginName = strings.ToLower(pluginName)
 	r.lock.Lock()
 	defer r.lock.Unlock()
-	r.Context.Infof("Registering test fetcher %s", pluginName)
+	logging.Infof(r.Context, "Registering test fetcher %s", pluginName)
 	if _, found := r.TestFetchers[pluginName]; found {
 		return fmt.Errorf("TestFetcher %s already registered", pluginName)
 	}
@@ -86,7 +87,7 @@ func (r *PluginRegistry) RegisterTestStep(pluginName string, tsf test.TestStepFa
 	pluginName = strings.ToLower(pluginName)
 	r.lock.Lock()
 	defer r.lock.Unlock()
-	r.Context.Infof("Registering test step %s", pluginName)
+	logging.Infof(r.Context, "Registering test step %s", pluginName)
 	if _, found := r.TestSteps[pluginName]; found {
 		return fmt.Errorf("TestSteps %s already registered", pluginName)
 	}
@@ -110,7 +111,7 @@ func (r *PluginRegistry) RegisterReporter(pluginName string, rf job.ReporterFact
 	pluginName = strings.ToLower(pluginName)
 	r.lock.Lock()
 	defer r.lock.Unlock()
-	r.Context.Infof("Registering reporter %s", pluginName)
+	logging.Infof(r.Context, "Registering reporter %s", pluginName)
 	if _, found := r.Reporters[pluginName]; found {
 		return fmt.Errorf("Reporter %s already registered", pluginName)
 	}

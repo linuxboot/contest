@@ -19,7 +19,8 @@ func (e *ErrAlreadyDone) Error() string {
 }
 
 // ErrTestStepsNeverReturned indicates that one or multiple TestSteps
-//  did not complete when the test terminated or when the pipeline
+// did not complete when the test terminated or when the pipeline
+//
 // received a cancellation or pause signal
 type ErrTestStepsNeverReturned struct {
 	StepNames []string

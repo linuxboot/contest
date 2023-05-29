@@ -6,10 +6,10 @@
 package target
 
 import (
+	"context"
 	"time"
 
 	"github.com/linuxboot/contest/pkg/types"
-	"github.com/linuxboot/contest/pkg/xcontext"
 )
 
 // TargetManagerFactory is a type representing a function which builds
@@ -25,8 +25,8 @@ type TargetManagerLoader func() (string, TargetManagerFactory)
 type TargetManager interface {
 	ValidateAcquireParameters([]byte) (interface{}, error)
 	ValidateReleaseParameters([]byte) (interface{}, error)
-	Acquire(ctx xcontext.Context, jobID types.JobID, jobTargetManagerAcquireTimeout time.Duration, parameters interface{}, tl Locker) ([]*Target, error)
-	Release(ctx xcontext.Context, jobID types.JobID, targets []*Target, parameters interface{}) error
+	Acquire(ctx context.Context, jobID types.JobID, jobTargetManagerAcquireTimeout time.Duration, parameters interface{}, tl Locker) ([]*Target, error)
+	Release(ctx context.Context, jobID types.JobID, targets []*Target, parameters interface{}) error
 }
 
 // TargetManagerBundle bundles the selected TargetManager together with its

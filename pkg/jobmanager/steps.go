@@ -6,23 +6,24 @@
 package jobmanager
 
 import (
+	"context"
+
 	"github.com/linuxboot/contest/pkg/job"
 	"github.com/linuxboot/contest/pkg/pluginregistry"
 	"github.com/linuxboot/contest/pkg/test"
-	"github.com/linuxboot/contest/pkg/xcontext"
 )
 
 // stepsResolver is an interface which determines how to fetch TestStepsDescriptors, which could
 // have either already been pre-calculated, or built by the TestFetcher.
 type stepsResolver interface {
-	GetStepsDescriptors(xcontext.Context) ([]test.TestStepsDescriptors, error)
+	GetStepsDescriptors(context.Context) ([]test.TestStepsDescriptors, error)
 }
 
 type literalStepsResolver struct {
 	stepsDescriptors []test.TestStepsDescriptors
 }
 
-func (l literalStepsResolver) GetStepsDescriptors(xcontext.Context) ([]test.TestStepsDescriptors, error) {
+func (l literalStepsResolver) GetStepsDescriptors(context.Context) ([]test.TestStepsDescriptors, error) {
 	return l.stepsDescriptors, nil
 }
 
@@ -31,7 +32,7 @@ type fetcherStepsResolver struct {
 	registry      *pluginregistry.PluginRegistry
 }
 
-func (f fetcherStepsResolver) GetStepsDescriptors(ctx xcontext.Context) ([]test.TestStepsDescriptors, error) {
+func (f fetcherStepsResolver) GetStepsDescriptors(ctx context.Context) ([]test.TestStepsDescriptors, error) {
 	var descriptors []test.TestStepsDescriptors
 	for _, testDescriptor := range f.jobDescriptor.TestDescriptors {
 		bundleTestFetcher, err := f.registry.NewTestFetcherBundle(ctx, testDescriptor)

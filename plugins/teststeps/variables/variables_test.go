@@ -1,6 +1,7 @@
 package variables
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"sync"
@@ -10,7 +11,7 @@ import (
 	"github.com/linuxboot/contest/pkg/storage"
 	"github.com/linuxboot/contest/pkg/target"
 	"github.com/linuxboot/contest/pkg/test"
-	"github.com/linuxboot/contest/pkg/xcontext"
+
 	"github.com/linuxboot/contest/plugins/storage/memory"
 	"github.com/stretchr/testify/require"
 )
@@ -25,8 +26,8 @@ func TestValidateParameters(t *testing.T) {
 	obj := New()
 	require.NotNil(t, obj)
 
-	require.NoError(t, obj.ValidateParameters(xcontext.Background(), nil))
-	require.NoError(t, obj.ValidateParameters(xcontext.Background(), test.TestStepParameters{
+	require.NoError(t, obj.ValidateParameters(context.Background(), nil))
+	require.NoError(t, obj.ValidateParameters(context.Background(), test.TestStepParameters{
 		"var1": []test.Param{
 			{
 				RawMessage: json.RawMessage("123"),
@@ -34,7 +35,7 @@ func TestValidateParameters(t *testing.T) {
 		},
 	}))
 	// invalid variable name
-	require.Error(t, obj.ValidateParameters(xcontext.Background(), test.TestStepParameters{
+	require.Error(t, obj.ValidateParameters(context.Background(), test.TestStepParameters{
 		"var var": []test.Param{
 			{
 				RawMessage: json.RawMessage("123"),
@@ -42,7 +43,7 @@ func TestValidateParameters(t *testing.T) {
 		},
 	}))
 	// invalid value
-	require.Error(t, obj.ValidateParameters(xcontext.Background(), test.TestStepParameters{
+	require.Error(t, obj.ValidateParameters(context.Background(), test.TestStepParameters{
 		"var1": []test.Param{
 			{
 				RawMessage: json.RawMessage("ALALALALA[}"),
@@ -52,7 +53,7 @@ func TestValidateParameters(t *testing.T) {
 }
 
 func TestVariablesEmission(t *testing.T) {
-	ctx, cancel := xcontext.WithCancel(xcontext.Background())
+	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	obj := New()

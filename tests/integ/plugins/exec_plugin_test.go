@@ -23,7 +23,7 @@ import (
 	"github.com/linuxboot/contest/pkg/target"
 	"github.com/linuxboot/contest/pkg/test"
 	"github.com/linuxboot/contest/pkg/types"
-	"github.com/linuxboot/contest/pkg/xcontext"
+	
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -41,7 +41,7 @@ func nextID() int {
 	return currentID
 }
 
-func runExecPlugin(t *testing.T, ctx xcontext.Context, jsonParams string) error {
+func runExecPlugin(t *testing.T, ctx context.Context, jsonParams string) error {
 	jobID := types.JobID(nextID())
 	runID := types.RunID(1)
 
@@ -301,7 +301,7 @@ func TestExecPluginLocalCancel(t *testing.T) {
 		}
 	}`
 
-	ctx, cancel := xcontext.WithTimeout(ctx, time.Second)
+	ctx, cancel := context.WithTimeout(ctx, time.Second)
 	defer cancel()
 
 	err := runExecPlugin(t, ctx, jsonParams)
@@ -327,7 +327,7 @@ func TestExecPluginSSHCancel(t *testing.T) {
 		}
 	}`
 
-	ctx, cancel := xcontext.WithTimeout(ctx, time.Second)
+	ctx, cancel := context.WithTimeout(ctx, time.Second)
 	defer cancel()
 
 	err := runExecPlugin(t, ctx, jsonParams)
@@ -358,7 +358,7 @@ func TestExecPluginSSHAsyncCancel(t *testing.T) {
 		}
 	}`
 
-	ctx, cancel := xcontext.WithTimeout(ctx, time.Second)
+	ctx, cancel := context.WithTimeout(ctx, time.Second)
 	defer cancel()
 
 	err := runExecPlugin(t, ctx, jsonParams)

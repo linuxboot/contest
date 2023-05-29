@@ -6,6 +6,7 @@
 package transport
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"os"
@@ -14,10 +15,9 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/insomniacslk/xjson"
+	"github.com/linuxboot/contest/pkg/logging"
 	"github.com/pkg/sftp"
 	"golang.org/x/crypto/ssh"
-
-	"github.com/linuxboot/contest/pkg/xcontext"
 )
 
 type SSHTransportConfig struct {
@@ -52,7 +52,7 @@ func NewSSHTransport(config SSHTransportConfig) Transport {
 	return &SSHTransport{config}
 }
 
-func (st *SSHTransport) NewProcess(ctx xcontext.Context, bin string, args []string) (Process, error) {
+func (st *SSHTransport) NewProcess(ctx context.Context, bin string, args []string) (Process, error) {
 	var signer ssh.Signer
 	if st.IdentityFile != "" {
 		key, err := os.ReadFile(st.IdentityFile)
@@ -94,7 +94,7 @@ func (st *SSHTransport) NewProcess(ctx xcontext.Context, bin string, args []stri
 	// cleanup the ssh client after the operations have ended
 	stack.Add(func() {
 		if err := client.Close(); err != nil {
-			ctx.Warnf("failed to close SSH client: %w", err)
+			logging.Warnf(ctx, "failed to close SSH client: %w", err)
 		}
 	})
 
@@ -110,9 +110,9 @@ func (st *SSHTransport) NewProcess(ctx xcontext.Context, bin string, args []stri
 
 		// cleanup the sent file so we don't leave hanging files around
 		stack.Add(func() {
-			ctx.Debugf("cleaning remote file: %s", bin)
+			logging.Debugf(ctx, "cleaning remote file: %s", bin)
 			if err := st.unlinkFile(ctx, client, bin); err != nil {
-				ctx.Warnf("failed to cleanup remote file: %w", err)
+				logging.Warnf(ctx, "failed to cleanup remote file: %w", err)
 			}
 		})
 	}
@@ -123,12 +123,12 @@ func (st *SSHTransport) NewProcess(ctx xcontext.Context, bin string, args []stri
 	return st.new(ctx, client, bin, args, stack)
 }
 
-func (st *SSHTransport) new(ctx xcontext.Context, client *ssh.Client, bin string, args []string, stack *deferedStack) (Process, error) {
+func (st *SSHTransport) new(ctx context.Context, client *ssh.Client, bin string, args []string, stack *deferedStack) (Process, error) {
 	return newSSHProcess(ctx, client, bin, args, stack)
 }
 
 func (st *SSHTransport) newAsync(
-	ctx xcontext.Context,
+	ctx context.Context,
 	client *ssh.Client, addr string, clientConfig *ssh.ClientConfig,
 	bin string, args []string,
 	stack *deferedStack,
@@ -140,16 +140,16 @@ func (st *SSHTransport) newAsync(
 	}
 
 	stack.Add(func() {
-		ctx.Debugf("cleaning async agent: %s", agent)
+		logging.Debugf(ctx, "cleaning async agent: %s", agent)
 		if err := st.unlinkFile(ctx, client, agent); err != nil {
-			ctx.Warnf("failed to cleanup asyng agent: %w", err)
+			logging.Warnf(ctx, "failed to cleanup asyng agent: %w", err)
 		}
 	})
 
 	return newSSHProcessAsync(ctx, addr, clientConfig, agent, st.Async.TimeQuota, bin, args, stack)
 }
 
-func (st *SSHTransport) sendFile(ctx xcontext.Context, client *ssh.Client, bin string, mode os.FileMode) (string, error) {
+func (st *SSHTransport) sendFile(ctx context.Context, client *ssh.Client, bin string, mode os.FileMode) (string, error) {
 	sftp, err := sftp.NewClient(client)
 	if err != nil {
 		return "", fmt.Errorf("failed to create sftp client: %w", err)
@@ -169,7 +169,7 @@ func (st *SSHTransport) sendFile(ctx xcontext.Context, client *ssh.Client, bin s
 	}
 	defer fin.Close()
 
-	ctx.Debugf("sending file to remote: %s", remoteBin)
+	logging.Debugf(ctx, "sending file to remote: %s", remoteBin)
 	_, err = fout.ReadFrom(fin)
 	if err != nil {
 		return "", fmt.Errorf("failed to send file: %w", err)
@@ -178,7 +178,7 @@ func (st *SSHTransport) sendFile(ctx xcontext.Context, client *ssh.Client, bin s
 	return remoteBin, fout.Chmod(mode)
 }
 
-func (st *SSHTransport) unlinkFile(ctx xcontext.Context, client *ssh.Client, bin string) error {
+func (st *SSHTransport) unlinkFile(ctx context.Context, client *ssh.Client, bin string) error {
 	sftp, err := sftp.NewClient(client)
 	if err != nil {
 		return fmt.Errorf("failed to create sftp client: %w", err)

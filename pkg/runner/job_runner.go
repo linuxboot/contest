@@ -6,29 +6,35 @@
 package runner
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"sync"
 	"time"
 
 	"github.com/benbjohnson/clock"
+	"github.com/facebookincubator/go-belt/beltctx"
+	"github.com/facebookincubator/go-belt/pkg/field"
+	"github.com/facebookincubator/go-belt/tool/experimental/metrics"
 
 	"github.com/linuxboot/contest/pkg/event"
 	"github.com/linuxboot/contest/pkg/event/frameworkevent"
 	"github.com/linuxboot/contest/pkg/event/testevent"
 	"github.com/linuxboot/contest/pkg/job"
+	"github.com/linuxboot/contest/pkg/logging"
+	"github.com/linuxboot/contest/pkg/metrics/perf"
+	"github.com/linuxboot/contest/pkg/signaling"
+	"github.com/linuxboot/contest/pkg/signals"
 	"github.com/linuxboot/contest/pkg/storage"
 	"github.com/linuxboot/contest/pkg/target"
 	"github.com/linuxboot/contest/pkg/types"
-	"github.com/linuxboot/contest/pkg/xcontext"
-	"github.com/linuxboot/contest/pkg/xcontext/metrics/perf"
 )
 
 // jobInfo describes jobs currently being run.
 type jobInfo struct {
 	jobID     types.JobID
 	targets   []*target.Target
-	jobCtx    xcontext.Context
+	jobCtx    context.Context
 	jobCancel func()
 }
 
@@ -69,7 +75,7 @@ type JobRunner struct {
 //     last
 //   - []job.Report:   all the final reports
 //   - error:          an error, if any
-func (jr *JobRunner) Run(ctx xcontext.Context, j *job.Job, resumeState *job.PauseEventPayload) (*job.PauseEventPayload, error) {
+func (jr *JobRunner) Run(ctx context.Context, j *job.Job, resumeState *job.PauseEventPayload) (*job.PauseEventPayload, error) {
 	if resumeState != nil && resumeState.JobID != j.ID {
 		return nil, fmt.Errorf("wrong resume state, job id %d (want %d)", resumeState.JobID, j.ID)
 	}
@@ -84,9 +90,9 @@ func (jr *JobRunner) Run(ctx xcontext.Context, j *job.Job, resumeState *job.Paus
 	)
 
 	// Values are for plugins to read...
-	ctx = xcontext.WithValue(ctx, types.KeyJobID, j.ID)
+	ctx = context.WithValue(ctx, types.KeyJobID, j.ID)
 	// .. Fields are for structured logging
-	ctx, jobCancel := xcontext.WithCancel(ctx.WithField("job_id", j.ID))
+	ctx, jobCancel := context.WithCancel(beltctx.WithField(ctx, "job_id", j.ID))
 
 	jr.jobsMapLock.Lock()
 	jr.jobsMap[j.ID] = &jobInfo{jobID: j.ID, jobCtx: ctx, jobCancel: jobCancel}
@@ -113,9 +119,9 @@ func (jr *JobRunner) Run(ctx xcontext.Context, j *job.Job, resumeState *job.Paus
 	}
 
 	if j.Runs == 0 {
-		ctx.Infof("Running job '%s' (id %v) indefinitely, current run #%d test #%d", j.Name, j.ID, runID, testID)
+		logging.Infof(ctx, "Running job '%s' (id %v) indefinitely, current run #%d test #%d", j.Name, j.ID, runID, testID)
 	} else {
-		ctx.Infof("Running job '%s' %d times, starting at #%d test #%d", j.Name, j.Runs, runID, testID)
+		logging.Infof(ctx, "Running job '%s' %d times, starting at #%d test #%d", j.Name, j.Runs, runID, testID)
 	}
 
 	pauseTest := func(
@@ -126,7 +132,7 @@ func (jr *JobRunner) Run(ctx xcontext.Context, j *job.Job, resumeState *job.Paus
 		testRunnerState json.RawMessage,
 		cleanupRunnerState json.RawMessage,
 	) (*job.PauseEventPayload, error) {
-		ctx.Infof("pause requested for job ID %v", j.ID)
+		logging.Infof(ctx, "pause requested for job ID %v", j.ID)
 		// Return without releasing targets and keep the job entry so locks continue to be refreshed
 		// all the way to server exit.
 		keepJobEntry = true
@@ -140,29 +146,29 @@ func (jr *JobRunner) Run(ctx xcontext.Context, j *job.Job, resumeState *job.Paus
 			Targets:            targets,
 			TestRunnerState:    testRunnerState,
 			CleanupRunnerState: cleanupRunnerState,
-		}, xcontext.ErrPaused
+		}, signals.Paused
 	}
 
 	ev := storage.NewTestEventFetcher(jr.storageEngineVault)
 	for ; runID <= types.RunID(j.Runs) || j.Runs == 0; runID++ {
-		runCtx := xcontext.WithValue(ctx, types.KeyRunID, runID)
-		runCtx = runCtx.WithField("run_id", runID)
+		runCtx := context.WithValue(ctx, types.KeyRunID, runID)
+		runCtx = beltctx.WithField(runCtx, "run_id", runID)
 		if runDelay > 0 {
 			nextRun := jr.clock.Now().Add(runDelay)
-			runCtx.Infof("Sleeping %s before the next run...", runDelay)
+			logging.Infof(runCtx, "Sleeping %s before the next run...", runDelay)
 			select {
 			case <-jr.clock.After(runDelay):
-			case <-ctx.Until(xcontext.ErrPaused):
+			case <-signaling.Until(ctx, signals.Paused):
 				resumeState = &job.PauseEventPayload{
 					Version: job.CurrentPauseEventPayloadVersion,
 					JobID:   j.ID,
 					RunID:   runID,
 					StartAt: &nextRun,
 				}
-				runCtx.Infof("Job paused with %s left until next run", nextRun.Sub(jr.clock.Now()))
-				return resumeState, xcontext.ErrPaused
+				logging.Infof(runCtx, "Job paused with %s left until next run", nextRun.Sub(jr.clock.Now()))
+				return resumeState, signals.Paused
 			case <-ctx.Done():
-				return nil, xcontext.ErrCanceled
+				return nil, context.Canceled
 			}
 		}
 
@@ -171,7 +177,7 @@ func (jr *JobRunner) Run(ctx xcontext.Context, j *job.Job, resumeState *job.Paus
 		payload := RunStartedPayload{RunID: runID}
 		err := jr.emitEvent(runCtx, j.ID, EventRunStarted, payload)
 		if err != nil {
-			runCtx.Warnf("Could not emit event run (run %d) start for job %d: %v", runID, j.ID, err)
+			logging.Warnf(runCtx, "Could not emit event run (run %d) start for job %d: %v", runID, j.ID, err)
 		}
 
 		for ; testID <= len(j.Tests); testID++ {
@@ -180,18 +186,18 @@ func (jr *JobRunner) Run(ctx xcontext.Context, j *job.Job, resumeState *job.Paus
 				usedResumeState := resumeState
 				resumeState = nil
 
-				runCtx.Infof("Current attempt: %d, allowed retries: %d",
+				logging.Infof(runCtx, "Current attempt: %d, allowed retries: %d",
 					testAttempt,
 					retryParameters.NumRetries,
 				)
 				if nextTestAttempt != nil {
 					sleepTime := time.Until(*nextTestAttempt)
 					if sleepTime > 0 {
-						runCtx.Infof("Sleep until next test attempt at '%v'", *nextTestAttempt)
+						logging.Infof(runCtx, "Sleep until next test attempt at '%v'", *nextTestAttempt)
 						select {
 						case <-runCtx.Done():
 							return nil, runCtx.Err()
-						case <-runCtx.Until(xcontext.ErrPaused):
+						case <-signaling.Until(ctx, signals.Paused):
 							return pauseTest(
 								runID,
 								testID,
@@ -201,13 +207,13 @@ func (jr *JobRunner) Run(ctx xcontext.Context, j *job.Job, resumeState *job.Paus
 								usedResumeState.CleanupRunnerState,
 							)
 						case <-time.After(sleepTime):
-							runCtx.Infof("Finish sleep")
+							logging.Infof(runCtx, "Finish sleep")
 						}
 					}
 				}
 
 				targets, testRunnerState, cleanupRunnerState, succeeded, runErr := jr.runTest(runCtx, j, runID, testID, testAttempt, usedResumeState)
-				if runErr == xcontext.ErrPaused {
+				if runErr == signals.Paused {
 					return pauseTest(runID, testID, testAttempt, targets, testRunnerState, cleanupRunnerState)
 				}
 				if runErr != nil {
@@ -232,17 +238,17 @@ func (jr *JobRunner) Run(ctx xcontext.Context, j *job.Job, resumeState *job.Paus
 		for _, bundle := range j.RunReporterBundles {
 			runStatus, err := jr.BuildRunStatus(ctx, runCoordinates, j)
 			if err != nil {
-				ctx.Warnf("could not build run status for job %d: %v. Run report will not execute", j.ID, err)
+				logging.Warnf(ctx, "could not build run status for job %d: %v. Run report will not execute", j.ID, err)
 				continue
 			}
 			success, data, err := bundle.Reporter.RunReport(runCtx, bundle.Parameters, runStatus, ev)
 			if err != nil {
-				ctx.Warnf("Run reporter failed while calculating run results, proceeding anyway: %v", err)
+				logging.Warnf(ctx, "Run reporter failed while calculating run results, proceeding anyway: %v", err)
 			} else {
 				if success {
-					ctx.Infof("Run #%d of job %d considered successful according to %s", runID, j.ID, bundle.Reporter.Name())
+					logging.Infof(ctx, "Run #%d of job %d considered successful according to %s", runID, j.ID, bundle.Reporter.Name())
 				} else {
-					ctx.Errorf("Run #%d of job %d considered failed according to %s", runID, j.ID, bundle.Reporter.Name())
+					logging.Errorf(ctx, "Run #%d of job %d considered failed according to %s", runID, j.ID, bundle.Reporter.Name())
 				}
 			}
 			report := &job.Report{
@@ -254,7 +260,7 @@ func (jr *JobRunner) Run(ctx xcontext.Context, j *job.Job, resumeState *job.Paus
 				Data:         data,
 			}
 			if err := jr.jobStorage.StoreReport(ctx, report); err != nil {
-				ctx.Warnf("Could not store job run report: %v", err)
+				logging.Warnf(ctx, "Could not store job run report: %v", err)
 			}
 		}
 
@@ -269,18 +275,18 @@ func (jr *JobRunner) Run(ctx xcontext.Context, j *job.Job, resumeState *job.Paus
 		// execution early and we did not perform all runs
 		runStatuses, err := jr.BuildRunStatuses(ctx, j)
 		if err != nil {
-			ctx.Warnf("could not calculate run statuses: %v. Run report will not execute", err)
+			logging.Warnf(ctx, "could not calculate run statuses: %v. Run report will not execute", err)
 			continue
 		}
 
 		success, data, err := bundle.Reporter.FinalReport(ctx, bundle.Parameters, runStatuses, ev)
 		if err != nil {
-			ctx.Warnf("Final reporter failed while calculating test results, proceeding anyway: %v", err)
+			logging.Warnf(ctx, "Final reporter failed while calculating test results, proceeding anyway: %v", err)
 		} else {
 			if success {
-				ctx.Infof("Job %d (%d runs out of %d desired) considered successful", j.ID, runID-1, j.Runs)
+				logging.Infof(ctx, "Job %d (%d runs out of %d desired) considered successful", j.ID, runID-1, j.Runs)
 			} else {
-				ctx.Errorf("Job %d (%d runs out of %d desired) considered failed", j.ID, runID-1, j.Runs)
+				logging.Errorf(ctx, "Job %d (%d runs out of %d desired) considered failed", j.ID, runID-1, j.Runs)
 			}
 		}
 		report := &job.Report{
@@ -292,7 +298,7 @@ func (jr *JobRunner) Run(ctx xcontext.Context, j *job.Job, resumeState *job.Paus
 			Data:         data,
 		}
 		if err := jr.jobStorage.StoreReport(ctx, report); err != nil {
-			ctx.Warnf("Could not store job run report: %v", err)
+			logging.Warnf(ctx, "Could not store job run report: %v", err)
 		}
 	}
 
@@ -300,7 +306,7 @@ func (jr *JobRunner) Run(ctx xcontext.Context, j *job.Job, resumeState *job.Paus
 }
 
 func (jr *JobRunner) acquireTargets(
-	ctx xcontext.Context,
+	ctx context.Context,
 	j *job.Job,
 	testID int,
 	targetLocker target.Locker,
@@ -336,21 +342,21 @@ func (jr *JobRunner) acquireTargets(
 		return nil, false, fmt.Errorf("target locking failed: %w", err)
 	}
 
-	ctx.Infof("%d Targets acquired", len(targets))
+	logging.Infof(ctx, "%d Targets acquired", len(targets))
 	// when the targets are acquired, update the counter
-	if metrics := ctx.Metrics(); metrics != nil {
+	if metrics := metrics.FromCtx(ctx); metrics != nil {
 		metrics.IntGauge(perf.ACQUIRED_TARGETS).Add(int64(len(targets)))
 	}
 
 	return targets, true, nil
 }
 
-func (jr *JobRunner) runTest(ctx xcontext.Context,
+func (jr *JobRunner) runTest(ctx context.Context,
 	j *job.Job, runID types.RunID, testID int, testAttempt uint32,
 	resumeState *job.PauseEventPayload,
 ) ([]*target.Target, json.RawMessage, json.RawMessage, bool, error) {
 	t := j.Tests[testID-1]
-	ctx.Infof("Run #%d: fetching targets for test '%s'", runID, t.Name)
+	logging.Infof(ctx, "Run #%d: fetching targets for test '%s'", runID, t.Name)
 	bundle := t.TargetManagerBundle
 	var (
 		targets  []*target.Target
@@ -369,7 +375,7 @@ func (jr *JobRunner) runTest(ctx xcontext.Context,
 
 	tl := target.GetLocker()
 
-	acquireCtx, acquireCancel := xcontext.WithTimeout(ctx, j.TargetManagerAcquireTimeout)
+	acquireCtx, acquireCancel := context.WithTimeout(ctx, j.TargetManagerAcquireTimeout)
 	defer acquireCancel()
 
 	// the Acquire semantic is synchronous, so that the implementation
@@ -387,11 +393,11 @@ func (jr *JobRunner) runTest(ctx xcontext.Context,
 	select {
 	case acquireErr := <-errCh:
 		if acquireErr != nil {
-			ctx.Errorf("run #%d: cannot fetch targets for test '%s': %w", runID, t.Name, acquireErr)
+			logging.Errorf(ctx, "run #%d: cannot fetch targets for test '%s': %w", runID, t.Name, acquireErr)
 
 			// Assume that all errors could be retried except cancellation as both
 			// target manager and target locking problems can disappear if retried
-			if acquireErr == xcontext.ErrCanceled {
+			if acquireErr == context.Canceled {
 				return nil, nil, nil, false, acquireErr
 			}
 
@@ -423,14 +429,14 @@ func (jr *JobRunner) runTest(ctx xcontext.Context,
 
 	// Check for pause during target acquisition.
 	select {
-	case <-ctx.Until(xcontext.ErrPaused):
-		ctx.Infof("pause requested for job ID %v", j.ID)
-		return targets, nil, nil, false, xcontext.ErrPaused
+	case <-signaling.Until(ctx, signals.Paused):
+		logging.Infof(ctx, "pause requested for job ID %v", j.ID)
+		return targets, nil, nil, false, signals.Paused
 	default:
 	}
 
 	if runErr == nil {
-		ctx.Infof("Run #%d: running test #%d for job '%s' (job ID: %d) on %d targets",
+		logging.Infof(ctx, "Run #%d: running test #%d for job '%s' (job ID: %d) on %d targets",
 			runID, testID, j.Name, j.ID, len(targets))
 
 		var (
@@ -445,20 +451,20 @@ func (jr *JobRunner) runTest(ctx xcontext.Context,
 			cleanupRunnerState = resumeState.CleanupRunnerState
 		}
 
-		runCtx := ctx.WithFields(xcontext.Fields{
+		runCtx := beltctx.WithFields(ctx, field.Map[any]{
 			"job_id":  j.ID,
 			"run_id":  runID,
 			"attempt": testAttempt,
 		})
-		runCtx = xcontext.WithValue(runCtx, types.KeyJobID, j.ID)
-		runCtx = xcontext.WithValue(runCtx, types.KeyRunID, runID)
+		runCtx = context.WithValue(runCtx, types.KeyJobID, j.ID)
+		runCtx = context.WithValue(runCtx, types.KeyRunID, runID)
 
 		// If a previous run was interrupted in cleanup, do not re-run tests
 		if cleanupRunnerState != nil {
-			runCtx.Debugf("== test runner skipping test steps as it was interrupted during cleanup")
+			logging.Debugf(runCtx, "== test runner skipping test steps as it was interrupted during cleanup")
 		} else {
 			testRunner := NewTestRunner()
-			runCtx.Debugf("== test runner starting test steps")
+			logging.Debugf(runCtx, "== test runner starting test steps")
 			testRunnerState, targetsResults, stepOutputs, err = testRunner.Run(
 				runCtx,
 				t,
@@ -468,24 +474,24 @@ func (jr *JobRunner) runTest(ctx xcontext.Context,
 				nil,
 				t.TestStepsBundles,
 			)
-			runCtx.Debugf("== test runner test finished, err: %v", err)
+			logging.Debugf(runCtx, "== test runner test finished, err: %v", err)
 
 			succeed = len(targetsResults) == len(targets)
 			for targetID, targetErr := range targetsResults {
 				if targetErr != nil {
-					ctx.Infof("target '%s' failed with err: '%v'", targetID, err)
+					logging.Infof(ctx, "target '%s' failed with err: '%v'", targetID, err)
 					succeed = false
 				}
 			}
 
-			if err == xcontext.ErrPaused {
+			if err == signals.Paused {
 				return targets, testRunnerState, nil, succeed, err
 			}
 			runErr = err
 		}
 
 		if t.CleanupStepsBundles != nil {
-			runCtx.Debugf("== test runner starting cleanup steps")
+			logging.Debugf(runCtx, "== test runner starting cleanup steps")
 			cleanupRunner := NewTestRunner()
 			cleanupRunnerState, _, _, err := cleanupRunner.Run(
 				runCtx,
@@ -496,9 +502,9 @@ func (jr *JobRunner) runTest(ctx xcontext.Context,
 				stepOutputs,
 				t.CleanupStepsBundles,
 			)
-			runCtx.Debugf("== test runner cleanup finished, err: %v", err)
+			logging.Debugf(runCtx, "== test runner cleanup finished, err: %v", err)
 
-			if err == xcontext.ErrPaused {
+			if err == signals.Paused {
 				return targets, testRunnerState, cleanupRunnerState, succeed, err
 			}
 			// Ignore errors happening in cleanup steps
@@ -520,9 +526,9 @@ func (jr *JobRunner) runTest(ctx xcontext.Context,
 		jr.jobsMap[j.ID].targets = nil
 		jr.jobsMapLock.Unlock()
 		if err := tl.Unlock(ctx, j.ID, targets); err == nil {
-			ctx.Infof("Unlocked %d target(s) for job ID %d", len(targets), j.ID)
+			logging.Infof(ctx, "Unlocked %d target(s) for job ID %d", len(targets), j.ID)
 		} else {
-			ctx.Warnf("Failed to unlock %d target(s) (%v): %v", len(targets), targets, err)
+			logging.Warnf(ctx, "Failed to unlock %d target(s) (%v): %v", len(targets), targets, err)
 		}
 		errCh <- err
 	}()
@@ -530,7 +536,7 @@ func (jr *JobRunner) runTest(ctx xcontext.Context,
 	case err := <-errCh:
 		if err != nil {
 			errRelease := fmt.Sprintf("Failed to release targets: %v", err)
-			ctx.Errorf(errRelease)
+			logging.Errorf(ctx, errRelease)
 			return nil, nil, nil, succeed, fmt.Errorf(errRelease)
 		}
 	case <-jr.clock.After(j.TargetManagerReleaseTimeout):
@@ -538,9 +544,9 @@ func (jr *JobRunner) runTest(ctx xcontext.Context,
 		// Ignore cancellation here, we want release and unlock to happen in that case.
 	}
 
-	ctx.Infof("%d Targets released", len(targets))
+	logging.Infof(ctx, "%d Targets released", len(targets))
 	// If the targets are released, update the counter
-	if metrics := ctx.Metrics(); metrics != nil {
+	if metrics := metrics.FromCtx(ctx); metrics != nil {
 		metrics.IntGauge(perf.ACQUIRED_TARGETS).Add(-int64(len(targets)))
 	}
 
@@ -598,9 +604,9 @@ func (jr *JobRunner) RefreshLocks() {
 				// Job has been canceled, nothing to do
 				break
 			default:
-				ji.jobCtx.Debugf("Refreshing target locks...")
+				logging.Debugf(ji.jobCtx, "Refreshing target locks...")
 				if err := tl.RefreshLocks(ji.jobCtx, ji.jobID, jr.targetLockDuration, ji.targets); err != nil {
-					ji.jobCtx.Errorf("Failed to refresh %d locks for job ID %d (%v), aborting job", len(ji.targets), ji.jobID, err)
+					logging.Errorf(ji.jobCtx, "Failed to refresh %d locks for job ID %d (%v), aborting job", len(ji.targets), ji.jobID, err)
 					// We lost our grip on targets, fold the tent and leave ASAP.
 					ji.jobCancel()
 				}
@@ -612,29 +618,29 @@ func (jr *JobRunner) RefreshLocks() {
 }
 
 // emitTargetEvents emits test events to keep track of Target acquisition and release
-func (jr *JobRunner) emitTargetEvents(ctx xcontext.Context, emitter testevent.Emitter, targets []*target.Target, eventName event.Name) error {
+func (jr *JobRunner) emitTargetEvents(ctx context.Context, emitter testevent.Emitter, targets []*target.Target, eventName event.Name) error {
 	// The events hold a serialization of the Target in the payload
 	for _, t := range targets {
 		data := testevent.Data{EventName: eventName, Target: t}
 		if err := emitter.Emit(ctx, data); err != nil {
-			ctx.Warnf("could not emit event %s: %v", eventName, err)
+			logging.Warnf(ctx, "could not emit event %s: %v", eventName, err)
 			return err
 		}
 	}
 	return nil
 }
 
-func (jr *JobRunner) emitEvent(ctx xcontext.Context, jobID types.JobID, eventName event.Name, payload interface{}) error {
+func (jr *JobRunner) emitEvent(ctx context.Context, jobID types.JobID, eventName event.Name, payload interface{}) error {
 	payloadJSON, err := json.Marshal(payload)
 	if err != nil {
-		ctx.Warnf("could not encode payload for event %s: %v", eventName, err)
+		logging.Warnf(ctx, "could not encode payload for event %s: %v", eventName, err)
 		return err
 	}
 
 	rawPayload := json.RawMessage(payloadJSON)
 	ev := frameworkevent.Event{JobID: jobID, EventName: eventName, Payload: &rawPayload, EmitTime: jr.clock.Now()}
 	if err := jr.frameworkEventManager.Emit(ctx, ev); err != nil {
-		ctx.Warnf("could not emit event %s: %v", eventName, err)
+		logging.Warnf(ctx, "could not emit event %s: %v", eventName, err)
 		return err
 	}
 	return nil

@@ -11,6 +11,7 @@ import (
 
 	"github.com/linuxboot/contest/pkg/api"
 	"github.com/linuxboot/contest/pkg/job"
+	"github.com/linuxboot/contest/pkg/logging"
 )
 
 func (jm *JobManager) stop(ev *api.Event) *api.EventResponse {
@@ -24,7 +25,7 @@ func (jm *JobManager) stop(ev *api.Event) *api.EventResponse {
 	// TargetManagerReleaseTimeout for Release to return.
 	err := jm.CancelJob(jobID)
 	if err != nil {
-		ctx.Errorf("Cannot stop job: %v", err)
+		logging.Errorf(ctx, "Cannot stop job: %v", err)
 		return &api.EventResponse{Err: fmt.Errorf("could not stop job: %v", err)}
 	}
 	_ = jm.emitEvent(ctx, jobID, job.EventJobCancelling)

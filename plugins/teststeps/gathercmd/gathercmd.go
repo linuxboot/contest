@@ -7,6 +7,7 @@ package gathercmd
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -14,11 +15,14 @@ import (
 	"path/filepath"
 	"syscall"
 
+	"github.com/facebookincubator/go-belt/tool/logger"
 	"github.com/linuxboot/contest/pkg/event"
 	"github.com/linuxboot/contest/pkg/event/testevent"
+	"github.com/linuxboot/contest/pkg/logging"
+	"github.com/linuxboot/contest/pkg/signaling"
+	"github.com/linuxboot/contest/pkg/signals"
 	"github.com/linuxboot/contest/pkg/target"
 	"github.com/linuxboot/contest/pkg/test"
-	"github.com/linuxboot/contest/pkg/xcontext"
 )
 
 // Name is the name used to look this plugin up.
@@ -64,7 +68,7 @@ func (ts GatherCmd) Name() string {
 }
 
 func emitEvent(
-	ctx xcontext.Context,
+	ctx context.Context,
 	emitter testevent.Emitter,
 	target *target.Target,
 	name event.Name,
@@ -96,30 +100,30 @@ func truncate(in string, maxsize uint) string {
 	return in[:size]
 }
 
-func (ts *GatherCmd) acquireTargets(ctx xcontext.Context, ch test.TestStepChannels) ([]*target.Target, error) {
+func (ts *GatherCmd) acquireTargets(ctx context.Context, ch test.TestStepChannels) ([]*target.Target, error) {
 	var targets []*target.Target
 
 	for {
 		select {
 		case target, ok := <-ch.In:
 			if !ok {
-				ctx.Debugf("acquired %d targets", len(targets))
+				logging.Debugf(ctx, "acquired %d targets", len(targets))
 				return targets, nil
 			}
 			targets = append(targets, target)
 
-		case <-ctx.Until(xcontext.ErrPaused):
-			ctx.Debugf("paused during target acquisition, acquired %d", len(targets))
-			return nil, xcontext.ErrPaused
+		case <-signaling.Until(ctx, signals.Paused):
+			logging.Debugf(ctx, "paused during target acquisition, acquired %d", len(targets))
+			return nil, signals.Paused
 
 		case <-ctx.Done():
-			ctx.Debugf("canceled during target acquisition, acquired %d", len(targets))
+			logging.Debugf(ctx, "canceled during target acquisition, acquired %d", len(targets))
 			return nil, ctx.Err()
 		}
 	}
 }
 
-func (ts *GatherCmd) returnTargets(ctx xcontext.Context, ch test.TestStepChannels, targets []*target.Target) {
+func (ts *GatherCmd) returnTargets(ctx context.Context, ch test.TestStepChannels, targets []*target.Target) {
 	for _, target := range targets {
 		ch.Out <- test.TestStepResult{Target: target}
 	}
@@ -127,14 +131,14 @@ func (ts *GatherCmd) returnTargets(ctx xcontext.Context, ch test.TestStepChannel
 
 // Run executes the step
 func (ts *GatherCmd) Run(
-	ctx xcontext.Context,
+	ctx context.Context,
 	ch test.TestStepChannels,
 	emitter testevent.Emitter,
 	stepsVars test.StepsVariables,
 	params test.TestStepParameters,
 	resumeState json.RawMessage,
 ) (json.RawMessage, error) {
-	log := ctx.Logger()
+	log := logger.FromCtx(ctx)
 
 	if err := ts.setParams(params); err != nil {
 		return nil, err
@@ -157,12 +161,12 @@ func (ts *GatherCmd) Run(
 	eventTarget := targets[0]
 
 	// used to manually cancel the exec if step becomes paused
-	ctx, cancel := xcontext.WithCancel(ctx)
+	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	go func() {
 		select {
-		case <-ctx.Until(xcontext.ErrPaused):
+		case <-signaling.Until(ctx, signals.Paused):
 			log.Debugf("step was paused, killing the executing command")
 			cancel()
 
@@ -194,9 +198,13 @@ func (ts *GatherCmd) Run(
 
 	if cmdErr := cmd.Run(); cmdErr != nil {
 		// the command may have been canceled as a result of the step pausing
-		if ctx.IsSignaledWith(xcontext.ErrPaused) {
+		isPaused, err := signaling.IsSignaledWith(ctx, signals.Paused)
+		if err != nil {
+			return nil, fmt.Errorf("pause signaling internal error: %w", err)
+		}
+		if isPaused {
 			// nothing to save, just continue pausing
-			return nil, xcontext.ErrPaused
+			return nil, signals.Paused
 		}
 
 		// output the failure event
@@ -263,7 +271,7 @@ func (ts *GatherCmd) setParams(params test.TestStepParameters) error {
 }
 
 // ValidateParameters validates the parameters associated to the TestStep
-func (ts *GatherCmd) ValidateParameters(_ xcontext.Context, params test.TestStepParameters) error {
+func (ts *GatherCmd) ValidateParameters(_ context.Context, params test.TestStepParameters) error {
 	return ts.setParams(params)
 }
 

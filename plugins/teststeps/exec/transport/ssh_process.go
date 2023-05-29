@@ -7,13 +7,15 @@ package transport
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
 	"time"
 
 	"github.com/kballard/go-shellquote"
-	"github.com/linuxboot/contest/pkg/xcontext"
+	"github.com/linuxboot/contest/pkg/logging"
+
 	"golang.org/x/crypto/ssh"
 )
 
@@ -25,13 +27,13 @@ type sshProcess struct {
 	stack *deferedStack
 }
 
-func newSSHProcess(ctx xcontext.Context, client *ssh.Client, bin string, args []string, stack *deferedStack) (Process, error) {
+func newSSHProcess(ctx context.Context, client *ssh.Client, bin string, args []string, stack *deferedStack) (Process, error) {
 	var stdin bytes.Buffer
 	return newSSHProcessWithStdin(ctx, client, bin, args, &stdin, stack)
 }
 
 func newSSHProcessWithStdin(
-	ctx xcontext.Context, client *ssh.Client,
+	ctx context.Context, client *ssh.Client,
 	bin string, args []string,
 	stdin io.Reader,
 	stack *deferedStack,
@@ -50,8 +52,8 @@ func newSSHProcessWithStdin(
 	return &sshProcess{session, cmd, keepAliveDone, stack}, nil
 }
 
-func (sp *sshProcess) Start(ctx xcontext.Context) error {
-	ctx.Debugf("starting remote binary: %s", sp.cmd)
+func (sp *sshProcess) Start(ctx context.Context) error {
+	logging.Debugf(ctx, "starting remote binary: %s", sp.cmd)
 	if err := sp.session.Start(sp.cmd); err != nil {
 		return fmt.Errorf("failed to start process: %w", err)
 	}
@@ -63,19 +65,19 @@ func (sp *sshProcess) Start(ctx xcontext.Context) error {
 				return
 
 			case <-time.After(5 * time.Second):
-				ctx.Debugf("sending sigcont to ssh server...")
+				logging.Debugf(ctx, "sending sigcont to ssh server...")
 				if err := sp.session.Signal(ssh.Signal("CONT")); err != nil {
-					ctx.Warnf("failed to send CONT to ssh server: %w", err)
+					logging.Warnf(ctx, "failed to send CONT to ssh server: %w", err)
 				}
 
 			case <-ctx.Done():
-				ctx.Debugf("killing ssh session because of cancellation...")
+				logging.Debugf(ctx, "killing ssh session because of cancellation...")
 
 				// TODO:  figure out if there's a way to fix this (can be used for resource exhaustion)
 				// note: not all servers implement the signal message so this might
 				// not do anything; see comment about cancellation in Wait()
 				if err := sp.session.Signal(ssh.SIGKILL); err != nil {
-					ctx.Warnf("failed to send KILL on context cancel: %w", err)
+					logging.Warnf(ctx, "failed to send KILL on context cancel: %w", err)
 				}
 
 				sp.session.Close()
@@ -87,7 +89,7 @@ func (sp *sshProcess) Start(ctx xcontext.Context) error {
 	return nil
 }
 
-func (sp *sshProcess) Wait(ctx xcontext.Context) error {
+func (sp *sshProcess) Wait(ctx context.Context) error {
 	// close these no matter what error we get from the wait
 	defer func() {
 		sp.stack.Done()

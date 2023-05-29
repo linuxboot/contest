@@ -6,9 +6,11 @@
 package targetlocker
 
 import (
+	"context"
 	"time"
 
 	"github.com/benbjohnson/clock"
+	"github.com/facebookincubator/go-belt/tool/logger"
 
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -16,8 +18,6 @@ import (
 	"github.com/linuxboot/contest/pkg/logging"
 	"github.com/linuxboot/contest/pkg/target"
 	"github.com/linuxboot/contest/pkg/types"
-	"github.com/linuxboot/contest/pkg/xcontext/bundles/logrusctx"
-	"github.com/linuxboot/contest/pkg/xcontext/logger"
 	"github.com/linuxboot/contest/tests/common/goroutine_leak_check"
 )
 
@@ -33,7 +33,7 @@ var (
 	twoTargets = []*target.Target{target1[0], target2[0]}
 	allTargets = []*target.Target{target1[0], target2[0], &target.Target{ID: "003"}, &target.Target{ID: "004"}}
 
-	ctx, _ = logrusctx.NewContext(logger.LevelDebug, logging.DefaultOptions()...)
+	ctx = logging.WithBelt(context.Background(), logger.LevelDebug)
 )
 
 type TargetLockerTestSuite struct {

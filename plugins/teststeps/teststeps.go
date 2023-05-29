@@ -6,19 +6,22 @@
 package teststeps
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"reflect"
 	"sync"
 
+	"github.com/linuxboot/contest/pkg/logging"
+	"github.com/linuxboot/contest/pkg/signaling"
+	"github.com/linuxboot/contest/pkg/signals"
 	"github.com/linuxboot/contest/pkg/target"
 	"github.com/linuxboot/contest/pkg/test"
-	"github.com/linuxboot/contest/pkg/xcontext"
 )
 
 // PerTargetFunc is a function type that is called on each target by the
 // ForEachTarget function below.
-type PerTargetFunc func(ctx xcontext.Context, target *target.Target) error
+type PerTargetFunc func(ctx context.Context, target *target.Target) error
 
 // ForEachTarget is a simple helper to write plugins that apply a given PerTargetFunc
 // independenly to each target. This helper handles routing through the in/out channels,
@@ -29,17 +32,17 @@ type PerTargetFunc func(ctx xcontext.Context, target *target.Target) error
 // This function wraps the logic that handles target routing through the in/out
 // The implementation of the per-target function is responsible for
 // reacting to cancel/pause signals and return quickly.
-func ForEachTarget(pluginName string, ctx xcontext.Context, ch test.TestStepChannels, f PerTargetFunc) (json.RawMessage, error) {
+func ForEachTarget(pluginName string, ctx context.Context, ch test.TestStepChannels, f PerTargetFunc) (json.RawMessage, error) {
 	reportTarget := func(t *target.Target, err error) {
 		if err != nil {
-			ctx.Errorf("%s: ForEachTarget: failed to apply test step function on target %s: %v", pluginName, t, err)
+			logging.Errorf(ctx, "%s: ForEachTarget: failed to apply test step function on target %s: %v", pluginName, t, err)
 		} else {
-			ctx.Debugf("%s: ForEachTarget: target %s completed successfully", pluginName, t)
+			logging.Debugf(ctx, "%s: ForEachTarget: target %s completed successfully", pluginName, t)
 		}
 		select {
 		case ch.Out <- test.TestStepResult{Target: t, Err: err}:
 		case <-ctx.Done():
-			ctx.Debugf("%s: ForEachTarget: received cancellation signal while reporting result", pluginName)
+			logging.Debugf(ctx, "%s: ForEachTarget: received cancellation signal while reporting result", pluginName)
 		}
 	}
 
@@ -49,10 +52,10 @@ func ForEachTarget(pluginName string, ctx xcontext.Context, ch test.TestStepChan
 			select {
 			case tgt, ok := <-ch.In:
 				if !ok {
-					ctx.Debugf("%s: ForEachTarget: all targets have been received", pluginName)
+					logging.Debugf(ctx, "%s: ForEachTarget: all targets have been received", pluginName)
 					return
 				}
-				ctx.Debugf("%s: ForEachTarget: received target %s", pluginName, tgt)
+				logging.Debugf(ctx, "%s: ForEachTarget: received target %s", pluginName, tgt)
 				wg.Add(1)
 				go func() {
 					defer wg.Done()
@@ -61,7 +64,7 @@ func ForEachTarget(pluginName string, ctx xcontext.Context, ch test.TestStepChan
 					reportTarget(tgt, err)
 				}()
 			case <-ctx.Done():
-				ctx.Debugf("%s: ForEachTarget: incoming loop canceled", pluginName)
+				logging.Debugf(ctx, "%s: ForEachTarget: incoming loop canceled", pluginName)
 				return
 			}
 		}
@@ -88,7 +91,7 @@ func MarshalState(state interface{}, version int) (json.RawMessage, error) {
 	if err != nil {
 		return nil, err
 	}
-	return data, xcontext.ErrPaused
+	return data, signals.Paused
 }
 
 // TargetWithData holds a step target and the pause/resumption data for it
@@ -102,7 +105,7 @@ type TargetWithData struct {
 // PerTargetWithResumeFunc is the function that is called per target by ForEachTargetWithResume
 // It must obey the context and quickly return on cancellation and pause signals.
 // Functions can modify target and store any data required for resumption in target.data.
-type PerTargetWithResumeFunc func(ctx xcontext.Context, target *TargetWithData) error
+type PerTargetWithResumeFunc func(ctx context.Context, target *TargetWithData) error
 
 // parallelTargetsState is the internal state of ForEachTargetWithResume.
 type parallelTargetsState struct {
@@ -121,7 +124,7 @@ type parallelTargetsState struct {
 // with the same data on job resumption. The helper will not call functions again that succeeded or failed
 // before the pause signal was received.
 // The supplied PerTargetWithResumeFunc must react to pause and cancellation signals as normal.
-func ForEachTargetWithResume(ctx xcontext.Context, ch test.TestStepChannels, resumeState json.RawMessage, currentStepStateVersion int, f PerTargetWithResumeFunc) (json.RawMessage, error) {
+func ForEachTargetWithResume(ctx context.Context, ch test.TestStepChannels, resumeState json.RawMessage, currentStepStateVersion int, f PerTargetWithResumeFunc) (json.RawMessage, error) {
 	var ss parallelTargetsState
 
 	// Parse resume state, if any.
@@ -142,32 +145,32 @@ func ForEachTargetWithResume(ctx xcontext.Context, ch test.TestStepChannels, res
 
 		err := f(ctx, tgt2)
 		switch err {
-		case xcontext.ErrCanceled:
+		case context.Canceled:
 			// nothing to do for failed
-		case xcontext.ErrPaused:
+		case signals.Paused:
 			select {
 			case pauseStates <- tgt2:
 			case <-ctx.Done():
-				ctx.Debugf("ForEachTargetWithResume: received cancellation signal while pausing")
+				logging.Debugf(ctx, "ForEachTargetWithResume: received cancellation signal while pausing")
 			}
 		default:
 			// nil or error
 			if err != nil {
-				ctx.Errorf("ForEachTargetWithResume: failed to apply test step function on target %s: %v", tgt2.Target.ID, err)
+				logging.Errorf(ctx, "ForEachTargetWithResume: failed to apply test step function on target %s: %v", tgt2.Target.ID, err)
 			} else {
-				ctx.Debugf("ForEachTargetWithResume: target %s completed successfully", tgt2.Target.ID)
+				logging.Debugf(ctx, "ForEachTargetWithResume: target %s completed successfully", tgt2.Target.ID)
 			}
 			select {
 			case ch.Out <- test.TestStepResult{Target: tgt2.Target, Err: err}:
 			case <-ctx.Done():
-				ctx.Debugf("ForEachTargetWithResume: received cancellation signal while reporting result")
+				logging.Debugf(ctx, "ForEachTargetWithResume: received cancellation signal while reporting result")
 			}
 		}
 	}
 
 	// restart paused targets
 	for _, state := range ss.Targets {
-		ctx.Debugf("ForEachTargetWithResume: resuming target %s", state.Target.ID)
+		logging.Debugf(ctx, "ForEachTargetWithResume: resuming target %s", state.Target.ID)
 		wg.Add(1)
 		go handleTarget(state)
 	}
@@ -183,12 +186,12 @@ mainloop:
 			if !ok {
 				break mainloop
 			}
-			ctx.Debugf("ForEachTargetWithResume: received target %s", tgt)
+			logging.Debugf(ctx, "ForEachTargetWithResume: received target %s", tgt)
 			wg.Add(1)
 			go handleTarget(&TargetWithData{Target: tgt})
 		case <-ctx.Done():
-			ctx.Debugf("ForEachTargetWithResume: canceled, terminating")
-			err = xcontext.ErrCanceled
+			logging.Debugf(ctx, "ForEachTargetWithResume: canceled, terminating")
+			err = context.Canceled
 			break mainloop
 		}
 	}
@@ -204,10 +207,14 @@ mainloop:
 	}
 
 	// wrap up
-	if !ctx.IsSignaledWith(xcontext.ErrPaused) && len(ss.Targets) > 0 {
+	isPaused, _err := signaling.IsSignaledWith(ctx, signals.Paused)
+	if _err != nil {
+		return nil, fmt.Errorf("pause signaling internal error: %w", _err)
+	}
+	if !isPaused && len(ss.Targets) > 0 {
 		return nil, fmt.Errorf("ForEachTargetWithResume: some target functions paused, but no pause signal received: %v ", ss.Targets)
 	}
-	if ctx.IsSignaledWith(xcontext.ErrPaused) {
+	if isPaused {
 		return MarshalState(&ss, currentStepStateVersion)
 	}
 	return nil, err

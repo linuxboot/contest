@@ -20,6 +20,7 @@ package cpucmd
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -29,14 +30,16 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/facebookincubator/go-belt/tool/logger"
 	"github.com/u-root/cpu/cpu"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/linuxboot/contest/pkg/event"
 	"github.com/linuxboot/contest/pkg/event/testevent"
+	"github.com/linuxboot/contest/pkg/logging"
 	"github.com/linuxboot/contest/pkg/target"
 	"github.com/linuxboot/contest/pkg/test"
-	"github.com/linuxboot/contest/pkg/xcontext"
+
 	"github.com/linuxboot/contest/plugins/teststeps"
 )
 
@@ -71,14 +74,14 @@ func (ts CPUCmd) Name() string {
 
 // Run executes the cmd step.
 func (ts *CPUCmd) Run(
-	ctx xcontext.Context,
+	ctx context.Context,
 	ch test.TestStepChannels,
 	ev testevent.Emitter,
 	stepsVars test.StepsVariables,
 	params test.TestStepParameters,
 	resumeState json.RawMessage,
 ) (json.RawMessage, error) {
-	log := ctx.Logger()
+	log := logger.FromCtx(ctx)
 	// XXX: Dragons ahead! The target (%t) substitution, and function
 	// expression evaluations are done at run-time, so they may still fail
 	// despite passing at early validation time.
@@ -91,7 +94,7 @@ func (ts *CPUCmd) Run(
 		return nil, err
 	}
 
-	f := func(ctx xcontext.Context, target *target.Target) error {
+	f := func(ctx context.Context, target *target.Target) error {
 		// apply filters and substitutions to user, host, private key, and command args
 		// cpu does not do user setting yet.
 		// user, err := ts.User.Expand(target)
@@ -180,7 +183,7 @@ func (ts *CPUCmd) Run(
 			if err := c.Close(); err != nil {
 				for _, e := range err {
 					if e != io.EOF {
-						ctx.Warnf("Failed to close CPU session to %s: %v", host, err)
+						logging.Warnf(ctx, "Failed to close CPU session to %s: %v", host, err)
 					}
 				}
 			}
@@ -223,7 +226,7 @@ func (ts *CPUCmd) Run(
 				if err == nil {
 					// Execute expectations
 					if expect == "" {
-						ctx.Warnf("no expectations specified")
+						logging.Warnf(ctx, "no expectations specified")
 					} else {
 						matches := re.FindAll(stdout.Bytes(), -1)
 						if len(matches) > 0 {
@@ -233,7 +236,7 @@ func (ts *CPUCmd) Run(
 						}
 					}
 				} else {
-					ctx.Warnf("Stderr of command '%v' is '%s'", c, stderr.Bytes())
+					logging.Warnf(ctx, "Stderr of command '%v' is '%s'", c, stderr.Bytes())
 				}
 				return err
 			case <-ctx.Done():
@@ -307,8 +310,8 @@ func (ts *CPUCmd) validateAndPopulate(params test.TestStepParameters) error {
 }
 
 // ValidateParameters validates the parameters associated to the TestStep
-func (ts *CPUCmd) ValidateParameters(ctx xcontext.Context, params test.TestStepParameters) error {
-	ctx.Debugf("Params %+v", params)
+func (ts *CPUCmd) ValidateParameters(ctx context.Context, params test.TestStepParameters) error {
+	logging.Debugf(ctx, "Params %+v", params)
 	return ts.validateAndPopulate(params)
 }
 

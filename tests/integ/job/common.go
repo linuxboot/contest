@@ -9,15 +9,16 @@
 package test
 
 import (
+	"context"
 	"time"
 
-	"github.com/linuxboot/contest/pkg/xcontext/bundles/logrusctx"
-	"github.com/linuxboot/contest/pkg/xcontext/logger"
+	"github.com/facebookincubator/go-belt/tool/logger"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
 	"github.com/linuxboot/contest/pkg/event/frameworkevent"
 	"github.com/linuxboot/contest/pkg/job"
+	"github.com/linuxboot/contest/pkg/logging"
 	"github.com/linuxboot/contest/pkg/storage"
 	"github.com/linuxboot/contest/pkg/types"
 	"github.com/linuxboot/contest/tests/integ/common"
@@ -53,7 +54,7 @@ var testDescs = `
 `
 
 var (
-	ctx, _ = logrusctx.NewContext(logger.LevelDebug)
+	ctx = logging.WithBelt(context.Background(), logger.LevelDebug)
 )
 
 type JobSuite struct {

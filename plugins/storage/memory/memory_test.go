@@ -6,18 +6,19 @@
 package memory
 
 import (
+	"context"
 	"sort"
 	"testing"
 	"time"
 
+	"github.com/facebookincubator/go-belt/tool/logger"
 	"github.com/linuxboot/contest/pkg/event/testevent"
-	"github.com/linuxboot/contest/pkg/xcontext/bundles/logrusctx"
-	"github.com/linuxboot/contest/pkg/xcontext/logger"
+	"github.com/linuxboot/contest/pkg/logging"
 	"github.com/stretchr/testify/require"
 )
 
 var (
-	ctx, _ = logrusctx.NewContext(logger.LevelDebug)
+	ctx = logging.WithBelt(context.Background(), logger.LevelDebug)
 )
 
 func TestMemory_GetTestEvents(t *testing.T) {

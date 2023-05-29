@@ -6,6 +6,7 @@
 package terminalexpect
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -13,12 +14,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/facebookincubator/go-belt/tool/logger"
 	"github.com/insomniacslk/termhook"
 	"github.com/linuxboot/contest/pkg/event"
 	"github.com/linuxboot/contest/pkg/event/testevent"
 	"github.com/linuxboot/contest/pkg/target"
 	"github.com/linuxboot/contest/pkg/test"
-	"github.com/linuxboot/contest/pkg/xcontext"
+
 	"github.com/linuxboot/contest/plugins/teststeps"
 )
 
@@ -43,7 +45,7 @@ func (ts TerminalExpect) Name() string {
 }
 
 // match implements termhook.LineHandler
-func match(match string, log xcontext.Logger) termhook.LineHandler {
+func match(match string, log logger.Logger) termhook.LineHandler {
 	return func(w io.Writer, line []byte) (bool, error) {
 		if strings.Contains(string(line), match) {
 			log.Infof("%s: found pattern '%s'", Name, match)
@@ -55,14 +57,14 @@ func match(match string, log xcontext.Logger) termhook.LineHandler {
 
 // Run executes the terminal step.
 func (ts *TerminalExpect) Run(
-	ctx xcontext.Context,
+	ctx context.Context,
 	ch test.TestStepChannels,
 	ev testevent.Emitter,
 	stepsVars test.StepsVariables,
 	params test.TestStepParameters,
 	resumeState json.RawMessage,
 ) (json.RawMessage, error) {
-	log := ctx.Logger()
+	log := logger.FromCtx(ctx)
 
 	if err := ts.validateAndPopulate(params); err != nil {
 		return nil, err
@@ -72,7 +74,7 @@ func (ts *TerminalExpect) Run(
 		return nil, err
 	}
 	// f implements plugins.PerTargetFunc
-	f := func(ctx xcontext.Context, target *target.Target) error {
+	f := func(ctx context.Context, target *target.Target) error {
 		errCh := make(chan error, 1)
 		go func() {
 			errCh <- hook.Run()
@@ -123,7 +125,7 @@ func (ts *TerminalExpect) validateAndPopulate(params test.TestStepParameters) er
 }
 
 // ValidateParameters validates the parameters associated to the TestStep
-func (ts *TerminalExpect) ValidateParameters(_ xcontext.Context, params test.TestStepParameters) error {
+func (ts *TerminalExpect) ValidateParameters(_ context.Context, params test.TestStepParameters) error {
 	return ts.validateAndPopulate(params)
 }
 

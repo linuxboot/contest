@@ -6,6 +6,7 @@
 package runner
 
 import (
+	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -21,12 +22,15 @@ import (
 	"github.com/linuxboot/contest/pkg/cerrors"
 	"github.com/linuxboot/contest/pkg/event"
 	"github.com/linuxboot/contest/pkg/event/testevent"
+	"github.com/linuxboot/contest/pkg/logging"
+	"github.com/linuxboot/contest/pkg/signaling"
+	"github.com/linuxboot/contest/pkg/signals"
 	"github.com/linuxboot/contest/pkg/target"
 	"github.com/linuxboot/contest/pkg/test"
 	"github.com/linuxboot/contest/pkg/types"
-	"github.com/linuxboot/contest/pkg/xcontext"
-	"github.com/linuxboot/contest/pkg/xcontext/bundles/logrusctx"
-	"github.com/linuxboot/contest/pkg/xcontext/logger"
+
+	"github.com/facebookincubator/go-belt/beltctx"
+	"github.com/facebookincubator/go-belt/tool/logger"
 	"github.com/linuxboot/contest/plugins/teststeps"
 	"github.com/linuxboot/contest/tests/common"
 	"github.com/linuxboot/contest/tests/common/goroutine_leak_check"
@@ -51,7 +55,7 @@ func TestMain(m *testing.M) {
 		"github.com/linuxboot/contest/tests/plugins/teststeps/noreturn.(*noreturnStep).Run",
 
 		// No leak in contexts checked with itsown unit-tests
-		"github.com/linuxboot/contest/pkg/xcontext.(*ctxValue).cloneWithStdContext.func2",
+		"github.com/linuxboot/contest/pkg/context.(*ctxValue).cloneWithStdContext.func2",
 	)
 }
 
@@ -99,7 +103,7 @@ func (s *TestRunnerSuite) SetupTest() {
 	}
 }
 
-func (s *TestRunnerSuite) newTestStep(ctx xcontext.Context, label string, failPct int, failTargets string, delayTargets string) test.TestStepBundle {
+func (s *TestRunnerSuite) newTestStep(ctx context.Context, label string, failPct int, failTargets string, delayTargets string) test.TestStepBundle {
 	return s.NewStep(ctx, label, teststep.Name, test.TestStepParameters{
 		teststep.FailPctParam:      []test.Param{*test.NewParam(fmt.Sprintf("%d", failPct))},
 		teststep.FailTargetsParam:  []test.Param{*test.NewParam(failTargets)},
@@ -107,7 +111,7 @@ func (s *TestRunnerSuite) newTestStep(ctx xcontext.Context, label string, failPc
 	})
 }
 
-func (s *TestRunnerSuite) runWithTimeout(ctx xcontext.Context,
+func (s *TestRunnerSuite) runWithTimeout(ctx context.Context,
 	tr *TestRunner,
 	resumeState []byte,
 	runID types.RunID,
@@ -115,7 +119,9 @@ func (s *TestRunnerSuite) runWithTimeout(ctx xcontext.Context,
 	targets []*target.Target,
 	bundles []test.TestStepBundle,
 ) ([]byte, map[string]error, *testStepsVariables, error) {
-	newCtx, cancel := xcontext.WithCancel(ctx)
+	newCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
 	test := &test.Test{
 		Name:             testName,
 		TestStepsBundles: bundles,
@@ -138,7 +144,6 @@ func (s *TestRunnerSuite) runWithTimeout(ctx xcontext.Context,
 	select {
 	case res = <-resCh:
 	case <-time.After(timeout):
-		cancel()
 		assert.FailNow(s.T(), "TestRunner should not time out")
 	}
 	return res.resume, res.targetsResults, res.stepOutputs, res.err
@@ -146,8 +151,8 @@ func (s *TestRunnerSuite) runWithTimeout(ctx xcontext.Context,
 
 // Simple case: one target, one step, success.
 func (s *TestRunnerSuite) Test1Step1Success() {
-	ctx, cancel := logrusctx.NewContext(logger.LevelDebug)
-	defer cancel()
+	ctx := logging.WithBelt(context.Background(), logger.LevelDebug)
+	defer beltctx.Flush(ctx)
 
 	tr := newTestRunner()
 	_, targetsResults, stepOutputs, err := s.runWithTimeout(ctx, tr, nil, 1, 2*time.Second,
@@ -179,8 +184,8 @@ func (s *TestRunnerSuite) Test1Step1Success() {
 // Simple case: one target, one step that blocks for a bit, success.
 // We block for longer than the shutdown timeout of the test runner.
 func (s *TestRunnerSuite) Test1StepLongerThanShutdown1Success() {
-	ctx, cancel := logrusctx.NewContext(logger.LevelDebug)
-	defer cancel()
+	ctx := logging.WithBelt(context.Background(), logger.LevelDebug)
+	defer beltctx.Flush(ctx)
 
 	tr := NewTestRunnerWithTimeouts(100 * time.Millisecond)
 	_, targetsResults, stepOutputs, err := s.runWithTimeout(ctx, tr, nil, 1, 2*time.Second,
@@ -211,8 +216,8 @@ func (s *TestRunnerSuite) Test1StepLongerThanShutdown1Success() {
 
 // Simple case: one target, one step, failure.
 func (s *TestRunnerSuite) Test1Step1Fail() {
-	ctx, cancel := logrusctx.NewContext(logger.LevelDebug)
-	defer cancel()
+	ctx := logging.WithBelt(context.Background(), logger.LevelDebug)
+	defer beltctx.Flush(ctx)
 
 	tr := newTestRunner()
 	_, targetsResults, stepOutputs, err := s.runWithTimeout(ctx, tr, nil, 1, 2*time.Second,
@@ -242,8 +247,8 @@ func (s *TestRunnerSuite) Test1Step1Fail() {
 
 // One step pipeline with two targets - one fails, one succeeds.
 func (s *TestRunnerSuite) Test1Step1Success1Fail() {
-	ctx, cancel := logrusctx.NewContext(logger.LevelDebug)
-	defer cancel()
+	ctx := logging.WithBelt(context.Background(), logger.LevelDebug)
+	defer beltctx.Flush(ctx)
 
 	tr := newTestRunner()
 	_, _, _, err := s.runWithTimeout(ctx, tr, nil, 1, 2*time.Second,
@@ -274,8 +279,8 @@ func (s *TestRunnerSuite) Test1Step1Success1Fail() {
 // Three-step pipeline, two targets: T1 fails at step 1, T2 fails at step 2,
 // step 3 is not reached and not even run.
 func (s *TestRunnerSuite) Test3StepsNotReachedStepNotRun() {
-	ctx, cancel := logrusctx.NewContext(logger.LevelDebug)
-	defer cancel()
+	ctx := logging.WithBelt(context.Background(), logger.LevelDebug)
+	defer beltctx.Flush(ctx)
 
 	tr := newTestRunner()
 	_, _, _, err := s.runWithTimeout(ctx, tr, nil, 1, 2*time.Second,
@@ -317,8 +322,8 @@ func (s *TestRunnerSuite) Test3StepsNotReachedStepNotRun() {
 // A misbehaving step that fails to shut down properly after processing targets
 // and does not return.
 func (s *TestRunnerSuite) TestNoReturnStepWithCorrectTargetForwarding() {
-	ctx, cancel := logrusctx.NewContext(logger.LevelDebug)
-	defer cancel()
+	ctx := logging.WithBelt(context.Background(), logger.LevelDebug)
+	defer beltctx.Flush(ctx)
 
 	tr := NewTestRunnerWithTimeouts(200 * time.Millisecond)
 	_, _, _, err := s.runWithTimeout(ctx, tr, nil, 1, 2*time.Second,
@@ -334,8 +339,8 @@ func (s *TestRunnerSuite) TestNoReturnStepWithCorrectTargetForwarding() {
 
 // A misbehaving step that panics.
 func (s *TestRunnerSuite) TestStepPanics() {
-	ctx, cancel := logrusctx.NewContext(logger.LevelDebug)
-	defer cancel()
+	ctx := logging.WithBelt(context.Background(), logger.LevelDebug)
+	defer beltctx.Flush(ctx)
 
 	tr := newTestRunner()
 	_, _, _, err := s.runWithTimeout(ctx, tr, nil, 1, 2*time.Second,
@@ -352,8 +357,8 @@ func (s *TestRunnerSuite) TestStepPanics() {
 
 // A misbehaving step that closes its output channel.
 func (s *TestRunnerSuite) TestStepClosesChannels() {
-	ctx, cancel := logrusctx.NewContext(logger.LevelDebug)
-	defer cancel()
+	ctx := logging.WithBelt(context.Background(), logger.LevelDebug)
+	defer beltctx.Flush(ctx)
 
 	tr := newTestRunner()
 	_, _, _, err := s.runWithTimeout(ctx, tr, nil, 1, 2*time.Second,
@@ -375,8 +380,8 @@ func (s *TestRunnerSuite) TestStepClosesChannels() {
 
 // A misbehaving step that yields a result for a target that does not exist.
 func (s *TestRunnerSuite) TestStepYieldsResultForNonexistentTarget() {
-	ctx, cancel := logrusctx.NewContext(logger.LevelDebug)
-	defer cancel()
+	ctx := logging.WithBelt(context.Background(), logger.LevelDebug)
+	defer beltctx.Flush(ctx)
 
 	tr := newTestRunner()
 	_, _, _, err := s.runWithTimeout(ctx, tr, nil, 1, 2*time.Second,
@@ -395,8 +400,8 @@ func (s *TestRunnerSuite) TestStepYieldsResultForNonexistentTarget() {
 
 // A misbehaving step that yields a duplicate result for a target.
 func (s *TestRunnerSuite) TestStepYieldsDuplicateResult() {
-	ctx, cancel := logrusctx.NewContext(logger.LevelDebug)
-	defer cancel()
+	ctx := logging.WithBelt(context.Background(), logger.LevelDebug)
+	defer beltctx.Flush(ctx)
 
 	tr := newTestRunner()
 	_, _, _, err := s.runWithTimeout(ctx, tr, nil, 1, 2*time.Second,
@@ -414,8 +419,8 @@ func (s *TestRunnerSuite) TestStepYieldsDuplicateResult() {
 
 // A misbehaving step that loses targets.
 func (s *TestRunnerSuite) TestStepLosesTargets() {
-	ctx, cancel := logrusctx.NewContext(logger.LevelDebug)
-	defer cancel()
+	ctx := logging.WithBelt(context.Background(), logger.LevelDebug)
+	defer beltctx.Flush(ctx)
 
 	tr := newTestRunner()
 	_, _, _, err := s.runWithTimeout(ctx, tr, nil, 1, 2*time.Second,
@@ -432,8 +437,8 @@ func (s *TestRunnerSuite) TestStepLosesTargets() {
 // A misbehaving step that yields a result for a target that does exist
 // but is not currently waiting for it.
 func (s *TestRunnerSuite) TestStepYieldsResultForUnexpectedTarget() {
-	ctx, cancel := logrusctx.NewContext(logger.LevelDebug)
-	defer cancel()
+	ctx := logging.WithBelt(context.Background(), logger.LevelDebug)
+	defer beltctx.Flush(ctx)
 
 	tr := newTestRunner()
 	_, _, _, err := s.runWithTimeout(ctx, tr, nil, 1, 2*time.Second,
@@ -451,8 +456,8 @@ func (s *TestRunnerSuite) TestStepYieldsResultForUnexpectedTarget() {
 
 // Larger, randomized test - a number of steps, some targets failing, some succeeding.
 func (s *TestRunnerSuite) TestRandomizedMultiStep() {
-	ctx, cancel := logrusctx.NewContext(logger.LevelDebug)
-	defer cancel()
+	ctx := logging.WithBelt(context.Background(), logger.LevelDebug)
+	defer beltctx.Flush(ctx)
 
 	tr := newTestRunner()
 	var targets []*target.Target
@@ -489,15 +494,15 @@ func (s *TestRunnerSuite) TestRandomizedMultiStep() {
 }
 
 func (s *TestRunnerSuite) TestVariables() {
-	ctx, cancel := logrusctx.NewContext(logger.LevelDebug)
-	defer cancel()
+	ctx := logging.WithBelt(context.Background(), logger.LevelDebug)
+	defer beltctx.Flush(ctx)
 
 	var (
-		pause xcontext.CancelFunc
+		pause signaling.SignalFunc
 		mu    sync.Mutex
 	)
 	require.NoError(s.T(), s.RegisterStateFullStep(
-		func(ctx xcontext.Context,
+		func(ctx context.Context,
 			ch test.TestStepChannels,
 			ev testevent.Emitter,
 			stepsVars test.StepsVariables,
@@ -505,7 +510,7 @@ func (s *TestRunnerSuite) TestVariables() {
 			resumeState json.RawMessage,
 		) (json.RawMessage, error) {
 			_, err := teststeps.ForEachTargetWithResume(ctx, ch, resumeState, 1,
-				func(ctx xcontext.Context, target *teststeps.TargetWithData) error {
+				func(ctx context.Context, target *teststeps.TargetWithData) error {
 					require.NoError(s.T(), stepsVars.Add(target.Target.ID, "target_id", target.Target.ID))
 
 					var resultValue string
@@ -518,14 +523,14 @@ func (s *TestRunnerSuite) TestVariables() {
 						defer mu.Unlock()
 						if pause != nil {
 							pause()
-							return xcontext.ErrPaused
+							return signals.Paused
 						}
 						return nil
 					}()
 				})
 			return nil, err
 		},
-		func(ctx xcontext.Context, params test.TestStepParameters) error {
+		func(ctx context.Context, params test.TestStepParameters) error {
 			return nil
 		},
 	))
@@ -536,8 +541,8 @@ func (s *TestRunnerSuite) TestVariables() {
 
 	var resumeState []byte
 	{
-		ctx1, ctxPause := xcontext.WithNotify(ctx, xcontext.ErrPaused)
-		ctx1, ctxCancel := xcontext.WithCancel(ctx1)
+		ctx1, ctxPause := signaling.WithSignal(ctx, signals.Paused)
+		ctx1, ctxCancel := context.WithCancel(ctx1)
 		defer ctxCancel()
 
 		mu.Lock()
@@ -553,7 +558,7 @@ func (s *TestRunnerSuite) TestVariables() {
 				s.NewStep(ctx, "step2", stateFullStepName, nil),
 			},
 		)
-		require.IsType(s.T(), xcontext.ErrPaused, err)
+		require.IsType(s.T(), signals.Paused, err)
 		require.NotEmpty(s.T(), resumeState)
 	}
 
@@ -585,8 +590,8 @@ func (s *TestRunnerSuite) TestVariables() {
 // Test pausing/resuming a naive step that does not cooperate.
 // In this case we drain input, wait for all targets to emerge and exit gracefully.
 func (s *TestRunnerSuite) TestPauseResumeSimple() {
-	ctx, cancel := logrusctx.NewContext(logger.LevelDebug)
-	defer cancel()
+	ctx := logging.WithBelt(context.Background(), logger.LevelDebug)
+	defer beltctx.Flush(ctx)
 
 	var err error
 	var resumeState []byte
@@ -599,24 +604,24 @@ func (s *TestRunnerSuite) TestPauseResumeSimple() {
 	}
 	{
 		tr1 := newTestRunner()
-		ctx1, pause := xcontext.WithNotify(ctx, xcontext.ErrPaused)
-		ctx1, cancel := xcontext.WithCancel(ctx1)
+		ctx1, pause := signaling.WithSignal(ctx, signals.Paused)
+		ctx1, cancel := context.WithCancel(ctx1)
 		defer cancel()
 		go func() {
 			time.Sleep(100 * time.Millisecond)
-			ctx.Infof("TestPauseResumeNaive: pausing")
+			logging.Infof(ctx, "TestPauseResumeNaive: pausing")
 			pause()
 		}()
 		resumeState, _, _, err = s.runWithTimeout(ctx1, tr1, nil, 1, 2*time.Second, targets, steps)
 		require.Error(s.T(), err)
-		require.IsType(s.T(), xcontext.ErrPaused, err)
+		require.IsType(s.T(), signals.Paused, err)
 		require.NotNil(s.T(), resumeState)
 	}
-	ctx.Debugf("Resume state: %s", string(resumeState))
+	logging.Debugf(ctx, "Resume state: %s", string(resumeState))
 	// Make sure that resume state is validated.
 	{
 		tr := newTestRunner()
-		ctx, cancel := xcontext.WithCancel(ctx)
+		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
 		resumeState2, _, _, err := s.runWithTimeout(
 			ctx, tr, []byte("FOO"), 2, 2*time.Second, targets, steps)
@@ -626,7 +631,7 @@ func (s *TestRunnerSuite) TestPauseResumeSimple() {
 	}
 	{
 		tr := newTestRunner()
-		ctx, cancel := xcontext.WithCancel(ctx)
+		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
 		resumeState2 := strings.Replace(string(resumeState), `"V"`, `"XV"`, 1)
 		_, _, _, err := s.runWithTimeout(
@@ -638,7 +643,7 @@ func (s *TestRunnerSuite) TestPauseResumeSimple() {
 	// Finally, resume and finish the job.
 	{
 		tr2 := newTestRunner()
-		ctx2, cancel := xcontext.WithCancel(ctx)
+		ctx2, cancel := context.WithCancel(ctx)
 		defer cancel()
 		_, _, _, err := s.runWithTimeout(ctx2, tr2, resumeState, 5, 2*time.Second,
 			// Pass exactly the same targets and pipeline to resume properly.

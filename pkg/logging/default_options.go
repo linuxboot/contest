@@ -6,13 +6,22 @@
 package logging
 
 import (
-	"github.com/linuxboot/contest/pkg/xcontext/bundles"
+	"context"
+
+	"github.com/facebookincubator/go-belt/tool/logger"
+	"github.com/facebookincubator/go-belt/tool/logger/implementation/logrus"
+	"github.com/facebookincubator/go-belt/tool/logger/implementation/logrus/formatter"
 )
 
 // DefaultOptions is a set options recommended to use by default.
-func DefaultOptions() []bundles.Option {
-	return []bundles.Option{
-		bundles.OptionLogFormat(bundles.LogFormatPlainTextCompact),
-		bundles.OptionTimestampFormat("2006-01-02T15:04:05.000Z07:00"),
+func WithBelt(
+	ctx context.Context,
+	logLevel logger.Level,
+) context.Context {
+	l := logrus.DefaultLogrusLogger()
+	l.Formatter = &formatter.CompactText{
+		TimestampFormat: "2006-01-02T15:04:05.000Z07:00",
 	}
+	ctx = logger.CtxWithLogger(ctx, logrus.New(l).WithLevel(logLevel))
+	return ctx
 }

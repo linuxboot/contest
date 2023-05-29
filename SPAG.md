@@ -44,18 +44,18 @@ In this example we see three steps, one of which uses `cmd` step plugin and two 
 
 Step plugin is a Go struct which implements `TestStep`  interface. The interface is defined in [pkg/test/step.go](https://github.com/linuxboot/contest/blob/master/pkg/test/step.go) and it looks like this:
 
-```
+```go
 // TestStep is the interface that all steps need to implement to be executed
 // by the TestRunner
 type TestStep interface {
     // Name returns the name of the step
     Name() string
     // Run runs the test step. The test step is expected to be synchronous.
-    Run(ctx xcontext.Context, ch TestStepChannels, params TestStepParameters, ev testevent.Emitter,
+    Run(ctx context.Context, ch TestStepChannels, params TestStepParameters, ev testevent.Emitter,
         resumeState json.RawMessage) (json.RawMessage, error)
     // ValidateParameters checks that the parameters are correct before passing
     // them to Run.
-    ValidateParameters(ctx xcontext.Context, params TestStepParameters) error
+    ValidateParameters(ctx context.Context, params TestStepParameters) error
 }
 ```
 
@@ -63,7 +63,7 @@ type TestStep interface {
 `Run` is the heart of the plugin. It’s a method where the main code lives. It’s discussed in the “Implementing Run()” chapter. `ValidateParameters`, yeah, validates parameters and we will discuss it in the “Working with parameters” chapter. 
 There are two additional functions, which also should be implemented: `New` and `Load`. Usually they reside in the same module with the interface implementation. Function `New` returns a reference to a new instance of the plugin (implementation of the TestStep interface) and will be used by Contest to create plugin instances. Function Load is an entry point of the plugin. It’s used during registration process and reports everything Contest needs to know about our plugin. Implementation of the Load function could look like this:
 
-```
+```go
 // Load returns the name, factory and events which are needed to register the step.
 func Load() (string, test.TestStepFactory, []event.Name) {
     return Name, New, Events
@@ -91,8 +91,8 @@ Plugin specific parameters can be passed to a plugin instance through `parameter
 
 Sometimes Contest may need to pause a job. The most common reason for this is restart of the contest process itself. As a plugin author you may need to assist in orderly shutdown if possible. There are two things that can happen to your test step plugin:
 
-* A **cancellation** may come in (`ctx.Done()`). This means the job is cancelled or failed entirely and nothing can be done to save it. Plugins SHOULD immediately cease all actions and return. Plugins MUST return within roughly 30s. Plugins do not have to deal with targets/DUTs, you don’t need to put them into any channels or similar - the job is dead. Return `xcontext.ErrCancelled`
-* A **pause request** may come in. This means the contest server wants to restart. Not all plugins can support this easily, you can choose to ignore the pause request and continue as normal, however we want to minimize or completely get rid of these cases in the future. Plugin can either ignore the signal or react to it by serializing the state and returning it as `json.RawMessage`  together with `xcontext.ErrPaused`. If you do this, the framework will call Run again after the server has restarted and give your json back in `resumeState`. Note targets will not be re-injected, you need to remember them. However, new targets can still arrive after the resumption. You don’t need to remember or care about targets that you already returned with pass/fail, the framework knows and will send them to the following step if required.
+* A **cancellation** may come in (`ctx.Done()`). This means the job is cancelled or failed entirely and nothing can be done to save it. Plugins SHOULD immediately cease all actions and return. Plugins MUST return within roughly 30s. Plugins do not have to deal with targets/DUTs, you don’t need to put them into any channels or similar - the job is dead. Return `context.Canceled`
+* A **pause request** may come in. This means the contest server wants to restart. Not all plugins can support this easily, you can choose to ignore the pause request and continue as normal, however we want to minimize or completely get rid of these cases in the future. Plugin can either ignore the signal or react to it by serializing the state and returning it as `json.RawMessage`  together with `signals.Paused`. If you do this, the framework will call Run again after the server has restarted and give your json back in `resumeState`. Note targets will not be re-injected, you need to remember them. However, new targets can still arrive after the resumption. You don’t need to remember or care about targets that you already returned with pass/fail, the framework knows and will send them to the following step if required.
 
 Further details on the semantics of Pause.
 
@@ -102,9 +102,9 @@ Further details on the semantics of Pause.
     * An example of a good case for implementing pause: a plugin that launches an external job and wait for it to complete, polling for its status. In this case, upon receiving pause, it should serialize all the targets in flight at the moment along with job tokens, return them, and continue waiting in the next instance with the same targets and tokens.
 * When pausing, ConTest will close the plugin’s input channel signaling that no more targets will be coming during lifetime of this Step object. This is done in addition to asserting the pause signal so the simplest plugins do not need to handle it separately. (Note: more targets can come in after resumption)
 * Paused plugin retains responsibility for the targets in flight at the time of pausing, i.e. ones that were injected but for which no result was received yet.
-* Successful pause is communicated by returning `ErrPaused` from the Run method. If the plugin was responsible for any targets at the time, any other return value (including `nil`) will be considered a failure to pause and will abort the job.
+* Successful pause is communicated by returning `signals.Paused` from the Run method. If the plugin was responsible for any targets at the time, any other return value (including `nil`) will be considered a failure to pause and will abort the job.
 * Cancellation will follow pause if timeout is about to expire, so both conditions may be asserted on a context, keep that in mind when testing for them.
-* When there are no targets in flight and pause is requested, returning `ErrPaused` is allowed (for simplicity). It may be accompanied by `nil` . In general, return value of a plugin not responsible for any targets does not matter.
+* When there are no targets in flight and pause is requested, returning `signals.Paused` is allowed (for simplicity). It may be accompanied by `nil` . In general, return value of a plugin not responsible for any targets does not matter.
 * When successfully paused, a new instance of the plugin may be resumed with the state returned but it is not a guarantee: another step may have failed to pause correctly in which case entire job would have been aborted and steps that did pause correctly will not be revived.
 * On resumption, targets the plugin was responsible for will not be reinjected but plugin is still expected to produce results for them. Therefore, state returned by the plugin must include everything necessary for the new instance to produce results for targets that had been injected into the previous instance.
 * Cancel signal may be asserted together with pause, in which case cancellation takes precedence. If both pause and cancel are asserted, there is no need to perform pause-related activities anymore.

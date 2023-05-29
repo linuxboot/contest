@@ -26,8 +26,8 @@ var _ logrus.Hook = fixCallerHook{}
 // more meaningful, otherwise the whole log has the same values of "file"
 // and "func", like here:
 //
-//     "file": "github.com/linuxboot/contest/pkg/xcontext/logger/internal/minimal_logger.go:34",
-//     "func": "github.com/linuxboot/contest/pkg/xcontext/logger/internal.MinimalLoggerLogf",
+//	"file": "github.com/linuxboot/contest/pkg/xcontext/logger/internal/minimal_logger.go:34",
+//	"func": "github.com/linuxboot/contest/pkg/xcontext/logger/internal.MinimalLoggerLogf",
 type fixCallerHook struct{}
 
 func (fixCallerHook) Levels() []logrus.Level {

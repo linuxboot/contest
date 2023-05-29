@@ -6,15 +6,17 @@
 package example
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"math/rand"
 
 	"github.com/linuxboot/contest/pkg/event"
 	"github.com/linuxboot/contest/pkg/event/testevent"
+	"github.com/linuxboot/contest/pkg/logging"
 	"github.com/linuxboot/contest/pkg/target"
 	"github.com/linuxboot/contest/pkg/test"
-	"github.com/linuxboot/contest/pkg/xcontext"
+
 	"github.com/linuxboot/contest/plugins/teststeps"
 )
 
@@ -62,15 +64,15 @@ func (ts *Step) shouldFail(t *target.Target) bool {
 
 // Run executes the example step.
 func (ts *Step) Run(
-	ctx xcontext.Context,
+	ctx context.Context,
 	ch test.TestStepChannels,
 	ev testevent.Emitter,
 	stepsVars test.StepsVariables,
 	params test.TestStepParameters,
 	resumeState json.RawMessage,
 ) (json.RawMessage, error) {
-	f := func(ctx xcontext.Context, target *target.Target) error {
-		ctx.Infof("Executing on target %s", target)
+	f := func(ctx context.Context, target *target.Target) error {
+		logging.Infof(ctx, "Executing on target %s", target)
 		// NOTE: you may want more robust error handling here, possibly just
 		//       logging the error, or a retry mechanism. Returning an error
 		//       here means failing the entire job.
@@ -93,7 +95,7 @@ func (ts *Step) Run(
 }
 
 // ValidateParameters validates the parameters associated to the TestStep
-func (ts *Step) ValidateParameters(_ xcontext.Context, params test.TestStepParameters) error {
+func (ts *Step) ValidateParameters(_ context.Context, params test.TestStepParameters) error {
 	if params.GetOne(FailPctParam).String() != "" {
 		if pct, err := params.GetInt(FailPctParam); err == nil {
 			ts.failPct = pct

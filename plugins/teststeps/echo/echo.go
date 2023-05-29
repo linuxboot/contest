@@ -6,14 +6,15 @@
 package echo
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 
 	"github.com/linuxboot/contest/pkg/event"
 	"github.com/linuxboot/contest/pkg/event/testevent"
+	"github.com/linuxboot/contest/pkg/logging"
 	"github.com/linuxboot/contest/pkg/test"
 	"github.com/linuxboot/contest/pkg/types"
-	"github.com/linuxboot/contest/pkg/xcontext"
 )
 
 // Name is the name used to look this plugin up.
@@ -38,7 +39,7 @@ func Load() (string, test.TestStepFactory, []event.Name) {
 
 // ValidateParameters validates the parameters that will be passed to the Run
 // and Resume methods of the test step.
-func (e Step) ValidateParameters(_ xcontext.Context, params test.TestStepParameters) error {
+func (e Step) ValidateParameters(_ context.Context, params test.TestStepParameters) error {
 	if t := params.GetOne("text"); t.IsEmpty() {
 		return errors.New("Missing 'text' field in echo parameters")
 	}
@@ -52,7 +53,7 @@ func (e Step) Name() string {
 
 // Run executes the step
 func (e Step) Run(
-	ctx xcontext.Context,
+	ctx context.Context,
 	ch test.TestStepChannels,
 	ev testevent.Emitter,
 	stepsVars test.StepsVariables,
@@ -72,7 +73,7 @@ func (e Step) Run(
 			// guaranteed to work here
 			jobID, _ := types.JobIDFromContext(ctx)
 			runID, _ := types.RunIDFromContext(ctx)
-			ctx.Infof("This is job %d, run %d on target %s with text '%s'", jobID, runID, target.ID, output)
+			logging.Infof(ctx, "This is job %d, run %d on target %s with text '%s'", jobID, runID, target.ID, output)
 			ch.Out <- test.TestStepResult{Target: target}
 		case <-ctx.Done():
 			return nil, nil

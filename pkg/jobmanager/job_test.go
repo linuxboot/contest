@@ -1,12 +1,13 @@
 package jobmanager
 
 import (
+	"context"
 	"testing"
 
 	"github.com/linuxboot/contest/pkg/job"
 	"github.com/linuxboot/contest/pkg/pluginregistry"
 	"github.com/linuxboot/contest/pkg/test"
-	"github.com/linuxboot/contest/pkg/xcontext"
+
 	"github.com/linuxboot/contest/plugins/reporters/noop"
 	"github.com/linuxboot/contest/plugins/targetmanagers/targetlist"
 	"github.com/linuxboot/contest/plugins/testfetchers/literal"
@@ -15,7 +16,7 @@ import (
 )
 
 func TestDisabledTestDescriptor(t *testing.T) {
-	pr := pluginregistry.NewPluginRegistry(xcontext.Background())
+	pr := pluginregistry.NewPluginRegistry(context.Background())
 	require.NoError(t, pr.RegisterTestStep(echo.Load()))
 	require.NoError(t, pr.RegisterTargetManager(targetlist.Load()))
 	require.NoError(t, pr.RegisterTestFetcher(literal.Load()))
@@ -82,7 +83,7 @@ func TestDisabledTestDescriptor(t *testing.T) {
 		},
 	}
 
-	result, err := NewJobFromDescriptor(xcontext.Background(), pr, &jd)
+	result, err := NewJobFromDescriptor(context.Background(), pr, &jd)
 	require.NoError(t, err)
 	require.NotNil(t, result)
 
@@ -91,7 +92,7 @@ func TestDisabledTestDescriptor(t *testing.T) {
 }
 
 func TestNewJobNoTests(t *testing.T) {
-	pr := pluginregistry.NewPluginRegistry(xcontext.Background())
+	pr := pluginregistry.NewPluginRegistry(context.Background())
 	// require.NoError(t, pr.RegisterTestStep(echo.Load()))
 	require.NoError(t, pr.RegisterTargetManager(targetlist.Load()))
 	require.NoError(t, pr.RegisterTestFetcher(literal.Load()))
@@ -108,12 +109,12 @@ func TestNewJobNoTests(t *testing.T) {
 		},
 	}
 
-	_, err := NewJobFromDescriptor(xcontext.Background(), pr, &jd)
+	_, err := NewJobFromDescriptor(context.Background(), pr, &jd)
 	require.Error(t, err)
 }
 
 func TestNewJobNoTestSteps(t *testing.T) {
-	pr := pluginregistry.NewPluginRegistry(xcontext.Background())
+	pr := pluginregistry.NewPluginRegistry(context.Background())
 	// require.NoError(t, pr.RegisterTestStep(echo.Load()))
 	require.NoError(t, pr.RegisterTargetManager(targetlist.Load()))
 	require.NoError(t, pr.RegisterTestFetcher(literal.Load()))
@@ -153,6 +154,6 @@ func TestNewJobNoTestSteps(t *testing.T) {
 		},
 	}
 
-	_, err := NewJobFromDescriptor(xcontext.Background(), pr, &jd)
+	_, err := NewJobFromDescriptor(context.Background(), pr, &jd)
 	require.Error(t, err)
 }

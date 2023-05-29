@@ -6,13 +6,14 @@
 package storage
 
 import (
+	"context"
 	"testing"
 
 	"github.com/linuxboot/contest/pkg/event/frameworkevent"
 	"github.com/linuxboot/contest/pkg/event/testevent"
 	"github.com/linuxboot/contest/pkg/job"
 	"github.com/linuxboot/contest/pkg/types"
-	"github.com/linuxboot/contest/pkg/xcontext"
+
 	"github.com/stretchr/testify/require"
 )
 
@@ -30,23 +31,23 @@ func (n *nullStorage) GetEventRequestCount() int {
 }
 
 // jobs interface
-func (n *nullStorage) StoreJobRequest(ctx xcontext.Context, request *job.Request) (types.JobID, error) {
+func (n *nullStorage) StoreJobRequest(ctx context.Context, request *job.Request) (types.JobID, error) {
 	n.jobRequestCount++
 	return types.JobID(0), nil
 }
-func (n *nullStorage) GetJobRequest(ctx xcontext.Context, jobID types.JobID) (*job.Request, error) {
+func (n *nullStorage) GetJobRequest(ctx context.Context, jobID types.JobID) (*job.Request, error) {
 	n.jobRequestCount++
 	return nil, nil
 }
-func (n *nullStorage) StoreReport(ctx xcontext.Context, report *job.Report) error {
+func (n *nullStorage) StoreReport(ctx context.Context, report *job.Report) error {
 	n.jobRequestCount++
 	return nil
 }
-func (n *nullStorage) GetJobReport(ctx xcontext.Context, jobID types.JobID) (*job.JobReport, error) {
+func (n *nullStorage) GetJobReport(ctx context.Context, jobID types.JobID) (*job.JobReport, error) {
 	n.jobRequestCount++
 	return nil, nil
 }
-func (n *nullStorage) ListJobs(ctx xcontext.Context, query *JobQuery) ([]types.JobID, error) {
+func (n *nullStorage) ListJobs(ctx context.Context, query *JobQuery) ([]types.JobID, error) {
 	n.jobRequestCount++
 	return nil, nil
 }
@@ -59,19 +60,19 @@ func (n *nullStorage) SetEngineVault(_ EngineVault) {
 }
 
 // events interface
-func (n *nullStorage) StoreTestEvent(ctx xcontext.Context, event testevent.Event) error {
+func (n *nullStorage) StoreTestEvent(ctx context.Context, event testevent.Event) error {
 	n.eventRequestCount++
 	return nil
 }
-func (n *nullStorage) GetTestEvents(ctx xcontext.Context, eventQuery *testevent.Query) ([]testevent.Event, error) {
+func (n *nullStorage) GetTestEvents(ctx context.Context, eventQuery *testevent.Query) ([]testevent.Event, error) {
 	n.eventRequestCount++
 	return nil, nil
 }
-func (n *nullStorage) StoreFrameworkEvent(ctx xcontext.Context, event frameworkevent.Event) error {
+func (n *nullStorage) StoreFrameworkEvent(ctx context.Context, event frameworkevent.Event) error {
 	n.eventRequestCount++
 	return nil
 }
-func (n *nullStorage) GetFrameworkEvent(ctx xcontext.Context, eventQuery *frameworkevent.Query) ([]frameworkevent.Event, error) {
+func (n *nullStorage) GetFrameworkEvent(ctx context.Context, eventQuery *frameworkevent.Query) ([]frameworkevent.Event, error) {
 	n.eventRequestCount++
 	return nil, nil
 }

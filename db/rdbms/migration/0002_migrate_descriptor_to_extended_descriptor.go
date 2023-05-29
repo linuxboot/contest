@@ -6,6 +6,7 @@
 package migration
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -13,13 +14,15 @@ import (
 	"sync"
 	"time"
 
+	"github.com/facebookincubator/go-belt/tool/logger"
 	"github.com/linuxboot/contest/pkg/job"
+	"github.com/linuxboot/contest/pkg/logging"
 	"github.com/linuxboot/contest/pkg/target"
 	"github.com/linuxboot/contest/pkg/test"
 	"github.com/linuxboot/contest/pkg/types"
 	"github.com/linuxboot/contest/pkg/userfunctions/donothing"
 	"github.com/linuxboot/contest/pkg/userfunctions/ocp"
-	"github.com/linuxboot/contest/pkg/xcontext"
+
 	"github.com/linuxboot/contest/plugins/reporters/noop"
 	"github.com/linuxboot/contest/plugins/reporters/targetsuccess"
 	"github.com/linuxboot/contest/plugins/targetmanagers/csvtargetmanager"
@@ -85,17 +88,18 @@ type Request struct {
 //   actually submitted at test time.
 
 // Schema v0002 introduces the concept of extended_descriptor, which is defined as follows:
-// type ExtendedDescriptor struct {
-//		JobDescriptor
-//		TestStepsDescriptors []test.TestStepsDescriptors
-// }
+//
+//	type ExtendedDescriptor struct {
+//			JobDescriptor
+//			TestStepsDescriptors []test.TestStepsDescriptors
+//	}
 //
 // We remove TestDescriptors from Request objects, and we store that information side-by-side with
 // JobDescriptor into an ExtendedDescriptor. We then store this ExtendedDescriptor in the jobs table
 // so that all the test information can be re-fetched by reading extended_descriptor field in
 // jobs table, without any dependency after submission time on the test fetcher.
 type DescriptorMigration struct {
-	Context xcontext.Context
+	Context context.Context
 }
 
 type dbConn interface {
@@ -114,7 +118,7 @@ func ms(d time.Duration) float64 {
 
 // fetchJobs fetches job requests based on limit and offset
 func (m *DescriptorMigration) fetchJobs(db dbConn, limit, offset uint64) ([]Request, error) {
-	log := m.Context.Logger()
+	log := logger.FromCtx(m.Context)
 
 	log.Debugf("fetching shard limit: %d, offset: %d", limit, offset)
 	selectStatement := "select job_id, name, requestor, server_id, request_time, descriptor, teststeps from jobs limit ? offset ?"
@@ -174,7 +178,7 @@ func (m *DescriptorMigration) fetchJobs(db dbConn, limit, offset uint64) ([]Requ
 }
 
 func (m *DescriptorMigration) migrateJobs(db dbConn, requests []Request, registry *pluginregistry.PluginRegistry) error {
-	log := m.Context.Logger()
+	log := logger.FromCtx(m.Context)
 
 	log.Debugf("migrating %d jobs", len(requests))
 	start := time.Now()
@@ -360,7 +364,7 @@ func (m *DescriptorMigration) up(db dbConn) error {
 
 	count := uint64(0)
 	ctx := m.Context
-	ctx.Debugf("counting the number of jobs to migrate")
+	logging.Debugf(ctx, "counting the number of jobs to migrate")
 	start := time.Now()
 	rows, err := db.Query("select count(*) from jobs")
 	if err != nil {
@@ -377,17 +381,17 @@ func (m *DescriptorMigration) up(db dbConn) error {
 		return fmt.Errorf("could not fetch number of records to migrate: %w", err)
 	}
 	if err := rows.Close(); err != nil {
-		ctx.Warnf("could not close rows after count(*) query")
+		logging.Warnf(ctx, "could not close rows after count(*) query")
 	}
 
 	// Create a new plugin registry. This is necessary because some information that need to be
 	// associated with the extended_descriptor is not available in the db and can only be looked
 	// up via the TestFetcher.
 	registry := pluginregistry.NewPluginRegistry(ctx)
-	initPlugins(registry, ctx.Logger())
+	initPlugins(registry, logger.FromCtx(ctx))
 
 	elapsed := time.Since(start)
-	ctx.Debugf("total number of jobs to migrate: %d, fetched in %.3f ms", count, ms(elapsed))
+	logging.Debugf(ctx, "total number of jobs to migrate: %d, fetched in %.3f ms", count, ms(elapsed))
 	for offset := uint64(0); offset < count; offset += shardSize {
 		jobs, err := m.fetchJobs(db, shardSize, offset)
 		if err != nil {
@@ -397,13 +401,13 @@ func (m *DescriptorMigration) up(db dbConn) error {
 		if err != nil {
 			return fmt.Errorf("could not migrate events in range offset %d limit %d: %w", offset, shardSize, err)
 		}
-		ctx.Infof("migrated %d/%d", offset, count)
+		logging.Infof(ctx, "migrated %d/%d", offset, count)
 	}
 	return nil
 }
 
 // NewDescriptorMigration is the factory for DescriptorMigration
-func NewDescriptorMigration(ctx xcontext.Context) migrate.Migrate {
+func NewDescriptorMigration(ctx context.Context) migrate.Migrate {
 	return &DescriptorMigration{
 		Context: ctx,
 	}
@@ -446,7 +450,7 @@ var userFunctions = []map[string]interface{}{
 var testInitOnce sync.Once
 
 // Init initializes the plugin registry
-func initPlugins(pluginRegistry *pluginregistry.PluginRegistry, log xcontext.Logger) {
+func initPlugins(pluginRegistry *pluginregistry.PluginRegistry, log logger.Logger) {
 
 	// Register TargetManager plugins
 	for _, tmloader := range TargetManagers {

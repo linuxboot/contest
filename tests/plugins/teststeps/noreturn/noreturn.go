@@ -6,12 +6,12 @@
 package noreturn
 
 import (
+	"context"
 	"encoding/json"
 
 	"github.com/linuxboot/contest/pkg/event"
 	"github.com/linuxboot/contest/pkg/event/testevent"
 	"github.com/linuxboot/contest/pkg/test"
-	"github.com/linuxboot/contest/pkg/xcontext"
 )
 
 // Name is the name used to look this plugin up.
@@ -30,7 +30,7 @@ func (ts *noreturnStep) Name() string {
 
 // Run executes a step that never returns.
 func (ts *noreturnStep) Run(
-	ctx xcontext.Context,
+	ctx context.Context,
 	ch test.TestStepChannels,
 	ev testevent.Emitter,
 	stepsVars test.StepsVariables,
@@ -46,7 +46,7 @@ func (ts *noreturnStep) Run(
 }
 
 // ValidateParameters validates the parameters associated to the TestStep
-func (ts *noreturnStep) ValidateParameters(_ xcontext.Context, params test.TestStepParameters) error {
+func (ts *noreturnStep) ValidateParameters(_ context.Context, params test.TestStepParameters) error {
 	return nil
 }
 

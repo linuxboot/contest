@@ -1,6 +1,7 @@
 package qemu
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -11,12 +12,13 @@ import (
 	"regexp"
 	"time"
 
+	"github.com/facebookincubator/go-belt/tool/logger"
 	expect "github.com/google/goexpect"
 	"github.com/linuxboot/contest/pkg/event"
 	"github.com/linuxboot/contest/pkg/event/testevent"
 	"github.com/linuxboot/contest/pkg/target"
 	"github.com/linuxboot/contest/pkg/test"
-	"github.com/linuxboot/contest/pkg/xcontext"
+
 	"github.com/linuxboot/contest/plugins/teststeps"
 )
 
@@ -42,7 +44,7 @@ type Qemu struct {
 	steps      []test.Param
 }
 
-//  Needed for the Teststep interface. Returns a Teststep instance.
+// Needed for the Teststep interface. Returns a Teststep instance.
 func New() test.TestStep {
 	return &Qemu{}
 }
@@ -60,7 +62,7 @@ func (q Qemu) Name() string {
 
 // ValidateParameters validates the parameters that will be passed to the Run
 // and Resume methods of the test step.
-func (q *Qemu) ValidateParameters(_ xcontext.Context, params test.TestStepParameters) error {
+func (q *Qemu) ValidateParameters(_ context.Context, params test.TestStepParameters) error {
 	if q.executable = params.GetOne("executable"); q.executable.IsEmpty() {
 		return fmt.Errorf("No Qemu executable given")
 	}
@@ -88,25 +90,25 @@ func (q *Qemu) ValidateParameters(_ xcontext.Context, params test.TestStepParame
 	return nil
 }
 
-func (q *Qemu) validateAndPopulate(ctx xcontext.Context, params test.TestStepParameters) error {
+func (q *Qemu) validateAndPopulate(ctx context.Context, params test.TestStepParameters) error {
 	return q.ValidateParameters(ctx, params)
 }
 
 // Run starts the Qemu instance for each target and interacts with the qemu instance
 // through the expect and send steps.
-func (q *Qemu) Run(ctx xcontext.Context,
+func (q *Qemu) Run(ctx context.Context,
 	ch test.TestStepChannels,
 	ev testevent.Emitter,
 	stepsVars test.StepsVariables,
 	params test.TestStepParameters,
 	resumeState json.RawMessage,
 ) (json.RawMessage, error) {
-	log := ctx.Logger()
+	log := logger.FromCtx(ctx)
 
 	if err := q.validateAndPopulate(ctx, params); err != nil {
 		return nil, err
 	}
-	f := func(ctx xcontext.Context, target *target.Target) error {
+	f := func(ctx context.Context, target *target.Target) error {
 		targetTimeout, err := q.timeout.Expand(target, stepsVars)
 		if err != nil {
 			return err

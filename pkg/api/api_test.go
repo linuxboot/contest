@@ -6,19 +6,19 @@
 package api
 
 import (
+	"context"
 	"runtime"
 	"testing"
 	"time"
 
 	"github.com/linuxboot/contest/pkg/job"
-	"github.com/linuxboot/contest/pkg/xcontext"
-	"github.com/linuxboot/contest/pkg/xcontext/bundles/logrusctx"
-	"github.com/linuxboot/contest/pkg/xcontext/logger"
+
+	"github.com/facebookincubator/go-belt/tool/logger"
 
 	"github.com/stretchr/testify/require"
 )
 
-var ctx, _ = logrusctx.NewContext(logger.LevelDebug)
+var ctx = logger.CtxWithLogger(context.Background(), logger.Default())
 
 func TestOptions(t *testing.T) {
 	eventTimeout := 3141592654 * time.Second
@@ -74,7 +74,7 @@ func TestEventTimeout(t *testing.T) {
 			},
 		}
 
-		ctx, cancelFunc := xcontext.WithCancel(ctx)
+		ctx, cancelFunc := context.WithCancel(ctx)
 		defer cancelFunc()
 		go func() {
 			for {

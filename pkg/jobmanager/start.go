@@ -6,14 +6,19 @@
 package jobmanager
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"time"
 
+	"github.com/facebookincubator/go-belt/beltctx"
+	"github.com/facebookincubator/go-belt/tool/experimental/metrics"
 	"github.com/linuxboot/contest/pkg/api"
 	"github.com/linuxboot/contest/pkg/job"
-	"github.com/linuxboot/contest/pkg/xcontext"
-	"github.com/linuxboot/contest/pkg/xcontext/metrics/perf"
+	"github.com/linuxboot/contest/pkg/logging"
+	"github.com/linuxboot/contest/pkg/metrics/perf"
+	"github.com/linuxboot/contest/pkg/signaling"
+	"github.com/linuxboot/contest/pkg/signals"
 )
 
 func (jm *JobManager) start(ev *api.Event) *api.EventResponse {
@@ -76,72 +81,72 @@ func (jm *JobManager) start(ev *api.Event) *api.EventResponse {
 	}
 }
 
-func (jm *JobManager) startJob(ctx xcontext.Context, j *job.Job, resumeState *job.PauseEventPayload) {
+func (jm *JobManager) startJob(ctx context.Context, j *job.Job, resumeState *job.PauseEventPayload) {
 	jm.jobsMu.Lock()
 	defer jm.jobsMu.Unlock()
-	jobCtx, jobCancel := xcontext.WithCancel(ctx)
-	jobCtx, jobPause := xcontext.WithNotify(jobCtx, xcontext.ErrPaused)
+	jobCtx, jobCancel := context.WithCancel(ctx)
+	jobCtx, jobPause := signaling.WithSignal(jobCtx, signals.Paused)
 	jm.jobs[j.ID] = &jobInfo{job: j, pause: jobPause, cancel: jobCancel}
 	go jm.runJob(jobCtx, j, resumeState)
 }
 
-func (jm *JobManager) runJob(ctx xcontext.Context, j *job.Job, resumeState *job.PauseEventPayload) {
+func (jm *JobManager) runJob(ctx context.Context, j *job.Job, resumeState *job.PauseEventPayload) {
 	defer func() {
 		jm.jobsMu.Lock()
 		delete(jm.jobs, j.ID)
 		jm.jobsMu.Unlock()
 	}()
 
-	if metrics := ctx.Metrics(); metrics != nil {
+	if metrics := metrics.FromCtx(ctx); metrics != nil {
 		// reflect the number of running jobs
 		metrics.IntGauge(perf.RUNNING_JOBS).Add(1)
 		//, when the job is done decrement the counter
 		defer metrics.IntGauge(perf.RUNNING_JOBS).Add(-1)
 	}
 
-	ctx = ctx.WithField("job_id", j.ID)
+	ctx = beltctx.WithField(ctx, "job_id", j.ID)
 
 	if err := jm.emitEvent(ctx, j.ID, job.EventJobStarted); err != nil {
-		ctx.Errorf("failed to emit event: %v", err)
+		logging.Errorf(ctx, "failed to emit event: %v", err)
 		return
 	}
 
 	start := time.Now()
 	resumeState, err := jm.jobRunner.Run(ctx, j, resumeState)
 	duration := time.Since(start)
-	ctx.Debugf("Job %d: runner finished, err %v", j.ID, err)
+	logging.Debugf(ctx, "Job %d: runner finished, err %v", j.ID, err)
 	switch err {
-	case xcontext.ErrCanceled:
+	case context.Canceled:
 		_ = jm.emitEvent(ctx, j.ID, job.EventJobCancelled)
 		return
-	case xcontext.ErrPaused:
+	case signals.Paused:
 		if err := jm.emitEventPayload(ctx, j.ID, job.EventJobPaused, resumeState); err != nil {
 			_ = jm.emitErrEvent(ctx, j.ID, job.EventJobPauseFailed, fmt.Errorf("Job %+v failed pausing: %v", j, err))
 		} else {
-			ctx.Infof("Successfully paused job %d (run %d, %d targets)", j.ID, resumeState.RunID, len(resumeState.Targets))
-			ctx.Debugf("Job %d pause state: %+v", j.ID, resumeState)
+			logging.Infof(ctx, "Successfully paused job %d (run %d, %d targets)", j.ID, resumeState.RunID, len(resumeState.Targets))
+			logging.Debugf(ctx, "Job %d pause state: %+v", j.ID, resumeState)
 		}
 		return
 	}
 	select {
-	case <-ctx.Until(xcontext.ErrPaused):
+	case <-signaling.Until(ctx, signals.Paused):
 		// We were asked to pause but failed to do so.
 		pauseErr := fmt.Errorf("Job %+v failed pausing: %v", j, err)
-		ctx.Errorf("%v", pauseErr)
+		logging.Errorf(ctx, "%v", pauseErr)
 		_ = jm.emitErrEvent(ctx, j.ID, job.EventJobPauseFailed, pauseErr)
 		return
 	default:
 	}
-	ctx.Infof("Job %d finished", j.ID)
+	logging.Infof(ctx, "Job %d finished", j.ID)
 	// at this point it is safe to emit the job status event. Note: this is
 	// checking `err` from the `jm.jobRunner.Run()` call above.
 	if err != nil {
 		_ = jm.emitErrEvent(ctx, j.ID, job.EventJobFailed, fmt.Errorf("Job %d failed after %s: %w", j.ID, duration, err))
 	} else {
-		ctx.Infof("Job %+v completed after %s", j, duration)
+		logging.Infof(ctx, "Job %+v completed after %s", j, duration)
 		err = jm.emitEvent(ctx, j.ID, job.EventJobCompleted)
 		if err != nil {
-			ctx.Warnf("event emission failed: %v", err)
+			logging.Warnf(ctx, "event emission failed: %v", err)
 		}
 	}
 }

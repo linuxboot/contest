@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"crypto/tls"
 	"errors"
 	"fmt"
@@ -12,9 +13,10 @@ import (
 	adminServerJob "github.com/linuxboot/contest/cmds/admin_server/job"
 	"github.com/linuxboot/contest/cmds/admin_server/storage"
 	"github.com/linuxboot/contest/pkg/job"
+	"github.com/linuxboot/contest/pkg/logging"
 	"github.com/linuxboot/contest/pkg/types"
-	"github.com/linuxboot/contest/pkg/xcontext"
-	"github.com/linuxboot/contest/pkg/xcontext/logger"
+
+	"github.com/facebookincubator/go-belt/tool/logger"
 )
 
 var (
@@ -174,9 +176,9 @@ func (r *RouteHandler) addLogs(c *gin.Context) {
 		storageLogs = append(storageLogs, log.ToStorageLog())
 	}
 
-	ctx, cancel := xcontext.WithTimeout(xcontext.Background(), DefaultDBAccessTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), DefaultDBAccessTimeout)
 	defer cancel()
-	ctx = ctx.WithLogger(r.log)
+	ctx = logger.CtxWithLogger(ctx, r.log)
 	err := r.storage.StoreLogs(ctx, storageLogs)
 	if err != nil {
 		r.log.Errorf("Err while storing logs: %v", err)
@@ -203,9 +205,9 @@ func (r *RouteHandler) getLogs(c *gin.Context) {
 		return
 	}
 
-	ctx, cancel := xcontext.WithTimeout(xcontext.Background(), DefaultDBAccessTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), DefaultDBAccessTimeout)
 	defer cancel()
-	ctx = ctx.WithLogger(r.log)
+	ctx = logger.CtxWithLogger(ctx, r.log)
 	result, err := r.storage.GetLogs(ctx, query.ToStorageQuery())
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, makeRestErr("error while getting the logs"))
@@ -227,9 +229,9 @@ func (r *RouteHandler) getTags(c *gin.Context) {
 		return
 	}
 
-	ctx, cancel := xcontext.WithTimeout(xcontext.Background(), DefaultDBAccessTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), DefaultDBAccessTimeout)
 	defer cancel()
-	ctx = ctx.WithLogger(r.log)
+	ctx = logger.CtxWithLogger(ctx, r.log)
 	res, err := r.jobStorage.GetTags(ctx, query.Text)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, makeRestErr("error while getting the projects"))
@@ -247,9 +249,9 @@ func (r *RouteHandler) getJobs(c *gin.Context) {
 		return
 	}
 
-	ctx, cancel := xcontext.WithTimeout(xcontext.Background(), DefaultDBAccessTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), DefaultDBAccessTimeout)
 	defer cancel()
-	ctx = ctx.WithLogger(r.log)
+	ctx = logger.CtxWithLogger(ctx, r.log)
 	res, err := r.jobStorage.GetJobs(ctx, projectName)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, makeRestErr("error while getting the jobs"))
@@ -263,7 +265,7 @@ func makeRestErr(format string, args ...any) gin.H {
 	return gin.H{"status": "err", "msg": fmt.Sprintf(format, args...)}
 }
 
-func initRouter(ctx xcontext.Context, rh RouteHandler, middlewares []gin.HandlerFunc) *gin.Engine {
+func initRouter(ctx context.Context, rh RouteHandler, middlewares []gin.HandlerFunc) *gin.Engine {
 
 	r := gin.New()
 	r.Use(gin.Logger())
@@ -292,11 +294,11 @@ func initRouter(ctx xcontext.Context, rh RouteHandler, middlewares []gin.Handler
 	return r
 }
 
-func Serve(ctx xcontext.Context, port int, storage storage.Storage, jobStorage adminServerJob.Storage, middlewares []gin.HandlerFunc, tlsConfig *tls.Config) error {
+func Serve(ctx context.Context, port int, storage storage.Storage, jobStorage adminServerJob.Storage, middlewares []gin.HandlerFunc, tlsConfig *tls.Config) error {
 	routeHandler := RouteHandler{
 		storage:    storage,
 		jobStorage: jobStorage,
-		log:        ctx.Logger(),
+		log:        logger.FromCtx(ctx),
 	}
 	router := initRouter(ctx, routeHandler, middlewares)
 	server := &http.Server{
@@ -308,9 +310,9 @@ func Serve(ctx xcontext.Context, port int, storage storage.Storage, jobStorage a
 	go func() {
 		<-ctx.Done()
 		// on cancel close the server
-		ctx.Debugf("Closing the server")
+		logging.Debugf(ctx, "Closing the server")
 		if err := server.Close(); err != nil {
-			ctx.Errorf("Error closing the server: %v", err)
+			logging.Errorf(ctx, "Error closing the server: %v", err)
 		}
 	}()
 

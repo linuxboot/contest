@@ -18,10 +18,12 @@ import (
 
 	_ "github.com/go-sql-driver/mysql"
 
+	"github.com/facebookincubator/go-belt/beltctx"
+	"github.com/facebookincubator/go-belt/tool/experimental/metrics"
+	"github.com/facebookincubator/go-belt/tool/logger"
 	"github.com/linuxboot/contest/db/rdbms/migration"
 	"github.com/linuxboot/contest/pkg/job"
-	"github.com/linuxboot/contest/pkg/xcontext/bundles/logrusctx"
-	"github.com/linuxboot/contest/pkg/xcontext/logger"
+	"github.com/linuxboot/contest/pkg/logging"
 	"github.com/linuxboot/contest/tests/integ/common"
 
 	"github.com/stretchr/testify/require"
@@ -81,8 +83,8 @@ func (suite *TestDescriptorMigrationSuite) TearDownTest() {
 // TestFetchJobs tests that jobs are fetched correctly from the db
 func (suite *TestDescriptorMigrationSuite) TestUpMigratesToExtendedDescriptor() {
 
-	ctx, _ := logrusctx.NewContext(logger.LevelDebug)
-	ctx = ctx.WithTag("test", "TestDescriptorMigrationSuite")
+	ctx := logging.WithBelt(context.Background(), logger.LevelDebug)
+	ctx = beltctx.WithField(ctx, "test", "TestDescriptorMigrationSuite", metrics.FieldPropInclude)
 
 	extendedDescriptorMigration := migration.NewDescriptorMigration(ctx)
 	err := extendedDescriptorMigration.Up(suite.tx)

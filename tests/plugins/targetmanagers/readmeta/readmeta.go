@@ -6,11 +6,11 @@
 package readmeta
 
 import (
+	"context"
 	"time"
 
 	"github.com/linuxboot/contest/pkg/target"
 	"github.com/linuxboot/contest/pkg/types"
-	"github.com/linuxboot/contest/pkg/xcontext"
 )
 
 // Name defined the name of the plugin
@@ -33,7 +33,7 @@ func (r Readmeta) ValidateReleaseParameters(params []byte) (interface{}, error) 
 }
 
 // Acquire implements contest.TargetManager.Acquire
-func (t *Readmeta) Acquire(ctx xcontext.Context, jobID types.JobID, jobTargetManagerAcquireTimeout time.Duration, parameters interface{}, tl target.Locker) ([]*target.Target, error) {
+func (t *Readmeta) Acquire(ctx context.Context, jobID types.JobID, jobTargetManagerAcquireTimeout time.Duration, parameters interface{}, tl target.Locker) ([]*target.Target, error) {
 	// test metadata exists
 	jobID2, ok1 := types.JobIDFromContext(ctx)
 	// note this must use panic to abort the test run, as this is a test for the job runner which ignore the actual outcome
@@ -49,7 +49,7 @@ func (t *Readmeta) Acquire(ctx xcontext.Context, jobID types.JobID, jobTargetMan
 }
 
 // Release releases the acquired resources.
-func (t *Readmeta) Release(ctx xcontext.Context, jobID types.JobID, targets []*target.Target, params interface{}) error {
+func (t *Readmeta) Release(ctx context.Context, jobID types.JobID, targets []*target.Target, params interface{}) error {
 	// test metadata exists
 	jobID2, ok1 := types.JobIDFromContext(ctx)
 	// note this must use panic to abort the test run, as this is a test for the job runner which ignore the actual outcome

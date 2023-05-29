@@ -6,15 +6,16 @@
 package api
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
 	"time"
 
+	"github.com/facebookincubator/go-belt/beltctx"
 	"github.com/linuxboot/contest/pkg/storage"
 	"github.com/linuxboot/contest/pkg/storage/limits"
 	"github.com/linuxboot/contest/pkg/types"
-	"github.com/linuxboot/contest/pkg/xcontext"
 )
 
 // CurrentAPIVersion is the current version of the API that the clients must be
@@ -162,12 +163,20 @@ func (a *API) SendReceiveEvent(ev *Event, timeout *time.Duration) (*EventRespons
 // operations via the API, e.g. getting the job status or stopping it.
 // This method should return an error if the job description is malformed or
 // invalid, and if the API version is incompatible.
-func (a *API) Start(ctx xcontext.Context, requestor EventRequestor, jobDescriptor string) (Response, error) {
+func (a *API) Start(ctx context.Context, requestor EventRequestor, jobDescriptor string) (Response, error) {
 	resp := a.newResponse(ResponseTypeStart)
+
+	// To allow jobs to finish we do not allow passing cancel and pause
+	// signals to the job's context. Therefore we use a fresh context
+	// (without any cancels and signalings) and just passthrough its
+	// observability belt.
+	//
+	// It also loose context values, but there are no any values
+	// we care about here.
+	ctx = beltctx.WithField(beltctx.WithBelt(context.Background(), beltctx.Belt(ctx)), "api_method", "start")
+
 	ev := &Event{
-		// To allow jobs to finish we do not allow passing cancel and pause
-		// signals to the job's context (therefore: xcontext.WithResetSignalers).
-		Context:  xcontext.WithResetSignalers(ctx).WithField("api_method", "start"),
+		Context:  ctx,
 		Type:     EventTypeStart,
 		ServerID: resp.ServerID,
 		Msg: EventStartMsg{
@@ -188,10 +197,10 @@ func (a *API) Start(ctx xcontext.Context, requestor EventRequestor, jobDescripto
 }
 
 // Stop requests a job cancellation by the given job ID.
-func (a *API) Stop(ctx xcontext.Context, requestor EventRequestor, jobID types.JobID) (Response, error) {
+func (a *API) Stop(ctx context.Context, requestor EventRequestor, jobID types.JobID) (Response, error) {
 	resp := a.newResponse(ResponseTypeStop)
 	ev := &Event{
-		Context:  ctx.WithField("api_method", "stop"),
+		Context:  beltctx.WithField(ctx, "api_method", "stop"),
 		Type:     EventTypeStop,
 		ServerID: resp.ServerID,
 		Msg: EventStopMsg{
@@ -210,11 +219,11 @@ func (a *API) Stop(ctx xcontext.Context, requestor EventRequestor, jobID types.J
 }
 
 // Status polls the status of a job by its ID, and returns a contest.Status
-//object
-func (a *API) Status(ctx xcontext.Context, requestor EventRequestor, jobID types.JobID) (Response, error) {
+// object
+func (a *API) Status(ctx context.Context, requestor EventRequestor, jobID types.JobID) (Response, error) {
 	resp := a.newResponse(ResponseTypeStatus)
 	ev := &Event{
-		Context:  ctx.WithField("api_method", "status"),
+		Context:  beltctx.WithField(ctx, "api_method", "status"),
 		Type:     EventTypeStatus,
 		ServerID: resp.ServerID,
 		Msg: EventStatusMsg{
@@ -236,10 +245,10 @@ func (a *API) Status(ctx xcontext.Context, requestor EventRequestor, jobID types
 
 // Retry will retry a job identified by its ID, using the same job
 // description. If the job is still running, an error is returned.
-func (a *API) Retry(ctx xcontext.Context, requestor EventRequestor, jobID types.JobID) (Response, error) {
+func (a *API) Retry(ctx context.Context, requestor EventRequestor, jobID types.JobID) (Response, error) {
 	resp := a.newResponse(ResponseTypeRetry)
 	ev := &Event{
-		Context:  ctx.WithField("api_method", "retry"),
+		Context:  beltctx.WithField(ctx, "api_method", "retry"),
 		Type:     EventTypeRetry,
 		ServerID: resp.ServerID,
 		Msg: EventRetryMsg{
@@ -263,10 +272,10 @@ func (a *API) Retry(ctx xcontext.Context, requestor EventRequestor, jobID types.
 }
 
 // List will list jobs matching the specified criteria.
-func (a *API) List(ctx xcontext.Context, requestor EventRequestor, query *storage.JobQuery) (Response, error) {
+func (a *API) List(ctx context.Context, requestor EventRequestor, query *storage.JobQuery) (Response, error) {
 	resp := a.newResponse(ResponseTypeList)
 	ev := &Event{
-		Context:  ctx.WithField("api_method", "list"),
+		Context:  beltctx.WithField(ctx, "api_method", "list"),
 		Type:     EventTypeList,
 		ServerID: resp.ServerID,
 		Msg: EventListMsg{

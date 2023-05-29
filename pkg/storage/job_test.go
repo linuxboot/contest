@@ -6,27 +6,27 @@
 package storage
 
 import (
+	"context"
 	"testing"
 
+	"github.com/facebookincubator/go-belt/tool/logger"
+	"github.com/linuxboot/contest/pkg/logging"
 	"github.com/linuxboot/contest/pkg/types"
-	"github.com/linuxboot/contest/pkg/xcontext"
-	"github.com/linuxboot/contest/pkg/xcontext/bundles/logrusctx"
-	"github.com/linuxboot/contest/pkg/xcontext/logger"
+
 	"github.com/stretchr/testify/require"
 )
 
 type testJobStorageManagerFixture struct {
-	ctx      xcontext.Context
+	ctx      context.Context
 	jobID    types.JobID
 	jobQuery *JobQuery
 }
 
 func mockJobStorageManagerData() *testJobStorageManagerFixture {
 	query, _ := BuildJobQuery()
-	ctx, _ := logrusctx.NewContext(logger.LevelDebug)
 
 	return &testJobStorageManagerFixture{
-		ctx:      ctx,
+		ctx:      logging.WithBelt(context.Background(), logger.LevelDebug),
 		jobID:    types.JobID(0),
 		jobQuery: query,
 	}
@@ -39,19 +39,19 @@ func TestJobStorageConsistency(t *testing.T) {
 
 	var cases = []struct {
 		name   string
-		getter func(ctx xcontext.Context, jsm *JobStorageManager)
+		getter func(ctx context.Context, jsm *JobStorageManager)
 	}{
 		{
 			"TestGetJobRequest",
-			func(ctx xcontext.Context, jsm *JobStorageManager) { _, _ = jsm.GetJobRequest(ctx, f.jobID) },
+			func(ctx context.Context, jsm *JobStorageManager) { _, _ = jsm.GetJobRequest(ctx, f.jobID) },
 		},
 		{
 			"TestGetJobReport",
-			func(ctx xcontext.Context, jsm *JobStorageManager) { _, _ = jsm.GetJobReport(ctx, f.jobID) },
+			func(ctx context.Context, jsm *JobStorageManager) { _, _ = jsm.GetJobReport(ctx, f.jobID) },
 		},
 		{
 			"TestListJobs",
-			func(ctx xcontext.Context, jsm *JobStorageManager) { _, _ = jsm.ListJobs(ctx, f.jobQuery) },
+			func(ctx context.Context, jsm *JobStorageManager) { _, _ = jsm.ListJobs(ctx, f.jobQuery) },
 		},
 	}
 

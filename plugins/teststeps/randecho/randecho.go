@@ -6,6 +6,7 @@
 package randecho
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -13,9 +14,10 @@ import (
 
 	"github.com/linuxboot/contest/pkg/event"
 	"github.com/linuxboot/contest/pkg/event/testevent"
+	"github.com/linuxboot/contest/pkg/logging"
 	"github.com/linuxboot/contest/pkg/target"
 	"github.com/linuxboot/contest/pkg/test"
-	"github.com/linuxboot/contest/pkg/xcontext"
+
 	"github.com/linuxboot/contest/plugins/teststeps"
 )
 
@@ -41,7 +43,7 @@ func Load() (string, test.TestStepFactory, []event.Name) {
 
 // ValidateParameters validates the parameters that will be passed to the Run
 // and Resume methods of the test step.
-func (e Step) ValidateParameters(_ xcontext.Context, params test.TestStepParameters) error {
+func (e Step) ValidateParameters(_ context.Context, params test.TestStepParameters) error {
 	if t := params.GetOne("text"); t.IsEmpty() {
 		return errors.New("Missing 'text' field in echo parameters")
 	}
@@ -55,7 +57,7 @@ func (e Step) Name() string {
 
 // Run executes the step
 func (e Step) Run(
-	ctx xcontext.Context,
+	ctx context.Context,
 	ch test.TestStepChannels,
 	ev testevent.Emitter,
 	stepsVars test.StepsVariables,
@@ -63,7 +65,7 @@ func (e Step) Run(
 	resumeState json.RawMessage,
 ) (json.RawMessage, error) {
 	return teststeps.ForEachTarget(Name, ctx, ch,
-		func(ctx xcontext.Context, target *target.Target) error {
+		func(ctx context.Context, target *target.Target) error {
 			r := rand.Intn(2)
 			if r == 0 {
 				evData := testevent.Data{
@@ -72,7 +74,7 @@ func (e Step) Run(
 					Payload:   nil,
 				}
 				_ = ev.Emit(ctx, evData)
-				ctx.Infof("Run: target %s succeeded: %s", target, params.GetOne("text"))
+				logging.Infof(ctx, "Run: target %s succeeded: %s", target, params.GetOne("text"))
 				return nil
 			} else {
 				evData := testevent.Data{
@@ -81,7 +83,7 @@ func (e Step) Run(
 					Payload:   nil,
 				}
 				_ = ev.Emit(ctx, evData)
-				ctx.Infof("Run: target %s failed: %s", target, params.GetOne("text"))
+				logging.Infof(ctx, "Run: target %s failed: %s", target, params.GetOne("text"))
 				return fmt.Errorf("target randomly failed")
 			}
 		},

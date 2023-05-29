@@ -6,12 +6,12 @@
 package panicstep
 
 import (
+	"context"
 	"encoding/json"
 
 	"github.com/linuxboot/contest/pkg/event"
 	"github.com/linuxboot/contest/pkg/event/testevent"
 	"github.com/linuxboot/contest/pkg/test"
-	"github.com/linuxboot/contest/pkg/xcontext"
 )
 
 // Name is the name used to look this plugin up.
@@ -30,7 +30,7 @@ func (ts *panicStep) Name() string {
 
 // Run executes the example step.
 func (ts *panicStep) Run(
-	ctx xcontext.Context,
+	ctx context.Context,
 	ch test.TestStepChannels,
 	ev testevent.Emitter,
 	stepsVars test.StepsVariables,
@@ -41,7 +41,7 @@ func (ts *panicStep) Run(
 }
 
 // ValidateParameters validates the parameters associated to the TestStep
-func (ts *panicStep) ValidateParameters(_ xcontext.Context, params test.TestStepParameters) error {
+func (ts *panicStep) ValidateParameters(_ context.Context, params test.TestStepParameters) error {
 	return nil
 }
 

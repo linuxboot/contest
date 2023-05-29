@@ -6,13 +6,13 @@
 package crash
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 
 	"github.com/linuxboot/contest/pkg/event"
 	"github.com/linuxboot/contest/pkg/event/testevent"
 	"github.com/linuxboot/contest/pkg/test"
-	"github.com/linuxboot/contest/pkg/xcontext"
 )
 
 // Name is the name used to look this plugin up.
@@ -31,7 +31,7 @@ func (ts *crash) Name() string {
 
 // Run executes a step which returns an error
 func (ts *crash) Run(
-	ctx xcontext.Context,
+	ctx context.Context,
 	ch test.TestStepChannels,
 	ev testevent.Emitter,
 	stepsVars test.StepsVariables,
@@ -42,7 +42,7 @@ func (ts *crash) Run(
 }
 
 // ValidateParameters validates the parameters associated to the TestStep
-func (ts *crash) ValidateParameters(_ xcontext.Context, params test.TestStepParameters) error {
+func (ts *crash) ValidateParameters(_ context.Context, params test.TestStepParameters) error {
 	return nil
 }
 

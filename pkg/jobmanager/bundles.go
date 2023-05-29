@@ -6,6 +6,7 @@
 package jobmanager
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -14,7 +15,6 @@ import (
 	"github.com/linuxboot/contest/pkg/pluginregistry"
 	"github.com/linuxboot/contest/pkg/storage/limits"
 	"github.com/linuxboot/contest/pkg/test"
-	"github.com/linuxboot/contest/pkg/xcontext"
 )
 
 // newReportingBundles returns the bundles for the run report and the final report
@@ -57,7 +57,7 @@ func newReportingBundles(registry *pluginregistry.PluginRegistry, jobDescriptor 
 }
 
 // newBundlesFromSteps creates bundles for the test
-func newBundlesFromSteps(ctx xcontext.Context, descriptors []*test.TestStepDescriptor, registry *pluginregistry.PluginRegistry) ([]test.TestStepBundle, error) {
+func newBundlesFromSteps(ctx context.Context, descriptors []*test.TestStepDescriptor, registry *pluginregistry.PluginRegistry) ([]test.TestStepBundle, error) {
 
 	// look up test step plugins in the plugin registry
 	var stepBundles []test.TestStepBundle

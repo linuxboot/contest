@@ -7,22 +7,24 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
 
 	// Import migration packages so that golang migrations can register themselves
+	"github.com/facebookincubator/go-belt/beltctx"
+	"github.com/facebookincubator/go-belt/tool/logger"
+	"github.com/facebookincubator/go-belt/tool/logger/implementation/logrus"
 	_ "github.com/linuxboot/contest/db/rdbms/migration"
-	"github.com/linuxboot/contest/pkg/xcontext/bundles/logrusctx"
-	"github.com/linuxboot/contest/pkg/xcontext/logger"
+	"github.com/linuxboot/contest/pkg/logging"
 
 	"github.com/linuxboot/contest/tools/migration/rdbms/migrate"
 
 	_ "github.com/go-sql-driver/mysql"
 
 	"github.com/pressly/goose"
-	"github.com/sirupsen/logrus"
 )
 
 var (
@@ -77,35 +79,35 @@ func main() {
 	if *flagDebug {
 		logLevel = logger.LevelDebug
 	}
-	var ctx, _ = logrusctx.NewContext(logLevel)
-	ctx.Logger().OriginalLogger().(*logrus.Entry).Logger.SetOutput(os.Stdout)
+	ctx := logging.WithBelt(context.Background(), logLevel)
+	logger.FromCtx(ctx).Emitter().(*logrus.Emitter).LogrusEntry.Logger.SetOutput(os.Stdout)
 
 	if *flagDir == "" {
 		flags.Usage()
-		ctx.Logger().Fatalf("migration directory was not specified")
+		logging.Fatalf(ctx, "migration directory was not specified")
 	}
 
 	for _, m := range migrate.Migrations {
-		migration := m.Factory(ctx.WithField("migration", filepath.Base(m.Name)))
+		migration := m.Factory(beltctx.WithField(ctx, "migration", filepath.Base(m.Name)))
 		goose.AddNamedMigration(m.Name, migration.Up, migration.Down)
 	}
 
 	command := os.Args[len(os.Args)-1]
 	db, err := goose.OpenDBWithDriver(*flagDBDriver, *flagDBURI)
 	if err != nil {
-		ctx.Logger().Fatalf("failed to open DB: %v", err)
+		logging.Fatalf(ctx, "failed to open DB: %v", err)
 	}
 	if err := db.Ping(); err != nil {
-		ctx.Logger().Fatalf("db not reachable: %v", err)
+		logging.Fatalf(ctx, "db not reachable: %v", err)
 	}
 
 	defer func() {
 		if err := db.Close(); err != nil {
-			ctx.Logger().Fatalf("failed to close DB: %v", err)
+			logging.Fatalf(ctx, "failed to close DB: %v", err)
 		}
 	}()
 
 	if err := goose.Run(command, db, *flagDir, flags.Args()...); err != nil {
-		ctx.Logger().Fatalf("could not run command %v for migration: %v", command, err)
+		logging.Fatalf(ctx, "could not run command %v for migration: %v", command, err)
 	}
 }

@@ -6,34 +6,35 @@
 package jobmanager
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 
 	"github.com/linuxboot/contest/pkg/event/frameworkevent"
 	"github.com/linuxboot/contest/pkg/job"
+	"github.com/linuxboot/contest/pkg/logging"
 	"github.com/linuxboot/contest/pkg/types"
-	"github.com/linuxboot/contest/pkg/xcontext"
 )
 
-func (jm *JobManager) resumeJobs(ctx xcontext.Context, serverID string) error {
+func (jm *JobManager) resumeJobs(ctx context.Context, serverID string) error {
 	pausedJobs, err := jm.listMyJobs(ctx, serverID, job.JobStatePaused)
 	if err != nil {
 		return fmt.Errorf("failed to list paused jobs: %w", err)
 	}
-	ctx.Infof("Found %d paused jobs for %s/%s", len(pausedJobs), jm.config.instanceTag, serverID)
+	logging.Infof(ctx, "Found %d paused jobs for %s/%s", len(pausedJobs), jm.config.instanceTag, serverID)
 	for _, jobID := range pausedJobs {
 		if err := jm.resumeJob(ctx, jobID); err != nil {
-			ctx.Errorf("failed to resume job %d: %v, failing it", jobID, err)
+			logging.Errorf(ctx, "failed to resume job %d: %v, failing it", jobID, err)
 			if err = jm.emitErrEvent(ctx, jobID, job.EventJobFailed, fmt.Errorf("failed to resume job %d: %w", jobID, err)); err != nil {
-				ctx.Warnf("Failed to emit event for %d: %v", jobID, err)
+				logging.Warnf(ctx, "Failed to emit event for %d: %v", jobID, err)
 			}
 		}
 	}
 	return nil
 }
 
-func (jm *JobManager) resumeJob(ctx xcontext.Context, jobID types.JobID) error {
-	ctx.Debugf("attempting to resume job %d", jobID)
+func (jm *JobManager) resumeJob(ctx context.Context, jobID types.JobID) error {
+	logging.Debugf(ctx, "attempting to resume job %d", jobID)
 	results, err := jm.frameworkEvManager.Fetch(
 		ctx,
 		frameworkevent.QueryJobID(jobID),
@@ -73,7 +74,7 @@ func (jm *JobManager) resumeJob(ctx xcontext.Context, jobID types.JobID) error {
 		return fmt.Errorf("failed to create job %d: %w", jobID, err)
 	}
 	j.ID = jobID
-	ctx.Debugf("running resumed job %d", j.ID)
+	logging.Debugf(ctx, "running resumed job %d", j.ID)
 	jm.startJob(ctx, j, &resumeState)
 	return nil
 }

@@ -6,10 +6,11 @@
 package api
 
 import (
+	"context"
+
 	"github.com/linuxboot/contest/pkg/job"
 	"github.com/linuxboot/contest/pkg/storage"
 	"github.com/linuxboot/contest/pkg/types"
-	"github.com/linuxboot/contest/pkg/xcontext"
 )
 
 // EventType identifies an API event type.
@@ -50,7 +51,7 @@ const (
 // Event represents an event that the API can generate. This is used by the API
 // listener to enable event handling.
 type Event struct {
-	Context  xcontext.Context
+	Context  context.Context
 	Type     EventType
 	ServerID string
 	Err      error

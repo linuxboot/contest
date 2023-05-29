@@ -6,6 +6,7 @@
 package test
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -15,7 +16,6 @@ import (
 	"github.com/linuxboot/contest/pkg/event"
 	"github.com/linuxboot/contest/pkg/event/testevent"
 	"github.com/linuxboot/contest/pkg/target"
-	"github.com/linuxboot/contest/pkg/xcontext"
 )
 
 // TestStepParameters represents the parameters that a TestStep should consume
@@ -137,12 +137,12 @@ type TestStep interface {
 	// Name returns the name of the step
 	Name() string
 	// Run runs the test step. The test step is expected to be synchronous.
-	Run(ctx xcontext.Context, ch TestStepChannels, ev testevent.Emitter,
+	Run(ctx context.Context, ch TestStepChannels, ev testevent.Emitter,
 		stepsVars StepsVariables, params TestStepParameters,
 		resumeState json.RawMessage) (json.RawMessage, error)
 	// ValidateParameters checks that the parameters are correct before passing
 	// them to Run.
-	ValidateParameters(ctx xcontext.Context, params TestStepParameters) error
+	ValidateParameters(ctx context.Context, params TestStepParameters) error
 }
 
 var identifierRegexPattern *regexp.Regexp

@@ -99,7 +99,7 @@ func NewContext(logLevel logger.Level, opts ...bundles.Option) (xcontext.Context
 				httpHook.Close()
 			}()
 
-			entry.Logger.AddHook(httpHook)
+			//entry.Logger.AddHook(httpHook)
 		} else {
 			fmt.Fprintf(os.Stderr, "Error while creating http logger hook: %v", err)
 		}

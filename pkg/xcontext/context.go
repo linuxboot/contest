@@ -169,7 +169,7 @@ type TimeSpan interface {
 //
 // Is supposed to be used this way:
 //
-//     defer ctx.Tracer().StartSpan("some label here").Finish()
+//	defer ctx.Tracer().StartSpan("some label here").Finish()
 type Tracer interface {
 	// StartSpan creates a time span to be reported (if Finish will be called)
 	// which starts counting time since the moment StartSpan was called.

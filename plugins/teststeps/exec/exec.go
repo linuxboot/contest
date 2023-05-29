@@ -6,6 +6,7 @@
 package exec
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 
@@ -13,7 +14,7 @@ import (
 	"github.com/linuxboot/contest/pkg/event"
 	"github.com/linuxboot/contest/pkg/event/testevent"
 	"github.com/linuxboot/contest/pkg/test"
-	"github.com/linuxboot/contest/pkg/xcontext"
+
 	"github.com/linuxboot/contest/plugins/teststeps"
 )
 
@@ -53,7 +54,7 @@ func (ts TestStep) Name() string {
 
 // Run executes the step.
 func (ts *TestStep) Run(
-	ctx xcontext.Context,
+	ctx context.Context,
 	ch test.TestStepChannels,
 	ev testevent.Emitter,
 	stepsVars test.StepsVariables,
@@ -79,7 +80,7 @@ func (ts *TestStep) populateParams(stepParams test.TestStepParameters) error {
 }
 
 // ValidateParameters validates the parameters associated to the step
-func (ts *TestStep) ValidateParameters(_ xcontext.Context, stepParams test.TestStepParameters) error {
+func (ts *TestStep) ValidateParameters(_ context.Context, stepParams test.TestStepParameters) error {
 	return ts.populateParams(stepParams)
 }
 

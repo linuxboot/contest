@@ -6,6 +6,7 @@
 package server
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"os"
@@ -22,15 +23,16 @@ import (
 	"github.com/linuxboot/contest/pkg/loggerhook"
 	"github.com/linuxboot/contest/pkg/logging"
 	"github.com/linuxboot/contest/pkg/pluginregistry"
+	"github.com/linuxboot/contest/pkg/signaling"
+	"github.com/linuxboot/contest/pkg/signals"
 	"github.com/linuxboot/contest/pkg/storage"
 	"github.com/linuxboot/contest/pkg/target"
 	"github.com/linuxboot/contest/pkg/test"
 	"github.com/linuxboot/contest/pkg/userfunctions/donothing"
 	"github.com/linuxboot/contest/pkg/userfunctions/ocp"
-	"github.com/linuxboot/contest/pkg/xcontext"
-	"github.com/linuxboot/contest/pkg/xcontext/bundles"
-	"github.com/linuxboot/contest/pkg/xcontext/bundles/logrusctx"
-	"github.com/linuxboot/contest/pkg/xcontext/logger"
+
+	"github.com/facebookincubator/go-belt/tool/experimental/errmon"
+	"github.com/facebookincubator/go-belt/tool/logger"
 	"github.com/linuxboot/contest/plugins/storage/memory"
 	"github.com/linuxboot/contest/plugins/storage/rdbms"
 	"github.com/linuxboot/contest/plugins/targetlocker/dblocker"
@@ -48,7 +50,6 @@ var (
 	flagProcessTimeout     *time.Duration
 	flagTargetLocker       *string
 	flagInstanceTag        *string
-	flagLogLevel           *string
 	flagPauseTimeout       *time.Duration
 	flagResumeJobs         *bool
 	flagTargetLockDuration *time.Duration
@@ -59,6 +60,7 @@ var (
 	flagHttpLoggerMaxBatchCount *int
 	flagHttpLoggerBatchSendFreq *time.Duration
 	flagHttpLoggerTimeout       *time.Duration
+	logLevel                    = logger.LevelDebug
 )
 
 func initFlags(cmd string) {
@@ -75,7 +77,7 @@ func initFlags(cmd string) {
 	flagProcessTimeout = flagSet.Duration("processTimeout", api.DefaultEventTimeout, "API request processing timeout")
 	flagTargetLocker = flagSet.String("targetLocker", "auto", "Target locker implementation to use, \"auto\" follows DBURI setting")
 	flagInstanceTag = flagSet.String("instanceTag", "", "A tag for this instance. Server will only operate on jobs with this tag and will add this tag to the jobs it creates.")
-	flagLogLevel = flagSet.String("logLevel", "debug", "A log level, possible values: debug, info, warning, error, panic, fatal")
+	flagSet.Var(&logLevel, "logLevel", "A log level, possible values: debug, info, warning, error, panic, fatal")
 	flagPauseTimeout = flagSet.Duration("pauseTimeout", 0, "SIGINT/SIGTERM shutdown timeout (seconds), after which pause will be escalated to cancellaton; -1 - no escalation, 0 - do not pause, cancel immediately")
 	flagResumeJobs = flagSet.Bool("resumeJobs", false, "Attempt to resume paused jobs")
 	flagTargetLockDuration = flagSet.Duration("targetLockDuration", config.DefaultTargetLockDuration,
@@ -156,32 +158,28 @@ func Main(pluginConfig *PluginConfig, cmd string, args []string, sigs <-chan os.
 		return err
 	}
 
-	logLevel, err := logger.ParseLogLevel(*flagLogLevel)
-	if err != nil {
-		return err
-	}
-
 	clk := clock.New()
 
-	logrusOpts := logging.DefaultOptions()
+	ctx, cancel := context.WithCancel(context.Background())
+	ctx = logging.WithBelt(ctx, logLevel)
 
 	if *flagAdminServerAddr != "" {
-		logrusOpts = append(
-			logrusOpts,
-			bundles.OptionHttpLoggerConfig(loggerhook.Config{
-				Addr:          *flagAdminServerAddr,
-				BufferSize:    *flagHttpLoggerBufferSize,
-				MaxBatchSize:  *flagHttpLoggerMaxBatchSize,
-				MaxBatchCount: *flagHttpLoggerMaxBatchCount,
-				BatchSendFreq: *flagHttpLoggerBatchSendFreq,
-				LogTimeout:    *flagHttpLoggerTimeout,
-			}),
-		)
+		httpHook, err := loggerhook.NewHttpHook(loggerhook.Config{
+			Addr:          *flagAdminServerAddr,
+			BufferSize:    *flagHttpLoggerBufferSize,
+			MaxBatchSize:  *flagHttpLoggerMaxBatchSize,
+			MaxBatchCount: *flagHttpLoggerMaxBatchCount,
+			BatchSendFreq: *flagHttpLoggerBatchSendFreq,
+			LogTimeout:    *flagHttpLoggerTimeout,
+		})
+		errmon.ObserveErrorCtx(ctx, err)
+		if httpHook != nil {
+			ctx = logger.CtxWithLogger(ctx, logger.FromCtx(ctx).WithHooks(httpHook))
+		}
 	}
 
-	ctx, cancel := logrusctx.NewContext(logLevel, logrusOpts...)
-	ctx, pause := xcontext.WithNotify(ctx, xcontext.ErrPaused)
-	log := ctx.Logger()
+	ctx, pause := signaling.WithSignal(ctx, signals.Paused)
+	log := logger.FromCtx(ctx)
 	defer cancel()
 
 	// Let's store storage engine in context

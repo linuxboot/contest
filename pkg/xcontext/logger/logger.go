@@ -22,8 +22,8 @@ type MinimalLogger = internal.MinimalLogger
 //
 // To enable logadapter-s for this converter add imports, for example:
 //
-//     import _ "github.com/linuxboot/contest/pkg/xcontext/logger/logadapter/logrus"
-//     import _ "github.com/linuxboot/contest/pkg/xcontext/logger/logadapter/zap"
+//	import _ "github.com/linuxboot/contest/pkg/xcontext/logger/logadapter/logrus"
+//	import _ "github.com/linuxboot/contest/pkg/xcontext/logger/logadapter/zap"
 func ConvertLogger(logger interface{}) Logger {
 	if l, ok := logger.(Logger); ok {
 		return l

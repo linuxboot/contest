@@ -7,6 +7,7 @@ package httplistener
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -15,12 +16,14 @@ import (
 	"strings"
 	"time"
 
+	"github.com/facebookincubator/go-belt/beltctx"
+	"github.com/facebookincubator/go-belt/tool/experimental/metrics"
 	"github.com/linuxboot/contest/pkg/api"
 	"github.com/linuxboot/contest/pkg/event"
 	"github.com/linuxboot/contest/pkg/job"
+	"github.com/linuxboot/contest/pkg/logging"
 	"github.com/linuxboot/contest/pkg/storage"
 	"github.com/linuxboot/contest/pkg/types"
-	"github.com/linuxboot/contest/pkg/xcontext"
 )
 
 // HTTPListener implements the api.Listener interface.
@@ -82,14 +85,14 @@ func strToJobID(s string) (types.JobID, error) {
 }
 
 type apiHandler struct {
-	ctx xcontext.Context
+	ctx context.Context
 	api *api.API
 }
 
 func (h *apiHandler) reply(w http.ResponseWriter, status int, msg string) {
 	w.WriteHeader(status)
 	if _, err := fmt.Fprint(w, msg); err != nil {
-		h.ctx.Debugf("Cannot write to client socket: %v", err)
+		logging.Debugf(h.ctx, "Cannot write to client socket: %v", err)
 	}
 }
 
@@ -111,10 +114,10 @@ func (h *apiHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	jobDesc := r.PostFormValue("jobDesc")
 	requestor := api.EventRequestor(r.PostFormValue("requestor"))
 
-	ctx := h.ctx.WithTags(xcontext.Fields{
-		"http_verb":      verb,
-		"http_requestor": requestor,
-	}).WithField("http_job_id", jobIDStr)
+	ctx := h.ctx
+	ctx = beltctx.WithField(ctx, "http_verb", verb, metrics.FieldPropInclude)
+	ctx = beltctx.WithField(ctx, "http_requestor", requestor, metrics.FieldPropInclude)
+	ctx = beltctx.WithField(ctx, "http_job_id", jobIDStr)
 
 	switch verb {
 	case "start":
@@ -218,7 +221,7 @@ func (h *apiHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.reply(w, httpStatus, string(msg))
 }
 
-func listenWithCancellation(ctx xcontext.Context, s *http.Server) error {
+func listenWithCancellation(ctx context.Context, s *http.Server) error {
 	var (
 		errCh = make(chan error, 1)
 	)
@@ -227,20 +230,20 @@ func listenWithCancellation(ctx xcontext.Context, s *http.Server) error {
 	go func() {
 		errCh <- s.ListenAndServe()
 	}()
-	ctx.Infof("Started HTTP API listener on %s", s.Addr)
+	logging.Infof(ctx, "Started HTTP API listener on %s", s.Addr)
 	// wait for cancellation or for completion
 	select {
 	case err := <-errCh:
 		return err
 	case <-ctx.Done():
-		ctx.Debugf("Received server shut down request")
+		logging.Debugf(ctx, "Received server shut down request")
 		return s.Close()
 	}
 }
 
 // Serve implements the api.Listener.Serve interface method. It starts an HTTP
 // API listener and returns an api.Event channel that the caller can iterate on.
-func (h *HTTPListener) Serve(ctx xcontext.Context, a *api.API) error {
+func (h *HTTPListener) Serve(ctx context.Context, a *api.API) error {
 	if a == nil {
 		return errors.New("API object is nil")
 	}
@@ -250,7 +253,7 @@ func (h *HTTPListener) Serve(ctx xcontext.Context, a *api.API) error {
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 10 * time.Second,
 	}
-	ctx.Debugf("Serving a listener")
+	logging.Debugf(ctx, "Serving a listener")
 	if err := listenWithCancellation(ctx, &s); err != nil {
 		return fmt.Errorf("HTTP listener failed: %v", err)
 	}

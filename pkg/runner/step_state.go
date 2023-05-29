@@ -7,16 +7,18 @@ import (
 	"strconv"
 	"sync"
 
+	"github.com/facebookincubator/go-belt/beltctx"
 	"github.com/linuxboot/contest/pkg/event/testevent"
+	"github.com/linuxboot/contest/pkg/logging"
+	"github.com/linuxboot/contest/pkg/signals"
 	"github.com/linuxboot/contest/pkg/target"
 	"github.com/linuxboot/contest/pkg/test"
-	"github.com/linuxboot/contest/pkg/xcontext"
 )
 
 // stepState contains state associated with one state of the pipeline in TestRunner.
 type stepState struct {
 	mu     sync.Mutex
-	cancel xcontext.CancelFunc
+	cancel context.CancelFunc
 
 	stepIndex int                 // Index of this step in the pipeline.
 	sb        test.TestStepBundle // The test bundle.
@@ -111,7 +113,7 @@ func (ss *stepState) GetTestStepLabel() string {
 	return ss.sb.TestStepLabel
 }
 
-func (ss *stepState) Run(ctx xcontext.Context) error {
+func (ss *stepState) Run(ctx context.Context) error {
 	ss.mu.Lock()
 	defer ss.mu.Unlock()
 
@@ -125,15 +127,16 @@ func (ss *stepState) Run(ctx xcontext.Context) error {
 		return nil
 	}
 
-	stepCtx, cancel := xcontext.WithCancel(ctx)
-	stepCtx = stepCtx.WithField("step_index", strconv.Itoa(ss.stepIndex))
-	stepCtx = stepCtx.WithField("step_label", ss.sb.TestStepLabel)
+	stepCtx, cancel := context.WithCancel(ctx)
+	stepCtx = beltctx.WithField(stepCtx, "step_index", strconv.Itoa(ss.stepIndex))
+	stepCtx = beltctx.WithField(stepCtx, "step_label", ss.sb.TestStepLabel)
 
 	addTarget, resumeTargetsNotifiers, stepRunResult, err := ss.stepRunner.Run(
 		stepCtx, ss.sb, newStepVariablesAccessor(ss.sb.TestStepLabel, ss.tsv), ss.ev, ss.resumeState,
 		ss.resumeStateTargets,
 	)
 	if err != nil {
+		cancel()
 		return fmt.Errorf("failed to launch step runner: %v", err)
 	}
 	ss.cancel = cancel
@@ -151,20 +154,20 @@ func (ss *stepState) Run(ctx xcontext.Context) error {
 				ss.SetError(ctx, runErr)
 			}
 			close(ss.stopped)
-			stepCtx.Debugf("StepRunner fully stopped")
+			logging.Debugf(stepCtx, "StepRunner fully stopped")
 		}()
 
 		select {
 		case stepErr := <-stepRunResult.NotifyCh():
 			ss.SetError(ctx, stepErr)
 		case <-stepCtx.Done():
-			stepCtx.Debugf("Cancelled step context during waiting for step run result")
+			logging.Debugf(stepCtx, "Cancelled step context during waiting for step run result")
 		}
 	}()
 	return nil
 }
 
-func (ss *stepState) InjectTarget(ctx xcontext.Context, tgt *target.Target) (ChanNotifier, error) {
+func (ss *stepState) InjectTarget(ctx context.Context, tgt *target.Target) (ChanNotifier, error) {
 	ss.mu.Lock()
 	defer ss.mu.Unlock()
 
@@ -192,19 +195,19 @@ func (ss *stepState) String() string {
 	return fmt.Sprintf("[#%d %s]", ss.stepIndex, ss.sb.TestStepLabel)
 }
 
-func (ss *stepState) SetError(ctx xcontext.Context, runErr error) {
+func (ss *stepState) SetError(ctx context.Context, runErr error) {
 	ss.mu.Lock()
 	defer ss.mu.Unlock()
 
 	if runErr == nil || ss.runErr != nil {
 		return
 	}
-	ctx.Errorf("Step '%s' failed with error: %v", ss.sb.TestStepLabel, runErr)
+	logging.Errorf(ctx, "Step '%s' failed with error: %v", ss.sb.TestStepLabel, runErr)
 	ss.runErr = runErr
 
-	if ss.runErr != xcontext.ErrPaused && ss.runErr != xcontext.ErrCanceled {
+	if ss.runErr != signals.Paused && ss.runErr != context.Canceled {
 		if err := emitEvent(ctx, ss.ev, EventTestError, nil, runErr.Error()); err != nil {
-			ctx.Errorf("failed to emit event: %s", err)
+			logging.Errorf(ctx, "failed to emit event: %s", err)
 		}
 	}
 

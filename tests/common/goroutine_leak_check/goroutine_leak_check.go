@@ -30,7 +30,7 @@ func CheckLeakedGoRoutines(funcWhitelist ...string) error {
 	for tryIdx := 0; tryIdx < 8; tryIdx++ {
 		// We need to explicitly call GC to call full GC procedures for real.
 		// Otherwise, for example there is high probability of not calling
-		// Finalizers (which are used in xcontext, for example).
+		// Finalizers (which are used in context, for example).
 		runtime.GC()
 		runtime.Gosched()
 

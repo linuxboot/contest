@@ -17,6 +17,7 @@
 package csvtargetmanager
 
 import (
+	"context"
 	"encoding/csv"
 	"encoding/json"
 	"errors"
@@ -28,9 +29,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/linuxboot/contest/pkg/logging"
 	"github.com/linuxboot/contest/pkg/target"
 	"github.com/linuxboot/contest/pkg/types"
-	"github.com/linuxboot/contest/pkg/xcontext"
 
 	"github.com/insomniacslk/xjson"
 )
@@ -98,7 +99,7 @@ func (tf CSVFileTargetManager) ValidateReleaseParameters(params []byte) (interfa
 
 // Acquire implements contest.TargetManager.Acquire, reading one entry per line
 // from a text file. Each input record looks like this: ID,FQDN,IPv4,IPv6. Only ID is required
-func (tf *CSVFileTargetManager) Acquire(ctx xcontext.Context, jobID types.JobID, jobTargetManagerAcquireTimeout time.Duration, parameters interface{}, tl target.Locker) ([]*target.Target, error) {
+func (tf *CSVFileTargetManager) Acquire(ctx context.Context, jobID types.JobID, jobTargetManagerAcquireTimeout time.Duration, parameters interface{}, tl target.Locker) ([]*target.Target, error) {
 	acquireParameters, ok := parameters.(AcquireParameters)
 	if !ok {
 		return nil, fmt.Errorf("Acquire expects %T object, got %T", acquireParameters, parameters)
@@ -169,9 +170,9 @@ func (tf *CSVFileTargetManager) Acquire(ctx xcontext.Context, jobID types.JobID,
 			len(hosts),
 		)
 	}
-	ctx.Debugf("Found %d targets in %s", len(hosts), acquireParameters.FileURI.Path)
+	logging.Debugf(ctx, "Found %d targets in %s", len(hosts), acquireParameters.FileURI.Path)
 	if acquireParameters.Shuffle {
-		ctx.Infof("Shuffling targets")
+		logging.Infof(ctx, "Shuffling targets")
 		rand.Shuffle(len(hosts), func(i, j int) {
 			hosts[i], hosts[j] = hosts[j], hosts[i]
 		})
@@ -206,7 +207,7 @@ func (tf *CSVFileTargetManager) Acquire(ctx xcontext.Context, jobID types.JobID,
 }
 
 // Release releases the acquired resources.
-func (tf *CSVFileTargetManager) Release(ctx xcontext.Context, jobID types.JobID, targets []*target.Target, params interface{}) error {
+func (tf *CSVFileTargetManager) Release(ctx context.Context, jobID types.JobID, targets []*target.Target, params interface{}) error {
 	return nil
 }
 

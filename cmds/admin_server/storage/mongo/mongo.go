@@ -7,7 +7,8 @@ import (
 	"time"
 
 	"github.com/linuxboot/contest/cmds/admin_server/storage"
-	"github.com/linuxboot/contest/pkg/xcontext"
+	"github.com/linuxboot/contest/pkg/logging"
+
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -27,7 +28,7 @@ type MongoStorage struct {
 	collection *mongo.Collection
 }
 
-func NewMongoStorage(ctx xcontext.Context, uri string) (*MongoStorage, error) {
+func NewMongoStorage(ctx context.Context, uri string) (*MongoStorage, error) {
 	client, err := mongo.NewClient(options.Client().ApplyURI(uri))
 	if err != nil {
 		return nil, err
@@ -106,25 +107,25 @@ func toMongoQuery(query storage.Query) bson.D {
 	return q
 }
 
-func (s *MongoStorage) StoreLogs(ctx xcontext.Context, logs []storage.Log) error {
+func (s *MongoStorage) StoreLogs(ctx context.Context, logs []storage.Log) error {
 	var mongoLogs []interface{}
 	for _, log := range logs {
 		mongoLogs = append(mongoLogs, toMongoLog(&log))
 	}
 	_, err := s.collection.InsertMany(ctx, mongoLogs)
 	if err != nil {
-		ctx.Errorf("Error while inserting a batch of logs: %v", err)
+		logging.Errorf(ctx, "Error while inserting a batch of logs: %v", err)
 		return storage.ErrInsert
 	}
 	return nil
 }
 
-func (s *MongoStorage) GetLogs(ctx xcontext.Context, query storage.Query) (*storage.Result, error) {
+func (s *MongoStorage) GetLogs(ctx context.Context, query storage.Query) (*storage.Result, error) {
 	q := toMongoQuery(query)
 	//get the count of the logs
 	count, err := s.collection.CountDocuments(ctx, q)
 	if err != nil {
-		ctx.Errorf("Error while performing count query: %v", err)
+		logging.Errorf(ctx, "Error while performing count query: %v", err)
 		return nil, storage.ErrQuery
 	}
 
@@ -134,14 +135,14 @@ func (s *MongoStorage) GetLogs(ctx xcontext.Context, query storage.Query) (*stor
 
 	cur, err := s.collection.Find(ctx, q, opts)
 	if err != nil {
-		ctx.Errorf("Error while querying logs from db: %v", err)
+		logging.Errorf(ctx, "Error while querying logs from db: %v", err)
 		return nil, storage.ErrQuery
 	}
 
 	var logs []Log
 	err = cur.All(ctx, &logs)
 	if err != nil {
-		ctx.Errorf("Error while reading query result from db: %v", err)
+		logging.Errorf(ctx, "Error while reading query result from db: %v", err)
 		return nil, storage.ErrQuery
 	}
 	// convert to storage logs
@@ -158,7 +159,7 @@ func (s *MongoStorage) GetLogs(ctx xcontext.Context, query storage.Query) (*stor
 	}, nil
 }
 
-func (s *MongoStorage) Close(ctx xcontext.Context) error {
+func (s *MongoStorage) Close(ctx context.Context) error {
 	return s.dbClient.Disconnect(ctx)
 }
 
