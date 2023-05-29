@@ -6,11 +6,11 @@
 package exec
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/linuxboot/contest/pkg/event/testevent"
 	"github.com/linuxboot/contest/pkg/target"
-	"github.com/linuxboot/contest/pkg/xcontext"
 )
 
 type Severity string
@@ -120,7 +120,7 @@ func NewOCPEventParser(target *target.Target, ev testevent.Emitter) *OCPEventPar
 	}
 }
 
-func (p *OCPEventParser) parseRun(ctx xcontext.Context, node *RunArtifact, root *OCPRoot) error {
+func (p *OCPEventParser) parseRun(ctx context.Context, node *RunArtifact, root *OCPRoot) error {
 	if node.RunStart != nil {
 		payload := testStartEventPayload{
 			SequenceNumber: root.SequenceNumber,
@@ -159,7 +159,7 @@ func (p *OCPEventParser) parseRun(ctx xcontext.Context, node *RunArtifact, root 
 	return nil
 }
 
-func (p *OCPEventParser) parseStep(ctx xcontext.Context, node *StepArtifact, root *OCPRoot) error {
+func (p *OCPEventParser) parseStep(ctx context.Context, node *StepArtifact, root *OCPRoot) error {
 	if node.StepStart != nil {
 		payload := stepStartEventPayload{
 			SequenceNumber: root.SequenceNumber,
@@ -195,7 +195,7 @@ func (p *OCPEventParser) parseStep(ctx xcontext.Context, node *StepArtifact, roo
 	return nil
 }
 
-func (ep *OCPEventParser) Parse(ctx xcontext.Context, root *OCPRoot) error {
+func (ep *OCPEventParser) Parse(ctx context.Context, root *OCPRoot) error {
 	if root == nil {
 		return fmt.Errorf("invalid nil root object")
 	}

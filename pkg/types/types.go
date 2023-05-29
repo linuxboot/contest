@@ -6,9 +6,8 @@
 package types
 
 import (
+	"context"
 	"strconv"
-
-	"github.com/linuxboot/contest/pkg/xcontext"
 )
 
 // JobID represents a unique job identifier
@@ -35,8 +34,8 @@ func (v JobOwnerID) String() string {
 type key string
 
 const (
-	KeyJobID = key("job_id")
-	KeyRunID = key("run_id")
+	KeyJobID      = key("job_id")
+	KeyRunID      = key("run_id")
 	KeyJobOwnerID = key("job_owner_id")
 )
 
@@ -44,7 +43,7 @@ const (
 // for plugins which need to know which job they are running.
 // Not all context object everywhere have this set, but this is
 // guaranteed to work in TargetManagers, TestSteps and Reporters
-func JobIDFromContext(ctx xcontext.Context) (JobID, bool) {
+func JobIDFromContext(ctx context.Context) (JobID, bool) {
 	v, ok := ctx.Value(KeyJobID).(JobID)
 	return v, ok
 }
@@ -52,7 +51,7 @@ func JobIDFromContext(ctx xcontext.Context) (JobID, bool) {
 // RunIDFromContext is a helper to get the RunID.
 // Not all context object everywhere have this set, but this is
 // guaranteed to work in TargetManagers, TestSteps and RunReporters
-func RunIDFromContext(ctx xcontext.Context) (RunID, bool) {
+func RunIDFromContext(ctx context.Context) (RunID, bool) {
 	v, ok := ctx.Value(KeyRunID).(RunID)
 	return v, ok
 }
@@ -60,7 +59,7 @@ func RunIDFromContext(ctx xcontext.Context) (RunID, bool) {
 // JobOwnerIDFromContext is a helper to get the JobOwnerID.
 // Not all context object everywhere have this set, but this is
 // guaranteed to work in TargetManagers, TestSteps and RunReporters
-func JobOwnerIDFromContext(ctx xcontext.Context) (JobOwnerID, bool) {
+func JobOwnerIDFromContext(ctx context.Context) (JobOwnerID, bool) {
 	v, ok := ctx.Value(KeyJobOwnerID).(JobOwnerID)
 	return v, ok
 }

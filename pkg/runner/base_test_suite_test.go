@@ -1,6 +1,7 @@
 package runner
 
 import (
+	"context"
 	"encoding/json"
 
 	"github.com/benbjohnson/clock"
@@ -9,7 +10,7 @@ import (
 	"github.com/linuxboot/contest/pkg/storage"
 	"github.com/linuxboot/contest/pkg/target"
 	"github.com/linuxboot/contest/pkg/test"
-	"github.com/linuxboot/contest/pkg/xcontext"
+
 	"github.com/linuxboot/contest/plugins/storage/memory"
 	"github.com/linuxboot/contest/plugins/targetlocker/inmemory"
 	"github.com/linuxboot/contest/tests/common"
@@ -39,15 +40,15 @@ func NewMemoryStorageEngine() (*MemoryStorageEngine, error) {
 	}, nil
 }
 
-func (mse *MemoryStorageEngine) GetStepEvents(ctx xcontext.Context, testNames []string, stepLabel string) string {
+func (mse *MemoryStorageEngine) GetStepEvents(ctx context.Context, testNames []string, stepLabel string) string {
 	return common.GetTestEventsAsString(ctx, mse.Storage, testNames, nil, &stepLabel)
 }
 
-func (mse *MemoryStorageEngine) GetTargetEvents(ctx xcontext.Context, testNames []string, targetID string) string {
+func (mse *MemoryStorageEngine) GetTargetEvents(ctx context.Context, testNames []string, targetID string) string {
 	return common.GetTestEventsAsString(ctx, mse.Storage, testNames, &targetID, nil)
 }
 
-func (mse *MemoryStorageEngine) GetTestEvents(ctx xcontext.Context, testNames []string) string {
+func (mse *MemoryStorageEngine) GetTestEvents(ctx context.Context, testNames []string) string {
 	return common.GetTestEventsAsString(ctx, mse.Storage, testNames, nil, nil)
 }
 
@@ -65,7 +66,7 @@ func (s *BaseTestSuite) SetupTest() {
 
 	target.SetLocker(inmemory.New(clock.New()))
 
-	s.PluginRegistry = pluginregistry.NewPluginRegistry(xcontext.Background())
+	s.PluginRegistry = pluginregistry.NewPluginRegistry(context.Background())
 }
 
 func (s *BaseTestSuite) TearDownTest() {
@@ -73,10 +74,10 @@ func (s *BaseTestSuite) TearDownTest() {
 }
 
 func (s *BaseTestSuite) RegisterStateFullStep(
-	runFunction func(ctx xcontext.Context, ch test.TestStepChannels, ev testevent.Emitter,
+	runFunction func(ctx context.Context, ch test.TestStepChannels, ev testevent.Emitter,
 		stepsVars test.StepsVariables, params test.TestStepParameters,
 		resumeState json.RawMessage) (json.RawMessage, error),
-	validateFunction func(ctx xcontext.Context, params test.TestStepParameters) error) error {
+	validateFunction func(ctx context.Context, params test.TestStepParameters) error) error {
 
 	return s.PluginRegistry.RegisterTestStep(stateFullStepName, func() test.TestStep {
 		return &stateFullStep{
@@ -87,7 +88,7 @@ func (s *BaseTestSuite) RegisterStateFullStep(
 }
 
 func (s *BaseTestSuite) NewStep(
-	ctx xcontext.Context,
+	ctx context.Context,
 	label, name string,
 	params test.TestStepParameters,
 ) test.TestStepBundle {

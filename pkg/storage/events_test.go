@@ -6,11 +6,12 @@
 package storage
 
 import (
+	"context"
 	"testing"
 
-	"github.com/linuxboot/contest/pkg/xcontext"
-	"github.com/linuxboot/contest/pkg/xcontext/bundles/logrusctx"
-	"github.com/linuxboot/contest/pkg/xcontext/logger"
+	"github.com/facebookincubator/go-belt/beltctx"
+	"github.com/facebookincubator/go-belt/tool/logger"
+	"github.com/linuxboot/contest/pkg/logging"
 	"github.com/stretchr/testify/require"
 
 	"github.com/linuxboot/contest/pkg/event"
@@ -23,7 +24,7 @@ type testEventEmitterFixture struct {
 	allowedEvents   []event.Name
 	allowedMap      map[event.Name]bool
 	forbiddenEvents []event.Name
-	ctx             xcontext.Context
+	ctx             context.Context
 }
 
 func mockTestEventEmitterData() *testEventEmitterFixture {
@@ -32,7 +33,8 @@ func mockTestEventEmitterData() *testEventEmitterFixture {
 		"TestEventAllowed2",
 	}
 
-	ctx, _ := logrusctx.NewContext(logger.LevelDebug)
+	ctx := logging.WithBelt(context.Background(), logger.LevelDebug)
+	defer beltctx.Flush(ctx)
 
 	return &testEventEmitterFixture{
 		header: testevent.Header{
@@ -76,13 +78,12 @@ func TestEmitRestricted(t *testing.T) {
 }
 
 type testEventFetcherFixture struct {
-	ctx xcontext.Context
+	ctx context.Context
 }
 
 func mockTestEventFetcherData() *testEventFetcherFixture {
-	ctx, _ := logrusctx.NewContext(logger.LevelDebug)
 	return &testEventFetcherFixture{
-		ctx: ctx,
+		ctx: logging.WithBelt(context.Background(), logger.LevelDebug),
 	}
 }
 

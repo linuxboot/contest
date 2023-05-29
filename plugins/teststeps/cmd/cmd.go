@@ -7,6 +7,7 @@ package cmd
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -15,11 +16,12 @@ import (
 	"strconv"
 	"syscall"
 
+	"github.com/facebookincubator/go-belt/tool/logger"
 	"github.com/linuxboot/contest/pkg/event"
 	"github.com/linuxboot/contest/pkg/event/testevent"
 	"github.com/linuxboot/contest/pkg/target"
 	"github.com/linuxboot/contest/pkg/test"
-	"github.com/linuxboot/contest/pkg/xcontext"
+
 	"github.com/linuxboot/contest/plugins/teststeps"
 )
 
@@ -75,7 +77,7 @@ func (ts Cmd) Name() string {
 	return Name
 }
 
-func emitEvent(ctx xcontext.Context, name event.Name, payload interface{}, tgt *target.Target, ev testevent.Emitter) error {
+func emitEvent(ctx context.Context, name event.Name, payload interface{}, tgt *target.Target, ev testevent.Emitter) error {
 	payloadStr, err := json.Marshal(payload)
 	if err != nil {
 		return fmt.Errorf("cannot encode payload for event '%s': %v", name, err)
@@ -94,19 +96,19 @@ func emitEvent(ctx xcontext.Context, name event.Name, payload interface{}, tgt *
 
 // Run executes the cmd step.
 func (ts *Cmd) Run(
-	ctx xcontext.Context,
+	ctx context.Context,
 	ch test.TestStepChannels,
 	ev testevent.Emitter,
 	stepsVars test.StepsVariables,
 	params test.TestStepParameters,
 	resumeState json.RawMessage,
 ) (json.RawMessage, error) {
-	log := ctx.Logger()
+	log := logger.FromCtx(ctx)
 
 	if err := ts.validateAndPopulate(params); err != nil {
 		return nil, err
 	}
-	f := func(ctx xcontext.Context, target *target.Target) error {
+	f := func(ctx context.Context, target *target.Target) error {
 		// expand args
 		var args []string
 		for _, arg := range ts.args {
@@ -205,7 +207,7 @@ func (ts *Cmd) validateAndPopulate(params test.TestStepParameters) error {
 }
 
 // ValidateParameters validates the parameters associated to the TestStep
-func (ts *Cmd) ValidateParameters(_ xcontext.Context, params test.TestStepParameters) error {
+func (ts *Cmd) ValidateParameters(_ context.Context, params test.TestStepParameters) error {
 	return ts.validateAndPopulate(params)
 }
 

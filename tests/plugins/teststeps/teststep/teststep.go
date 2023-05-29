@@ -6,6 +6,7 @@
 package teststep
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"math/rand"
@@ -17,7 +18,7 @@ import (
 	"github.com/linuxboot/contest/pkg/event/testevent"
 	"github.com/linuxboot/contest/pkg/target"
 	"github.com/linuxboot/contest/pkg/test"
-	"github.com/linuxboot/contest/pkg/xcontext"
+
 	"github.com/linuxboot/contest/plugins/teststeps"
 )
 
@@ -66,14 +67,14 @@ func (ts *Step) shouldFail(t *target.Target, params test.TestStepParameters) boo
 
 // Run executes the example step.
 func (ts *Step) Run(
-	ctx xcontext.Context,
+	ctx context.Context,
 	ch test.TestStepChannels,
 	ev testevent.Emitter,
 	stepsVars test.StepsVariables,
 	params test.TestStepParameters,
 	resumeState json.RawMessage,
 ) (json.RawMessage, error) {
-	f := func(ctx xcontext.Context, target *target.Target) error {
+	f := func(ctx context.Context, target *target.Target) error {
 		// Sleep to ensure TargetIn fires first. This simplifies test assertions.
 		time.Sleep(50 * time.Millisecond)
 		if err := ev.Emit(ctx, testevent.Data{EventName: StartedEvent, Target: target, Payload: nil}); err != nil {
@@ -86,7 +87,7 @@ func (ts *Step) Run(
 		select {
 		case <-time.After(delay):
 		case <-ctx.Done():
-			return xcontext.ErrCanceled
+			return context.Canceled
 		}
 		if ts.shouldFail(target, params) {
 			if err := ev.Emit(ctx, testevent.Data{EventName: FailedEvent, Target: target, Payload: nil}); err != nil {
@@ -111,7 +112,7 @@ func (ts *Step) Run(
 }
 
 // ValidateParameters validates the parameters associated to the TestStep
-func (ts *Step) ValidateParameters(_ xcontext.Context, params test.TestStepParameters) error {
+func (ts *Step) ValidateParameters(_ context.Context, params test.TestStepParameters) error {
 	targetsToFail := params.GetOne(FailTargetsParam).String()
 	if len(targetsToFail) > 0 {
 		for _, t := range strings.Split(targetsToFail, ",") {

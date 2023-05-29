@@ -1,6 +1,7 @@
 package runner
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"sync"
@@ -9,11 +10,12 @@ import (
 
 	"github.com/linuxboot/contest/pkg/cerrors"
 	"github.com/linuxboot/contest/pkg/event/testevent"
+	"github.com/linuxboot/contest/pkg/logging"
 	"github.com/linuxboot/contest/pkg/target"
 	"github.com/linuxboot/contest/pkg/test"
-	"github.com/linuxboot/contest/pkg/xcontext"
-	"github.com/linuxboot/contest/pkg/xcontext/bundles/logrusctx"
-	"github.com/linuxboot/contest/pkg/xcontext/logger"
+
+	"github.com/facebookincubator/go-belt/beltctx"
+	"github.com/facebookincubator/go-belt/tool/logger"
 	"github.com/linuxboot/contest/plugins/teststeps"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -44,7 +46,8 @@ func checkErrorResult(t *testing.T, result ChanNotifier) {
 }
 
 func (s *StepRunnerSuite) TestRunningStep() {
-	ctx, cancel := logrusctx.NewContext(logger.LevelDebug)
+	ctx, cancel := context.WithCancel(logging.WithBelt(context.Background(), logger.LevelDebug))
+	defer beltctx.Flush(ctx)
 	defer cancel()
 
 	targetsReaction := map[string]error{
@@ -57,10 +60,10 @@ func (s *StepRunnerSuite) TestRunningStep() {
 	var obtainedResumeState json.RawMessage
 
 	err := s.RegisterStateFullStep(
-		func(ctx xcontext.Context, ch test.TestStepChannels, ev testevent.Emitter,
+		func(ctx context.Context, ch test.TestStepChannels, ev testevent.Emitter,
 			stepsVars test.StepsVariables, params test.TestStepParameters, resumeState json.RawMessage) (json.RawMessage, error) {
 			obtainedResumeState = resumeState
-			_, err := teststeps.ForEachTarget(stateFullStepName, ctx, ch, func(ctx xcontext.Context, target *target.Target) error {
+			_, err := teststeps.ForEachTarget(stateFullStepName, ctx, ch, func(ctx context.Context, target *target.Target) error {
 				require.NotNil(s.T(), target)
 
 				mu.Lock()
@@ -109,7 +112,7 @@ func (s *StepRunnerSuite) TestRunningStep() {
 	stepRunner.Stop()
 	checkSuccessfulResult(s.T(), runResult)
 
-	closedCtx, closedCtxCancel := xcontext.WithCancel(ctx)
+	closedCtx, closedCtxCancel := context.WithCancel(ctx)
 	closedCtxCancel()
 
 	// if step runner has results, it should return them even if input context is closed
@@ -123,15 +126,16 @@ func (s *StepRunnerSuite) TestRunningStep() {
 }
 
 func (s *StepRunnerSuite) TestAddSameTargetSequentiallyTimes() {
-	ctx, cancel := logrusctx.NewContext(logger.LevelDebug)
+	ctx, cancel := context.WithCancel(logging.WithBelt(context.Background(), logger.LevelDebug))
+	defer beltctx.Flush(ctx)
 	defer cancel()
 
 	const inputTargetID = "input_target_id"
 
 	err := s.RegisterStateFullStep(
-		func(ctx xcontext.Context, ch test.TestStepChannels, ev testevent.Emitter,
+		func(ctx context.Context, ch test.TestStepChannels, ev testevent.Emitter,
 			stepsVars test.StepsVariables, params test.TestStepParameters, resumeState json.RawMessage) (json.RawMessage, error) {
-			_, err := teststeps.ForEachTarget(stateFullStepName, ctx, ch, func(ctx xcontext.Context, target *target.Target) error {
+			_, err := teststeps.ForEachTarget(stateFullStepName, ctx, ch, func(ctx context.Context, target *target.Target) error {
 				require.NotNil(s.T(), target)
 				require.Equal(s.T(), inputTargetID, target.ID)
 				return nil
@@ -170,7 +174,8 @@ func (s *StepRunnerSuite) TestAddSameTargetSequentiallyTimes() {
 }
 
 func (s *StepRunnerSuite) TestAddTargetReturnsErrorIfFailsToInput() {
-	ctx, cancel := logrusctx.NewContext(logger.LevelDebug)
+	ctx, cancel := context.WithCancel(logging.WithBelt(context.Background(), logger.LevelDebug))
+	defer beltctx.Flush(ctx)
 	defer cancel()
 
 	const inputTargetID = "input_target_id"
@@ -184,7 +189,7 @@ func (s *StepRunnerSuite) TestAddTargetReturnsErrorIfFailsToInput() {
 		}
 	}()
 	err := s.RegisterStateFullStep(
-		func(ctx xcontext.Context, ch test.TestStepChannels, ev testevent.Emitter,
+		func(ctx context.Context, ch test.TestStepChannels, ev testevent.Emitter,
 			stepsVars test.StepsVariables, params test.TestStepParameters, resumeState json.RawMessage) (json.RawMessage, error) {
 			<-hangCh
 			for range ch.In {
@@ -216,7 +221,7 @@ func (s *StepRunnerSuite) TestAddTargetReturnsErrorIfFailsToInput() {
 	require.NotNil(s.T(), runResult)
 
 	s.Run("input_context_cancelled", func() {
-		cancelCtx, cncl := xcontext.WithCancel(ctx)
+		cancelCtx, cncl := context.WithCancel(ctx)
 		cncl()
 
 		tgtResult, err := addTarget(cancelCtx, tgt(inputTargetID))
@@ -240,11 +245,12 @@ func (s *StepRunnerSuite) TestAddTargetReturnsErrorIfFailsToInput() {
 }
 
 func (s *StepRunnerSuite) TestStepPanics() {
-	ctx, cancel := logrusctx.NewContext(logger.LevelDebug)
+	ctx, cancel := context.WithCancel(logging.WithBelt(context.Background(), logger.LevelDebug))
+	defer beltctx.Flush(ctx)
 	defer cancel()
 
 	err := s.RegisterStateFullStep(
-		func(ctx xcontext.Context, ch test.TestStepChannels, ev testevent.Emitter,
+		func(ctx context.Context, ch test.TestStepChannels, ev testevent.Emitter,
 			stepsVars test.StepsVariables, params test.TestStepParameters, resumeState json.RawMessage) (json.RawMessage, error) {
 			panic("panic")
 		},
@@ -292,13 +298,14 @@ func (s *StepRunnerSuite) TestStepPanics() {
 }
 
 func (s *StepRunnerSuite) TestCornerCases() {
-	ctx, cancel := logrusctx.NewContext(logger.LevelDebug)
+	ctx, cancel := context.WithCancel(logging.WithBelt(context.Background(), logger.LevelDebug))
+	defer beltctx.Flush(ctx)
 	defer cancel()
 
 	err := s.RegisterStateFullStep(
-		func(ctx xcontext.Context, ch test.TestStepChannels, ev testevent.Emitter,
+		func(ctx context.Context, ch test.TestStepChannels, ev testevent.Emitter,
 			stepsVars test.StepsVariables, params test.TestStepParameters, resumeState json.RawMessage) (json.RawMessage, error) {
-			_, err := teststeps.ForEachTarget(stateFullStepName, ctx, ch, func(ctx xcontext.Context, target *target.Target) error {
+			_, err := teststeps.ForEachTarget(stateFullStepName, ctx, ch, func(ctx context.Context, target *target.Target) error {
 				return fmt.Errorf("should not be called")
 			})
 			return nil, err

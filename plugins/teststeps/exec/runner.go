@@ -6,15 +6,17 @@
 package exec
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
 
 	"github.com/linuxboot/contest/pkg/event/testevent"
+	"github.com/linuxboot/contest/pkg/logging"
 	"github.com/linuxboot/contest/pkg/target"
 	"github.com/linuxboot/contest/pkg/test"
-	"github.com/linuxboot/contest/pkg/xcontext"
+
 	exec_transport "github.com/linuxboot/contest/plugins/teststeps/exec/transport"
 )
 
@@ -34,7 +36,7 @@ func NewTargetRunner(ts *TestStep, ev testevent.Emitter, stepsVars test.StepsVar
 }
 
 func (r *TargetRunner) runWithOCP(
-	ctx xcontext.Context, target *target.Target,
+	ctx context.Context, target *target.Target,
 	transport exec_transport.Transport, params stepParams,
 ) (outcome, error) {
 	proc, err := transport.NewProcess(ctx, params.Bin.Path, params.Bin.Args)
@@ -56,12 +58,12 @@ func (r *TargetRunner) runWithOCP(
 	for dec.More() {
 		var root *OCPRoot
 		if err := dec.Decode(&root); err != nil {
-			ctx.Warnf("failed to decode ocp json: %w", err)
+			logging.Warnf(ctx, "failed to decode ocp json: %w", err)
 			break
 		}
 
 		if err := p.Parse(ctx, root); err != nil {
-			ctx.Warnf("failed to parse ocp root: %w", err)
+			logging.Warnf(ctx, "failed to parse ocp root: %w", err)
 			break
 		}
 	}
@@ -74,7 +76,7 @@ func (r *TargetRunner) runWithOCP(
 }
 
 func (r *TargetRunner) runAny(
-	ctx xcontext.Context, target *target.Target,
+	ctx context.Context, target *target.Target,
 	transport exec_transport.Transport, params stepParams,
 ) (outcome, error) {
 	proc, err := transport.NewProcess(ctx, params.Bin.Path, params.Bin.Args)
@@ -107,7 +109,7 @@ func (r *TargetRunner) runAny(
 }
 
 func (r *TargetRunner) run(
-	ctx xcontext.Context, target *target.Target,
+	ctx context.Context, target *target.Target,
 	transport exec_transport.Transport, params stepParams,
 ) (outcome, error) {
 	if params.OCPOutput {
@@ -117,14 +119,14 @@ func (r *TargetRunner) run(
 	return r.runAny(ctx, target, transport, params)
 }
 
-func (r *TargetRunner) Run(ctx xcontext.Context, target *target.Target) error {
-	ctx.Infof("Executing on target %s", target)
+func (r *TargetRunner) Run(ctx context.Context, target *target.Target) error {
+	logging.Infof(ctx, "Executing on target %s", target)
 
 	// limit the execution time if specified
 	timeQuota := r.ts.Constraints.TimeQuota
 	if timeQuota != 0 {
-		var cancel xcontext.CancelFunc
-		ctx, cancel = xcontext.WithTimeout(ctx, time.Duration(timeQuota))
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, time.Duration(timeQuota))
 		defer cancel()
 	}
 

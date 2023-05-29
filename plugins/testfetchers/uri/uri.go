@@ -6,6 +6,7 @@
 package uri
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -13,8 +14,8 @@ import (
 	"os"
 	"strings"
 
+	"github.com/linuxboot/contest/pkg/logging"
 	"github.com/linuxboot/contest/pkg/test"
-	"github.com/linuxboot/contest/pkg/xcontext"
 
 	"github.com/insomniacslk/xjson"
 )
@@ -45,7 +46,7 @@ type URI struct {
 
 // ValidateFetchParameters performs sanity checks on the fields of the
 // parameters that will be passed to Fetch.
-func (tf URI) ValidateFetchParameters(_ xcontext.Context, params []byte, requireName bool) (interface{}, error) {
+func (tf URI) ValidateFetchParameters(_ context.Context, params []byte, requireName bool) (interface{}, error) {
 	var fp FetchParameters
 	if err := json.Unmarshal(params, &fp); err != nil {
 		return nil, err
@@ -84,12 +85,12 @@ func (tf URI) ValidateFetchParameters(_ xcontext.Context, params []byte, require
 // * Name of the test
 // * list of step definitions
 // * an error if any
-func (tf *URI) Fetch(ctx xcontext.Context, params interface{}) (string, []*test.TestStepDescriptor, error) {
+func (tf *URI) Fetch(ctx context.Context, params interface{}) (string, []*test.TestStepDescriptor, error) {
 	fetchParams, ok := params.(FetchParameters)
 	if !ok {
 		return "", nil, fmt.Errorf("Fetch expects uri.FetchParameters object")
 	}
-	ctx.Debugf("Fetching tests with params %+v", fetchParams)
+	logging.Debugf(ctx, "Fetching tests with params %+v", fetchParams)
 	scheme := strings.ToLower(strings.ToLower(fetchParams.URI.Scheme))
 	var (
 		buf []byte

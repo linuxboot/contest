@@ -9,21 +9,22 @@
 package inmemory
 
 import (
+	"context"
 	"fmt"
 	"time"
 
 	"github.com/benbjohnson/clock"
 
+	"github.com/linuxboot/contest/pkg/logging"
 	"github.com/linuxboot/contest/pkg/target"
 	"github.com/linuxboot/contest/pkg/types"
-	"github.com/linuxboot/contest/pkg/xcontext"
 )
 
 // Name is the name used to look this plugin up.
 var Name = "InMemory"
 
 type request struct {
-	ctx     xcontext.Context
+	ctx     context.Context
 	targets []*target.Target
 	// requireLocked specifies whether targets must be already locked, used by refresh.
 	requireLocked bool
@@ -151,7 +152,7 @@ func broker(clk clock.Clock, lockRequests, unlockRequests <-chan *request, done 
 				req.err <- fmt.Errorf("unlock request: %w", err)
 				continue
 			}
-			req.ctx.Debugf("Requested to transactionally unlock %d targets: %v", len(req.targets), req.targets)
+			logging.Debugf(req.ctx, "Requested to transactionally unlock %d targets: %v", len(req.targets), req.targets)
 			// validate
 			var unlockErr error
 			for _, t := range req.targets {
@@ -182,7 +183,7 @@ type InMemory struct {
 	done                         chan struct{}
 }
 
-func newReq(ctx xcontext.Context, jobID types.JobID, targets []*target.Target) request {
+func newReq(ctx context.Context, jobID types.JobID, targets []*target.Target) request {
 	return request{
 		ctx:     ctx,
 		targets: targets,
@@ -192,7 +193,7 @@ func newReq(ctx xcontext.Context, jobID types.JobID, targets []*target.Target) r
 }
 
 // Lock locks the specified targets.
-func (tl *InMemory) Lock(ctx xcontext.Context, jobID types.JobID, duration time.Duration, targets []*target.Target) error {
+func (tl *InMemory) Lock(ctx context.Context, jobID types.JobID, duration time.Duration, targets []*target.Target) error {
 	req := newReq(ctx, jobID, targets)
 	req.timeout = duration
 	req.requireLocked = false
@@ -200,12 +201,12 @@ func (tl *InMemory) Lock(ctx xcontext.Context, jobID types.JobID, duration time.
 	req.limit = uint(len(targets))
 	tl.lockRequests <- &req
 	err := <-req.err
-	ctx.Debugf("Lock %d targets for %s: %v", len(targets), duration, err)
+	logging.Debugf(ctx, "Lock %d targets for %s: %v", len(targets), duration, err)
 	return err
 }
 
 // Lock locks the specified targets.
-func (tl *InMemory) TryLock(ctx xcontext.Context, jobID types.JobID, duration time.Duration, targets []*target.Target, limit uint) ([]string, error) {
+func (tl *InMemory) TryLock(ctx context.Context, jobID types.JobID, duration time.Duration, targets []*target.Target, limit uint) ([]string, error) {
 	req := newReq(ctx, jobID, targets)
 	req.timeout = duration
 	req.requireLocked = false
@@ -214,22 +215,22 @@ func (tl *InMemory) TryLock(ctx xcontext.Context, jobID types.JobID, duration ti
 	tl.lockRequests <- &req
 	// wait for result
 	err := <-req.err
-	ctx.Debugf("TryLock %d targets for %s: %d %v", len(targets), duration, len(req.locked), err)
+	logging.Debugf(ctx, "TryLock %d targets for %s: %d %v", len(targets), duration, len(req.locked), err)
 	return req.locked, err
 }
 
 // Unlock unlocks the specified targets.
-func (tl *InMemory) Unlock(ctx xcontext.Context, jobID types.JobID, targets []*target.Target) error {
+func (tl *InMemory) Unlock(ctx context.Context, jobID types.JobID, targets []*target.Target) error {
 	req := newReq(ctx, jobID, targets)
 	tl.unlockRequests <- &req
 	err := <-req.err
-	ctx.Debugf("Unlock %d targets: %v", len(targets), err)
+	logging.Debugf(ctx, "Unlock %d targets: %v", len(targets), err)
 	return err
 }
 
 // RefreshLocks extends the lock duration by the internally configured timeout. If
 // the owner is different, the request is rejected.
-func (tl *InMemory) RefreshLocks(ctx xcontext.Context, jobID types.JobID, duration time.Duration, targets []*target.Target) error {
+func (tl *InMemory) RefreshLocks(ctx context.Context, jobID types.JobID, duration time.Duration, targets []*target.Target) error {
 	req := newReq(ctx, jobID, targets)
 	req.timeout = duration
 	req.requireLocked = true
@@ -239,7 +240,7 @@ func (tl *InMemory) RefreshLocks(ctx xcontext.Context, jobID types.JobID, durati
 	// duration.
 	tl.lockRequests <- &req
 	err := <-req.err
-	ctx.Debugf("RefreshLocks on %d targets for %s: %v", len(targets), duration, err)
+	logging.Debugf(ctx, "RefreshLocks on %d targets for %s: %v", len(targets), duration, err)
 	return err
 }
 

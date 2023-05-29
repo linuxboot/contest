@@ -10,6 +10,7 @@ package e2e
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -34,9 +35,8 @@ import (
 	"github.com/linuxboot/contest/pkg/target"
 	"github.com/linuxboot/contest/pkg/test"
 	"github.com/linuxboot/contest/pkg/types"
-	"github.com/linuxboot/contest/pkg/xcontext"
-	"github.com/linuxboot/contest/pkg/xcontext/bundles/logrusctx"
-	"github.com/linuxboot/contest/pkg/xcontext/logger"
+
+	"github.com/facebookincubator/go-belt/tool/logger"
 	"github.com/linuxboot/contest/plugins/reporters/noop"
 	"github.com/linuxboot/contest/plugins/reporters/targetsuccess"
 	"github.com/linuxboot/contest/plugins/targetlocker/dblocker"
@@ -58,7 +58,7 @@ import (
 // NB: When adding a test here you need to invoke it explicitly from docker/contest/tests.sh
 
 var (
-	ctx, _ = logrusctx.NewContext(logger.LevelDebug, logging.DefaultOptions()...)
+	ctx = logging.WithBelt(context.Background(), logger.LevelDebug)
 )
 
 type E2ETestSuite struct {
@@ -82,7 +82,7 @@ func (ts *E2ETestSuite) SetupSuite() {
 }
 
 func (ts *E2ETestSuite) TearDownSuite() {
-	ctx.Infof("Teardown")
+	logging.Infof(ctx, "Teardown")
 	if !ts.T().Failed() { // Only check for goroutine leaks if otherwise ok.
 		require.NoError(ts.T(), goroutine_leak_check.CheckLeakedGoRoutines())
 	}
@@ -90,19 +90,21 @@ func (ts *E2ETestSuite) TearDownSuite() {
 
 func (ts *E2ETestSuite) SetupTest() {
 	ts.dbURI = common.GetDatabaseURI()
-	ctx.Infof("DB URI: %s", ts.dbURI)
+	logging.Infof(ctx, "DB URI: %s", ts.dbURI)
 	st, err := common.NewStorage()
 	require.NoError(ts.T(), err)
+	ts.st = st
 	require.NoError(ts.T(), st.(storage.ResettableStorage).Reset())
 	tl, err := dblocker.New(common.GetDatabaseURI())
 	require.NoError(ts.T(), err)
 	_ = tl.ResetAllLocks(ctx)
 	tl.Close()
-	ts.st = st
 }
 
 func (ts *E2ETestSuite) TearDownTest() {
-	ts.st.Close()
+	if ts.st != nil {
+		ts.st.Close()
+	}
 }
 
 func (ts *E2ETestSuite) startServer(extraArgs ...string) {
@@ -138,7 +140,7 @@ func (ts *E2ETestSuite) startServer(extraArgs ...string) {
 			continue
 		}
 		conn.Close()
-		ctx.Infof("Server is up")
+		logging.Infof(ctx, "Server is up")
 		return
 	}
 	err := <-serverErr
@@ -160,7 +162,7 @@ func (ts *E2ETestSuite) startJob(descriptorFile string) types.JobID {
 	var resp api.StartResponse
 	_, err = ts.runClient(&resp, "start", "-Y", descriptorFile)
 	require.NoError(ts.T(), err)
-	ctx.Infof("%+v", resp)
+	logging.Infof(ctx, "%+v", resp)
 	require.NotEqual(ts.T(), 0, resp.Data.JobID)
 	return resp.Data.JobID
 }
@@ -169,7 +171,7 @@ func (ts *E2ETestSuite) stopServer(timeout time.Duration) error {
 	if ts.serverSigs == nil {
 		return nil
 	}
-	ctx.Infof("Stopping server...")
+	logging.Infof(ctx, "Stopping server...")
 	var err error
 	select {
 	case ts.serverSigs <- syscall.SIGTERM:
@@ -184,7 +186,7 @@ func (ts *E2ETestSuite) stopServer(timeout time.Duration) error {
 	}
 	ts.serverSigs = nil
 	ts.serverDone = nil
-	ctx.Infof("Server stopped, err %v", err)
+	logging.Infof(ctx, "Server stopped, err %v", err)
 	return err
 }
 
@@ -242,9 +244,9 @@ func (ts *E2ETestSuite) TestSimple() {
 			stdout, err := ts.runClient(&resp, "status", fmt.Sprintf("%d", jobID))
 			require.NoError(ts.T(), err)
 			require.Nil(ts.T(), resp.Err, "error: %s", resp.Err)
-			ctx.Infof("Job %d state %s", jobID, resp.Data.Status.State)
+			logging.Infof(ctx, "Job %d state %s", jobID, resp.Data.Status.State)
 			if resp.Data.Status.State == string(job.EventJobCompleted) {
-				ctx.Debugf("Job %d status: %s", jobID, stdout)
+				logging.Debugf(ctx, "Job %d status: %s", jobID, stdout)
 				break
 			}
 		}
@@ -254,7 +256,7 @@ func (ts *E2ETestSuite) TestSimple() {
 		es := testsCommon.GetJobEventsAsString(ctx, ts.st, jobID, []event.Name{
 			cmd.EventCmdStdout, target.EventTargetAcquired, target.EventTargetReleased,
 		})
-		ctx.Debugf("%s", es)
+		logging.Debugf(ctx, "%s", es)
 		require.Equal(ts.T(),
 			fmt.Sprintf(`
 {[%d 1 Test 1 0 ][Target{ID: "T1"} TargetAcquired]}
@@ -291,9 +293,9 @@ func (ts *E2ETestSuite) TestVariables() {
 			stdout, err := ts.runClient(&resp, "status", fmt.Sprintf("%d", jobID))
 			require.NoError(ts.T(), err)
 			require.Nil(ts.T(), resp.Err, "error: %s", resp.Err)
-			ctx.Infof("Job %d state %s", jobID, resp.Data.Status.State)
+			logging.Infof(ctx, "Job %d state %s", jobID, resp.Data.Status.State)
 			if resp.Data.Status.State == string(job.EventJobCompleted) {
-				ctx.Debugf("Job %d status: %s", jobID, stdout)
+				logging.Debugf(ctx, "Job %d status: %s", jobID, stdout)
 				break
 			}
 		}
@@ -303,7 +305,7 @@ func (ts *E2ETestSuite) TestVariables() {
 		es := testsCommon.GetJobEventsAsString(ctx, ts.st, jobID, []event.Name{
 			cmd.EventCmdStdout, target.EventTargetAcquired, target.EventTargetReleased,
 		})
-		ctx.Debugf("%s", es)
+		logging.Debugf(ctx, "%s", es)
 		require.Equal(ts.T(),
 			fmt.Sprintf(`
 {[%d 1 Test 1 0 ][Target{ID: "T1"} TargetAcquired]}
@@ -329,10 +331,10 @@ func (ts *E2ETestSuite) TestPauseResume() {
 			_, err := ts.runClient(&resp, "status", fmt.Sprintf("%d", jobID))
 			require.NoError(ts.T(), err)
 			require.Nil(ts.T(), resp.Err, "error: %s", resp.Err)
-			ctx.Infof("Job %d state %s", jobID, resp.Data.Status.State)
+			logging.Infof(ctx, "Job %d state %s", jobID, resp.Data.Status.State)
 			switch resp.Data.Status.State {
 			case string(job.EventJobCompleted):
-				ctx.Debugf("Job %d completed after %d restarts", jobID, i)
+				logging.Debugf(ctx, "Job %d completed after %d restarts", jobID, i)
 				break wait_loop
 			case string(job.EventJobFailed):
 				require.Failf(ts.T(), "job failed", "Job %d failed after %d restarts", jobID, i)
@@ -348,7 +350,7 @@ func (ts *E2ETestSuite) TestPauseResume() {
 		es := testsCommon.GetJobEventsAsString(ctx, ts.st, jobID, []event.Name{
 			cmd.EventCmdStdout, target.EventTargetAcquired, target.EventTargetReleased,
 		})
-		ctx.Debugf("%s", es)
+		logging.Debugf(ctx, "%s", es)
 		require.Equal(ts.T(),
 			fmt.Sprintf(`
 {[%d 1 Test 1 0 ][Target{ID: "T1"} TargetAcquired]}
@@ -413,7 +415,7 @@ func (ts *E2ETestSuite) TestRetries() {
 		}
 	}()
 
-	ctx, cancel := xcontext.WithCancel(xcontext.Background())
+	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	var wg sync.WaitGroup
@@ -436,9 +438,9 @@ func (ts *E2ETestSuite) TestRetries() {
 			stdout, err := ts.runClient(&resp, "status", fmt.Sprintf("%d", jobID))
 			require.NoError(ts.T(), err)
 			require.Nil(ts.T(), resp.Err, "error: %s", resp.Err)
-			ctx.Infof("Job %d state %s", jobID, resp.Data.Status.State)
+			logging.Infof(ctx, "Job %d state %s", jobID, resp.Data.Status.State)
 			if resp.Data.Status.State == string(job.EventJobCompleted) {
-				ctx.Debugf("Job %d status: %s", jobID, stdout)
+				logging.Debugf(ctx, "Job %d status: %s", jobID, stdout)
 				break
 			}
 		}
@@ -449,7 +451,7 @@ func (ts *E2ETestSuite) TestRetries() {
 		es := testsCommon.GetJobEventsAsString(ctx, ts.st, jobID, []event.Name{
 			cmd.EventCmdStdout, target.EventTargetAcquired, target.EventTargetReleased,
 			target.EventTargetOut, target.EventTargetErr})
-		ctx.Debugf("%s", es)
+		logging.Debugf(ctx, "%s", es)
 		require.Equal(ts.T(),
 			fmt.Sprintf(`
 {[%d 1 Test 1 0 ][Target{ID: "T1"} TargetAcquired]}

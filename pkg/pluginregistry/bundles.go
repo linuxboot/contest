@@ -6,16 +6,16 @@
 package pluginregistry
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/linuxboot/contest/pkg/job"
 	"github.com/linuxboot/contest/pkg/target"
 	"github.com/linuxboot/contest/pkg/test"
-	"github.com/linuxboot/contest/pkg/xcontext"
 )
 
 // NewTestStepBundle creates a TestStepBundle from a TestStepDescriptor
-func (r *PluginRegistry) NewTestStepBundle(ctx xcontext.Context, testStepDescriptor test.TestStepDescriptor) (*test.TestStepBundle, error) {
+func (r *PluginRegistry) NewTestStepBundle(ctx context.Context, testStepDescriptor test.TestStepDescriptor) (*test.TestStepBundle, error) {
 	testStep, err := r.NewTestStep(testStepDescriptor.Name)
 	if err != nil {
 		return nil, fmt.Errorf("could not get the desired TestStep (%s): %v", testStepDescriptor.Name, err)
@@ -46,7 +46,7 @@ func (r *PluginRegistry) NewTestStepBundle(ctx xcontext.Context, testStepDescrip
 
 // NewTestFetcherBundle creates a TestFetcher and associated parameters based on
 // the content of the job descriptor
-func (r *PluginRegistry) NewTestFetcherBundle(ctx xcontext.Context, testDescriptor *test.TestDescriptor) (*test.TestFetcherBundle, error) {
+func (r *PluginRegistry) NewTestFetcherBundle(ctx context.Context, testDescriptor *test.TestDescriptor) (*test.TestFetcherBundle, error) {
 	// Initialization and validation of the TestFetcher and its parameters
 	if testDescriptor == nil {
 		return nil, fmt.Errorf("test description is null")

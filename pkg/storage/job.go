@@ -6,24 +6,25 @@
 package storage
 
 import (
+	"context"
+
 	"github.com/linuxboot/contest/pkg/job"
 	"github.com/linuxboot/contest/pkg/types"
-	"github.com/linuxboot/contest/pkg/xcontext"
 )
 
 // JobStorage defines the interface that implements persistence for job
 // related information
 type JobStorage interface {
 	// Job request interface
-	StoreJobRequest(ctx xcontext.Context, request *job.Request) (types.JobID, error)
-	GetJobRequest(ctx xcontext.Context, jobID types.JobID) (*job.Request, error)
+	StoreJobRequest(ctx context.Context, request *job.Request) (types.JobID, error)
+	GetJobRequest(ctx context.Context, jobID types.JobID) (*job.Request, error)
 
 	// Job report interface
-	StoreReport(ctx xcontext.Context, report *job.Report) error
-	GetJobReport(ctx xcontext.Context, jobID types.JobID) (*job.JobReport, error)
+	StoreReport(ctx context.Context, report *job.Report) error
+	GetJobReport(ctx context.Context, jobID types.JobID) (*job.JobReport, error)
 
 	// Job enumeration interface
-	ListJobs(ctx xcontext.Context, query *JobQuery) ([]types.JobID, error)
+	ListJobs(ctx context.Context, query *JobQuery) ([]types.JobID, error)
 }
 
 // JobStorageManager implements JobStorage interface
@@ -32,7 +33,7 @@ type JobStorageManager struct {
 }
 
 // StoreJobRequest submits a job request to the storage layer
-func (jsm JobStorageManager) StoreJobRequest(ctx xcontext.Context, request *job.Request) (types.JobID, error) {
+func (jsm JobStorageManager) StoreJobRequest(ctx context.Context, request *job.Request) (types.JobID, error) {
 	storage, err := jsm.vault.GetEngine(SyncEngine)
 	if err != nil {
 		return 0, err
@@ -42,7 +43,7 @@ func (jsm JobStorageManager) StoreJobRequest(ctx xcontext.Context, request *job.
 }
 
 // GetJobRequest fetches a job request from the storage layer
-func (jsm JobStorageManager) GetJobRequest(ctx xcontext.Context, jobID types.JobID) (*job.Request, error) {
+func (jsm JobStorageManager) GetJobRequest(ctx context.Context, jobID types.JobID) (*job.Request, error) {
 	engineType := SyncEngine
 	if !isStronglyConsistent(ctx) {
 		engineType = AsyncEngine
@@ -56,7 +57,7 @@ func (jsm JobStorageManager) GetJobRequest(ctx xcontext.Context, jobID types.Job
 }
 
 // StoreReport submits a job run or final report to the storage layer
-func (jsm JobStorageManager) StoreReport(ctx xcontext.Context, report *job.Report) error {
+func (jsm JobStorageManager) StoreReport(ctx context.Context, report *job.Report) error {
 	storage, err := jsm.vault.GetEngine(SyncEngine)
 	if err != nil {
 		return err
@@ -66,7 +67,7 @@ func (jsm JobStorageManager) StoreReport(ctx xcontext.Context, report *job.Repor
 }
 
 // GetJobReport fetches a job report from the storage layer
-func (jsm JobStorageManager) GetJobReport(ctx xcontext.Context, jobID types.JobID) (*job.JobReport, error) {
+func (jsm JobStorageManager) GetJobReport(ctx context.Context, jobID types.JobID) (*job.JobReport, error) {
 	engineType := SyncEngine
 	if !isStronglyConsistent(ctx) {
 		engineType = AsyncEngine
@@ -80,7 +81,7 @@ func (jsm JobStorageManager) GetJobReport(ctx xcontext.Context, jobID types.JobI
 }
 
 // ListJobs returns list of job IDs matching the query
-func (jsm JobStorageManager) ListJobs(ctx xcontext.Context, query *JobQuery) ([]types.JobID, error) {
+func (jsm JobStorageManager) ListJobs(ctx context.Context, query *JobQuery) ([]types.JobID, error) {
 	engineType := SyncEngine
 	if !isStronglyConsistent(ctx) {
 		engineType = AsyncEngine

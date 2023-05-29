@@ -1,16 +1,16 @@
 package job
 
 import (
+	"context"
 	"time"
 
 	"github.com/linuxboot/contest/pkg/types"
-	"github.com/linuxboot/contest/pkg/xcontext"
 )
 
 // DB wraps a job database
 type Storage interface {
-	GetTags(ctx xcontext.Context, tagPattern string) ([]Tag, error)
-	GetJobs(ctx xcontext.Context, projectName string) ([]Job, error)
+	GetTags(ctx context.Context, tagPattern string) ([]Tag, error)
+	GetJobs(ctx context.Context, projectName string) ([]Job, error)
 }
 
 // Tag contains metadata about jobs under a given tag

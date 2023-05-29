@@ -6,82 +6,113 @@
 package logging
 
 import (
-	"io"
+	"context"
 
-	log_prefixed "github.com/chappjc/logrus-prefix"
-	"github.com/sirupsen/logrus"
+	"github.com/facebookincubator/go-belt/pkg/field"
+	"github.com/facebookincubator/go-belt/tool/logger"
 )
 
-var (
-	log *logrus.Logger
-)
-
-// GetLogger returns a configured logger instance
-func GetLogger(prefix string) *logrus.Entry {
-	return log.WithField("prefix", prefix)
+// Trace is an shorthand for logger.FromCtx(ctx).Trace
+func Trace(ctx context.Context, args ...any) {
+	logger.FromCtx(ctx).Trace(args...)
 }
 
-// AddField add a field to an existing logrus.Entry
-func AddField(e *logrus.Entry, name string, value interface{}) *logrus.Entry {
-	l := log.WithField(name, value)
-	for k, v := range e.Data {
-		l = l.WithField(k, v)
-	}
-	return l
+// Tracef is an shorthand for logger.FromCtx(ctx).Tracef
+func Tracef(ctx context.Context, format string, args ...any) {
+	logger.FromCtx(ctx).Tracef(format, args...)
 }
 
-// AddFields adds multiple fields to an existing logrus.Entry
-func AddFields(e *logrus.Entry, fields map[string]interface{}) *logrus.Entry {
-	l := e
-	for k, v := range fields {
-		l = AddField(l, k, v)
-	}
-	return l
+// TraceFields is an shorthand for logger.FromCtx(ctx).TraceFields
+func TraceFields(ctx context.Context, message string, fields field.AbstractFields) {
+	logger.FromCtx(ctx).TraceFields(message, fields)
 }
 
-// Disable sends all logging output to the bit bucket.
-func Disable() {
-	log.SetOutput(io.Discard)
+// Debug is an shorthand for logger.FromCtx(ctx).Debug
+func Debug(ctx context.Context, args ...any) {
+	logger.FromCtx(ctx).Debug(args...)
 }
 
-// Trace - Set Log Level to Trace
-func Trace() {
-	log.SetLevel(logrus.TraceLevel)
+// Debugf is an shorthand for logger.FromCtx(ctx).Debugf
+func Debugf(ctx context.Context, format string, args ...any) {
+	logger.FromCtx(ctx).Debugf(format, args...)
 }
 
-// Debug - Set Log Level to Debug
-func Debug() {
-	log.SetLevel(logrus.DebugLevel)
+// DebugFields is an shorthand for logger.FromCtx(ctx).DebugFields
+func DebugFields(ctx context.Context, message string, fields field.AbstractFields) {
+	logger.FromCtx(ctx).DebugFields(message, fields)
 }
 
-// Info - Set Log Level to Info
-func Info() {
-	log.SetLevel(logrus.InfoLevel)
+// Info is an shorthand for logger.FromCtx(ctx).Info
+func Info(ctx context.Context, args ...any) {
+	logger.FromCtx(ctx).Info(args...)
 }
 
-// Warn - Set Log Level to Warn
-func Warn() {
-	log.SetLevel(logrus.WarnLevel)
+// Infof is an shorthand for logger.FromCtx(ctx).Infof
+func Infof(ctx context.Context, format string, args ...any) {
+	logger.FromCtx(ctx).Infof(format, args...)
 }
 
-// Error - Set Log Level to Error
-func Error() {
-	log.SetLevel(logrus.ErrorLevel)
+// InfoFields is an shorthand for logger.FromCtx(ctx).InfoFields
+func InfoFields(ctx context.Context, message string, fields field.AbstractFields) {
+	logger.FromCtx(ctx).InfoFields(message, fields)
 }
 
-// Fatal - Set Log Level to Fatal
-func Fatal() {
-	log.SetLevel(logrus.FatalLevel)
+// Warn is an shorthand for logger.FromCtx(ctx).Warn
+func Warn(ctx context.Context, args ...any) {
+	logger.FromCtx(ctx).Warn(args...)
 }
 
-// Panic - Set Log Level to Panic
-func Panic() {
-	log.SetLevel(logrus.PanicLevel)
+// Warnf is an shorthand for logger.FromCtx(ctx).Warnf
+func Warnf(ctx context.Context, format string, args ...any) {
+	logger.FromCtx(ctx).Warnf(format, args...)
 }
 
-func init() {
-	log = logrus.New()
-	log.SetFormatter(&log_prefixed.TextFormatter{
-		FullTimestamp: true,
-	})
+// WarnFields is an shorthand for logger.FromCtx(ctx).WarnFields
+func WarnFields(ctx context.Context, message string, fields field.AbstractFields) {
+	logger.FromCtx(ctx).WarnFields(message, fields)
+}
+
+// Error is an shorthand for logger.FromCtx(ctx).Error
+func Error(ctx context.Context, args ...any) {
+	logger.FromCtx(ctx).Error(args...)
+}
+
+// Errorf is an shorthand for logger.FromCtx(ctx).Errorf
+func Errorf(ctx context.Context, format string, args ...any) {
+	logger.FromCtx(ctx).Errorf(format, args...)
+}
+
+// ErrorFields is an shorthand for logger.FromCtx(ctx).ErrorFields
+func ErrorFields(ctx context.Context, message string, fields field.AbstractFields) {
+	logger.FromCtx(ctx).ErrorFields(message, fields)
+}
+
+// Panic is an shorthand for logger.FromCtx(ctx).Panic
+func Panic(ctx context.Context, args ...any) {
+	logger.FromCtx(ctx).Panic(args...)
+}
+
+// Panicf is an shorthand for logger.FromCtx(ctx).Panicf
+func Panicf(ctx context.Context, format string, args ...any) {
+	logger.FromCtx(ctx).Panicf(format, args...)
+}
+
+// PanicFields is an shorthand for logger.FromCtx(ctx).PanicFields
+func PanicFields(ctx context.Context, message string, fields field.AbstractFields) {
+	logger.FromCtx(ctx).PanicFields(message, fields)
+}
+
+// Fatal is an shorthand for logger.FromCtx(ctx).Fatal
+func Fatal(ctx context.Context, args ...any) {
+	logger.FromCtx(ctx).Fatal(args...)
+}
+
+// Fatalf is an shorthand for logger.FromCtx(ctx).Fatalf
+func Fatalf(ctx context.Context, format string, args ...any) {
+	logger.FromCtx(ctx).Fatalf(format, args...)
+}
+
+// FatalFields is an shorthand for logger.FromCtx(ctx).FatalFields
+func FatalFields(ctx context.Context, message string, fields field.AbstractFields) {
+	logger.FromCtx(ctx).FatalFields(message, fields)
 }

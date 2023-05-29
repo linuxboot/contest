@@ -6,6 +6,7 @@
 package dblocker
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"strings"
@@ -15,9 +16,9 @@ import (
 	// this blank import registers the mysql driver
 	_ "github.com/go-sql-driver/mysql"
 
+	"github.com/linuxboot/contest/pkg/logging"
 	"github.com/linuxboot/contest/pkg/target"
 	"github.com/linuxboot/contest/pkg/types"
-	"github.com/linuxboot/contest/pkg/xcontext"
 )
 
 // Name is the plugin name.
@@ -114,7 +115,7 @@ func (d *DBLocker) queryLocks(tx db, targets []string) (map[string]dblock, error
 }
 
 // handleLock does the real locking, it assumes the jobID is valid
-func (d *DBLocker) handleLock(ctx xcontext.Context, jobID int64, targets []string, limit uint, timeout time.Duration, requireLocked bool, allowConflicts bool) ([]string, error) {
+func (d *DBLocker) handleLock(ctx context.Context, jobID int64, targets []string, limit uint, timeout time.Duration, requireLocked bool, allowConflicts bool) ([]string, error) {
 	if len(targets) == 0 {
 		return nil, nil
 	}
@@ -255,7 +256,7 @@ func (d *DBLocker) handleLock(ctx xcontext.Context, jobID int64, targets []strin
 }
 
 // handleUnlock does the real unlocking, it assumes the jobID is valid
-func (d *DBLocker) handleUnlock(ctx xcontext.Context, jobID int64, targets []string) error {
+func (d *DBLocker) handleUnlock(ctx context.Context, jobID int64, targets []string) error {
 	if len(targets) == 0 {
 		return nil
 	}
@@ -308,7 +309,7 @@ func validateTargets(targets []*target.Target) error {
 
 // Lock locks the given targets.
 // See target.Locker for API details
-func (d *DBLocker) Lock(ctx xcontext.Context, jobID types.JobID, duration time.Duration, targets []*target.Target) error {
+func (d *DBLocker) Lock(ctx context.Context, jobID types.JobID, duration time.Duration, targets []*target.Target) error {
 	if jobID == 0 {
 		return fmt.Errorf("invalid lock request, jobID cannot be zero (targets: %v)", targets)
 	}
@@ -316,13 +317,13 @@ func (d *DBLocker) Lock(ctx xcontext.Context, jobID types.JobID, duration time.D
 		return fmt.Errorf("invalid lock request: %w", err)
 	}
 	_, err := d.handleLock(ctx, int64(jobID), targetIDList(targets), uint(len(targets)), duration, false /* requireLocked */, false /* allowConflicts */)
-	ctx.Debugf("Lock %d targets for %s: %v", len(targets), duration, err)
+	logging.Debugf(ctx, "Lock %d targets for %s: %v", len(targets), duration, err)
 	return err
 }
 
 // TryLock attempts to locks the given targets.
 // See target.Locker for API details
-func (d *DBLocker) TryLock(ctx xcontext.Context, jobID types.JobID, duration time.Duration, targets []*target.Target, limit uint) ([]string, error) {
+func (d *DBLocker) TryLock(ctx context.Context, jobID types.JobID, duration time.Duration, targets []*target.Target, limit uint) ([]string, error) {
 	if jobID == 0 {
 		return nil, fmt.Errorf("invalid tryLock request, jobID cannot be zero (targets: %v)", targets)
 	}
@@ -333,13 +334,13 @@ func (d *DBLocker) TryLock(ctx xcontext.Context, jobID types.JobID, duration tim
 		return nil, nil
 	}
 	res, err := d.handleLock(ctx, int64(jobID), targetIDList(targets), limit, duration, false /* requireLocked */, true /* allowConflicts */)
-	ctx.Debugf("TryLock %d targets for %s: %d %v", len(targets), duration, len(res), err)
+	logging.Debugf(ctx, "TryLock %d targets for %s: %d %v", len(targets), duration, len(res), err)
 	return res, err
 }
 
 // Unlock unlocks the given targets.
 // See target.Locker for API details
-func (d *DBLocker) Unlock(ctx xcontext.Context, jobID types.JobID, targets []*target.Target) error {
+func (d *DBLocker) Unlock(ctx context.Context, jobID types.JobID, targets []*target.Target) error {
 	if jobID == 0 {
 		return fmt.Errorf("invalid unlock request, jobID cannot be zero (targets: %v)", targets)
 	}
@@ -347,13 +348,13 @@ func (d *DBLocker) Unlock(ctx xcontext.Context, jobID types.JobID, targets []*ta
 		return fmt.Errorf("invalid unlock request: %w", err)
 	}
 	err := d.handleUnlock(ctx, int64(jobID), targetIDList(targets))
-	ctx.Debugf("Unlock %d targets: %v", len(targets), err)
+	logging.Debugf(ctx, "Unlock %d targets: %v", len(targets), err)
 	return err
 }
 
 // RefreshLocks refreshes the locks on the given targets.
 // See target.Locker for API details
-func (d *DBLocker) RefreshLocks(ctx xcontext.Context, jobID types.JobID, duration time.Duration, targets []*target.Target) error {
+func (d *DBLocker) RefreshLocks(ctx context.Context, jobID types.JobID, duration time.Duration, targets []*target.Target) error {
 	if jobID == 0 {
 		return fmt.Errorf("invalid refresh request, jobID cannot be zero (targets: %v)", targets)
 	}
@@ -361,7 +362,7 @@ func (d *DBLocker) RefreshLocks(ctx xcontext.Context, jobID types.JobID, duratio
 		return fmt.Errorf("invalid refresh request: %w", err)
 	}
 	_, err := d.handleLock(ctx, int64(jobID), targetIDList(targets), uint(len(targets)), duration, true /* requireLocked */, false /* allowConflicts */)
-	ctx.Debugf("RefreshLocks on %d targets for %s: %v", len(targets), duration, err)
+	logging.Debugf(ctx, "RefreshLocks on %d targets for %s: %v", len(targets), duration, err)
 	return err
 }
 
@@ -373,8 +374,8 @@ func (d *DBLocker) Close() error {
 // ResetAllLocks resets the database and clears all locks, regardless of who owns them.
 // This is primarily for testing, and should not be used by used in prod, this
 // is why it is not exposed by target.Locker
-func (d *DBLocker) ResetAllLocks(ctx xcontext.Context) error {
-	ctx.Warnf("DELETING ALL LOCKS")
+func (d *DBLocker) ResetAllLocks(ctx context.Context) error {
+	logging.Warnf(ctx, "DELETING ALL LOCKS")
 	_, err := d.db.Exec("TRUNCATE TABLE locks")
 	return err
 }

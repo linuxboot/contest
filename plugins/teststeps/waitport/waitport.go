@@ -13,9 +13,10 @@ import (
 
 	"github.com/linuxboot/contest/pkg/event"
 	"github.com/linuxboot/contest/pkg/event/testevent"
+	"github.com/linuxboot/contest/pkg/logging"
 	"github.com/linuxboot/contest/pkg/target"
 	"github.com/linuxboot/contest/pkg/test"
-	"github.com/linuxboot/contest/pkg/xcontext"
+
 	"github.com/linuxboot/contest/plugins/teststeps"
 )
 
@@ -45,7 +46,7 @@ func (ts *WaitPort) Name() string {
 
 // Run executes the cmd step.
 func (ts *WaitPort) Run(
-	ctx xcontext.Context,
+	ctx context.Context,
 	ch test.TestStepChannels,
 	ev testevent.Emitter,
 	stepsVars test.StepsVariables,
@@ -57,7 +58,7 @@ func (ts *WaitPort) Run(
 		return nil, err
 	}
 
-	f := func(ctx xcontext.Context, targetWithData *teststeps.TargetWithData) error {
+	f := func(ctx context.Context, targetWithData *teststeps.TargetWithData) error {
 		target := targetWithData.Target
 		targetParams, err := expandParameters(target, params, stepsVars)
 		if err != nil {
@@ -68,7 +69,7 @@ func (ts *WaitPort) Run(
 		// Can emit duplicate events on server restart / job resumption
 		payload, err := json.Marshal(targetParams)
 		if err != nil {
-			ctx.Warnf("Cannot encode payload for %T: %v", params, err)
+			logging.Warnf(ctx, "Cannot encode payload for %T: %v", params, err)
 		} else {
 			rm := json.RawMessage(payload)
 			evData := testevent.Data{
@@ -77,7 +78,7 @@ func (ts *WaitPort) Run(
 				Payload:   &rm,
 			}
 			if err := ev.Emit(ctx, evData); err != nil {
-				ctx.Warnf("Cannot emit event EventCmdStart: %v", err)
+				logging.Warnf(ctx, "Cannot emit event EventCmdStart: %v", err)
 			}
 		}
 
@@ -107,19 +108,19 @@ func (ts *WaitPort) Run(
 					var d net.Dialer
 					conn, err := d.DialContext(finishedContext, targetParams.Protocol, addr)
 					if err == nil {
-						ctx.Warnf("successfully connected via %s", addr)
+						logging.Warnf(ctx, "successfully connected via %s", addr)
 						if err := conn.Close(); err != nil {
-							ctx.Warnf("failed to close opened connection: %v", err)
+							logging.Warnf(ctx, "failed to close opened connection: %v", err)
 						}
 						return nil
 					}
-					ctx.Warnf("failed to connect to '%s', err: '%v'", addr, err)
+					logging.Warnf(ctx, "failed to connect to '%s', err: '%v'", addr, err)
 					if finishedContext.Err() != nil {
 						return finishedContext.Err()
 					}
 				}
 
-				ctx.Infof("wait for the next iteration")
+				logging.Infof(ctx, "wait for the next iteration")
 				select {
 				case <-finishedContext.Done():
 					return finishedContext.Err()
@@ -135,17 +136,17 @@ func (ts *WaitPort) Run(
 			Payload:   nil,
 		}
 		if err := ev.Emit(ctx, evData); err != nil {
-			ctx.Warnf("Cannot emit event EventCmdEnd: %v", err)
+			logging.Warnf(ctx, "Cannot emit event EventCmdEnd: %v", err)
 		}
 
-		ctx.Infof("wait port plugin finished, err: '%v'", resultErr)
+		logging.Infof(ctx, "wait port plugin finished, err: '%v'", resultErr)
 		return resultErr
 	}
 	return teststeps.ForEachTargetWithResume(ctx, ch, resumeState, 0, f)
 }
 
 // ValidateParameters validates the parameters associated to the TestStep
-func (ts *WaitPort) ValidateParameters(ctx xcontext.Context, params test.TestStepParameters) error {
+func (ts *WaitPort) ValidateParameters(ctx context.Context, params test.TestStepParameters) error {
 	_, err := parseParameters(params)
 	return err
 }

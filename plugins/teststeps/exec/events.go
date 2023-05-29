@@ -6,13 +6,13 @@
 package exec
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 
 	"github.com/linuxboot/contest/pkg/event"
 	"github.com/linuxboot/contest/pkg/event/testevent"
 	"github.com/linuxboot/contest/pkg/target"
-	"github.com/linuxboot/contest/pkg/xcontext"
 )
 
 // events that we may emit during the plugin's lifecycle
@@ -80,7 +80,7 @@ type stepLogEventPayload struct {
 	Message        string `json:"text,omitempty"`
 }
 
-func emitEvent(ctx xcontext.Context, name event.Name, payload interface{}, tgt *target.Target, ev testevent.Emitter) error {
+func emitEvent(ctx context.Context, name event.Name, payload interface{}, tgt *target.Target, ev testevent.Emitter) error {
 	payloadData, err := json.Marshal(payload)
 	if err != nil {
 		return fmt.Errorf("cannot marshal payload for event '%s': %w", name, err)

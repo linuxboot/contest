@@ -6,6 +6,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log"
@@ -17,7 +18,6 @@ import (
 	"syscall"
 
 	"github.com/linuxboot/contest/pkg/remote"
-	"github.com/linuxboot/contest/pkg/xcontext"
 )
 
 func run() error {
@@ -69,11 +69,11 @@ func run() error {
 }
 
 func start(bin string, args []string) error {
-	ctx := xcontext.Background()
+	ctx := context.Background()
 
 	if flagTimeQuota != nil && *flagTimeQuota != 0 {
-		var cancel xcontext.CancelFunc
-		ctx, cancel = xcontext.WithTimeout(ctx, *flagTimeQuota)
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, *flagTimeQuota)
 		defer cancel()
 	}
 

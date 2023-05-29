@@ -6,23 +6,23 @@
 package storage
 
 import (
+	"context"
 	"fmt"
 	"time"
 
 	"github.com/linuxboot/contest/pkg/event"
 	"github.com/linuxboot/contest/pkg/event/frameworkevent"
 	"github.com/linuxboot/contest/pkg/event/testevent"
-	"github.com/linuxboot/contest/pkg/xcontext"
 )
 
 type EventStorage interface {
 	// Test events storage interface
-	StoreTestEvent(ctx xcontext.Context, event testevent.Event) error
-	GetTestEvents(ctx xcontext.Context, eventQuery *testevent.Query) ([]testevent.Event, error)
+	StoreTestEvent(ctx context.Context, event testevent.Event) error
+	GetTestEvents(ctx context.Context, eventQuery *testevent.Query) ([]testevent.Event, error)
 
 	// Framework events storage interface
-	StoreFrameworkEvent(ctx xcontext.Context, event frameworkevent.Event) error
-	GetFrameworkEvent(ctx xcontext.Context, eventQuery *frameworkevent.Query) ([]frameworkevent.Event, error)
+	StoreFrameworkEvent(ctx context.Context, event frameworkevent.Event) error
+	GetFrameworkEvent(ctx context.Context, eventQuery *frameworkevent.Query) ([]frameworkevent.Event, error)
 }
 
 // TestEventEmitter implements Emitter interface from the testevent package
@@ -46,7 +46,7 @@ type TestEventEmitterFetcher struct {
 }
 
 // Emit emits an event using the selected storage layer
-func (e TestEventEmitter) Emit(ctx xcontext.Context, data testevent.Data) error {
+func (e TestEventEmitter) Emit(ctx context.Context, data testevent.Data) error {
 	if e.emitterVault == nil {
 		return fmt.Errorf("storage engine storage is not set")
 	}
@@ -70,7 +70,7 @@ func (e TestEventEmitter) Emit(ctx xcontext.Context, data testevent.Data) error 
 }
 
 // Fetch retrieves events based on QueryFields that are used to build a Query object for TestEvents
-func (ev TestEventFetcher) Fetch(ctx xcontext.Context, queryFields ...testevent.QueryField) ([]testevent.Event, error) {
+func (ev TestEventFetcher) Fetch(ctx context.Context, queryFields ...testevent.QueryField) ([]testevent.Event, error) {
 	engineType := SyncEngine
 	if !isStronglyConsistent(ctx) {
 		engineType = AsyncEngine
@@ -141,7 +141,7 @@ type FrameworkEventEmitterFetcher struct {
 }
 
 // Emit emits an event using the selected storage engine
-func (ev FrameworkEventEmitter) Emit(ctx xcontext.Context, event frameworkevent.Event) error {
+func (ev FrameworkEventEmitter) Emit(ctx context.Context, event frameworkevent.Event) error {
 	if ev.emitterVault == nil {
 		return fmt.Errorf("storage engine storage is not set")
 	}
@@ -158,7 +158,7 @@ func (ev FrameworkEventEmitter) Emit(ctx xcontext.Context, event frameworkevent.
 }
 
 // Fetch retrieves events based on QueryFields that are used to build a Query object for FrameworkEvents
-func (ev FrameworkEventFetcher) Fetch(ctx xcontext.Context, queryFields ...frameworkevent.QueryField) ([]frameworkevent.Event, error) {
+func (ev FrameworkEventFetcher) Fetch(ctx context.Context, queryFields ...frameworkevent.QueryField) ([]frameworkevent.Event, error) {
 	engineType := SyncEngine
 	if !isStronglyConsistent(ctx) {
 		engineType = AsyncEngine

@@ -9,6 +9,7 @@
 package test
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -28,12 +29,14 @@ import (
 	"github.com/linuxboot/contest/pkg/jobmanager"
 	"github.com/linuxboot/contest/pkg/logging"
 	"github.com/linuxboot/contest/pkg/pluginregistry"
+	"github.com/linuxboot/contest/pkg/signaling"
+	"github.com/linuxboot/contest/pkg/signals"
 	"github.com/linuxboot/contest/pkg/storage"
 	"github.com/linuxboot/contest/pkg/target"
 	"github.com/linuxboot/contest/pkg/types"
-	"github.com/linuxboot/contest/pkg/xcontext"
-	"github.com/linuxboot/contest/pkg/xcontext/bundles/logrusctx"
-	"github.com/linuxboot/contest/pkg/xcontext/logger"
+
+	"github.com/facebookincubator/go-belt/beltctx"
+	"github.com/facebookincubator/go-belt/tool/logger"
 	"github.com/linuxboot/contest/plugins/reporters/targetsuccess"
 	"github.com/linuxboot/contest/plugins/targetlocker/inmemory"
 	"github.com/linuxboot/contest/plugins/targetmanagers/targetlist"
@@ -92,13 +95,13 @@ type TestListener struct {
 
 // Serve implements the main logic of a dummy listener which talks to the API
 // layer to trigger actions in the JobManager
-func (tl *TestListener) Serve(ctx xcontext.Context, contestApi *api.API) error {
-	ctx.Debugf("Serving mock listener")
+func (tl *TestListener) Serve(ctx context.Context, contestApi *api.API) error {
+	logging.Debugf(ctx, "Serving mock listener")
 	tl.api = contestApi
 	for {
 		select {
 		case command := <-tl.commandCh:
-			ctx.Debugf("received command: %#+v", command)
+			logging.Debugf(ctx, "received command: %#+v", command)
 			switch command.commandType {
 			case StartJob:
 				resp, err := contestApi.Start(ctx, "IntegrationTest", command.jobDescriptor)
@@ -142,7 +145,7 @@ func pollForEvent(eventManager frameworkevent.EmitterFetcher, ev event.Name, job
 				frameworkevent.QueryJobID(jobID),
 				frameworkevent.QueryEventName(ev),
 			}
-			ev, err := eventManager.Fetch(xcontext.Background(), queryFields...)
+			ev, err := eventManager.Fetch(context.Background(), queryFields...)
 			if err != nil {
 				return nil, err
 			}
@@ -165,7 +168,7 @@ func pollForTestEvent(eventManager testevent.Fetcher, ev event.Name, jobID types
 				testevent.QueryJobID(jobID),
 				testevent.QueryEventName(ev),
 			}
-			ev, err := eventManager.Fetch(xcontext.Background(), queryFields...)
+			ev, err := eventManager.Fetch(context.Background(), queryFields...)
 			if err != nil {
 				return nil, err
 			}
@@ -214,7 +217,7 @@ type TestJobManagerSuite struct {
 	// jobManagerCh is a control channel used to signal the termination of JobManager
 	jobManagerCh chan struct{}
 	// ctx is an input context to the JobManager which can be used to pause or cancel JobManager
-	jmCtx             xcontext.Context
+	jmCtx             context.Context
 	jmPause, jmCancel func()
 }
 
@@ -317,7 +320,7 @@ func (suite *TestJobManagerSuite) SetupTest() {
 	suite.eventManager = eventManager
 	suite.testEventManager = testEventManager
 
-	pr := pluginregistry.NewPluginRegistry(xcontext.Background())
+	pr := pluginregistry.NewPluginRegistry(context.Background())
 	pr.RegisterTargetManager(targetlist.Name, targetlist.New)
 	pr.RegisterTargetManager(readmeta.Name, readmeta.New)
 	pr.RegisterTestFetcher(literal.Name, literal.New)
@@ -352,12 +355,14 @@ func (suite *TestJobManagerSuite) initJobManager(instanceTag string) {
 	require.NoError(suite.T(), err)
 
 	suite.jm = jm
-	suite.jmCtx, suite.jmCancel = logrusctx.NewContext(logger.LevelDebug, logging.DefaultOptions()...)
-	suite.jmCtx, suite.jmPause = xcontext.WithNotify(suite.jmCtx, xcontext.ErrPaused)
+	ctx := logging.WithBelt(context.Background(), logger.LevelTrace)
+	ctx = beltctx.WithField(ctx, "integ-test", suite.T().Name())
+	suite.jmCtx, suite.jmCancel = context.WithCancel(ctx)
+	suite.jmCtx, suite.jmPause = signaling.WithSignal(suite.jmCtx, signals.Paused)
 }
 
 func (suite *TestJobManagerSuite) BeforeTest(suiteName, testName string) {
-	suite.jmCtx.Infof("=== Running %s/%s", suiteName, testName)
+	logging.Infof(suite.jmCtx, "=== Running %s/%s", suiteName, testName)
 }
 
 func (suite *TestJobManagerSuite) stopJobManager() {
@@ -451,7 +456,7 @@ func (suite *TestJobManagerSuite) testExit(
 
 	select {
 	case <-suite.jobManagerCh:
-		suite.jmCtx.Infof("jm finished")
+		logging.Infof(suite.jmCtx, "jm finished")
 	case <-time.After(exitTimeout):
 		suite.T().Errorf("JobManager should return within the timeout")
 	}
@@ -503,7 +508,7 @@ func (suite *TestJobManagerSuite) testPauseAndResume(
 		time.Sleep(pauseAfter)
 
 		// Signal pause to the manager.
-		suite.jmCtx.Infof("-> pausing")
+		logging.Infof(suite.jmCtx, "-> pausing")
 		suite.jmPause()
 
 		select {

@@ -6,12 +6,14 @@
 package jobmanager
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"sync"
 	"time"
 
+	"github.com/facebookincubator/go-belt/beltctx"
 	"github.com/insomniacslk/xjson"
 
 	"github.com/linuxboot/contest/pkg/api"
@@ -19,11 +21,13 @@ import (
 	"github.com/linuxboot/contest/pkg/event/frameworkevent"
 	"github.com/linuxboot/contest/pkg/event/testevent"
 	"github.com/linuxboot/contest/pkg/job"
+	"github.com/linuxboot/contest/pkg/logging"
 	"github.com/linuxboot/contest/pkg/pluginregistry"
 	"github.com/linuxboot/contest/pkg/runner"
+	"github.com/linuxboot/contest/pkg/signaling"
+	"github.com/linuxboot/contest/pkg/signals"
 	"github.com/linuxboot/contest/pkg/storage"
 	"github.com/linuxboot/contest/pkg/types"
-	"github.com/linuxboot/contest/pkg/xcontext"
 )
 
 // ErrorEventPayload represents the payload carried by a failure event (e.g. JobStateFailed, JobStateCancelled, etc.)
@@ -56,7 +60,7 @@ type JobManager struct {
 	apiListener    api.Listener
 	pluginRegistry *pluginregistry.PluginRegistry
 
-	apiCancel xcontext.CancelFunc
+	apiCancel context.CancelFunc
 
 	msgCounter int
 }
@@ -120,7 +124,7 @@ func (jm *JobManager) handleEvent(ev *api.Event) {
 		}
 	}
 
-	ev.Context.Debugf("Sending response %+v", resp)
+	logging.Debugf(ev.Context, "Sending response %+v", resp)
 	// time to wait before printing an error if the response is not received.
 	sendEventTimeout := 3 * time.Second
 
@@ -130,12 +134,12 @@ func (jm *JobManager) handleEvent(ev *api.Event) {
 		// TODO send failure event once we have the event infra
 		// TODO determine whether the server should shut down if there
 		//      are too many errors
-		ev.Context.Logger().Panicf("timed out after %v trying to send a response event", sendEventTimeout)
+		logging.Panicf(ev.Context, "timed out after %v trying to send a response event", sendEventTimeout)
 	}
 }
 
 // Run is responsible for starting the API listener and responding to incoming events.
-func (jm *JobManager) Run(ctx xcontext.Context, resumeJobs bool) error {
+func (jm *JobManager) Run(ctx context.Context, resumeJobs bool) error {
 	jm.jobRunner.StartLockRefresh()
 	defer jm.jobRunner.StopLockRefresh()
 
@@ -146,7 +150,7 @@ func (jm *JobManager) Run(ctx xcontext.Context, resumeJobs bool) error {
 
 	// Deal with zombieed jobs (fail them).
 	if err := jm.failZombieJobs(ctx, a.ServerID()); err != nil {
-		ctx.Errorf("failed to fail jobs: %v", err)
+		logging.Errorf(ctx, "failed to fail jobs: %v", err)
 	}
 
 	// First, resume paused jobs.
@@ -156,13 +160,16 @@ func (jm *JobManager) Run(ctx xcontext.Context, resumeJobs bool) error {
 		}
 	}
 
-	apiCtx, apiCancel := xcontext.WithCancel(ctx)
-	jm.apiCancel = apiCancel
+	apiCtx, apiCancel := context.WithCancel(ctx)
+	jm.apiCancel = func() {
+		logging.Debugf(ctx, "cancelling API context")
+		apiCancel()
+	}
 
 	errCh := make(chan error, 1)
 	go func() {
 		lErr := jm.apiListener.Serve(apiCtx, a)
-		ctx.Infof("Listener shut down successfully.")
+		logging.Infof(ctx, "Listener shut down successfully.")
 		errCh <- lErr
 		close(errCh)
 	}()
@@ -173,7 +180,7 @@ loop:
 		select {
 		// handle events from the API
 		case ev := <-a.Events:
-			ev.Context.Debugf("Handling event %+v", ev)
+			logging.Debugf(ev.Context, "Handling event %+v", ev)
 			handlerWg.Add(1)
 			go func() {
 				defer handlerWg.Done()
@@ -182,11 +189,11 @@ loop:
 		// check for errors or premature termination from the listener.
 		case err := <-errCh:
 			if err != nil {
-				ctx.Infof("JobManager: API listener failed (%v)", err)
+				logging.Infof(ctx, "JobManager: API listener failed (%v)", err)
 			}
 			break loop
-		case <-ctx.Until(xcontext.ErrPaused):
-			ctx.Infof("Paused")
+		case <-signaling.Until(ctx, signals.Paused):
+			logging.Infof(ctx, "Paused")
 			jm.PauseAll(ctx)
 			break loop
 		case <-ctx.Done():
@@ -200,15 +207,15 @@ loop:
 	handlerWg.Wait()
 	// Wait for jobs to complete or for cancellation signal.
 	doneCh := ctx.Done()
-	pausedCh := ctx.Until(xcontext.ErrPaused)
+	pausedCh := signaling.Until(ctx, signals.Paused)
 	for !jm.checkIdle(ctx) {
 		select {
 		case <-pausedCh:
-			ctx.Infof("Paused")
+			logging.Infof(ctx, "Paused")
 			jm.PauseAll(ctx)
 			pausedCh = nil
 		case <-doneCh:
-			ctx.Infof("Canceled")
+			logging.Infof(ctx, "Canceled")
 			jm.CancelAll(ctx)
 			// Note that we do not break out of the loop here, we expect runner to wind down and exit.
 			doneCh = nil
@@ -220,24 +227,24 @@ loop:
 	return nil
 }
 
-func (jm *JobManager) failZombieJobs(ctx xcontext.Context, serverID string) error {
+func (jm *JobManager) failZombieJobs(ctx context.Context, serverID string) error {
 	zombieJobs, err := jm.listMyJobs(ctx, serverID, job.JobStateStarted)
 	if err != nil {
 		return fmt.Errorf("failed to list zombie jobs: %w", err)
 	}
-	ctx.Infof("Found %d zombie jobs for %s/%s", len(zombieJobs), jm.config.instanceTag, serverID)
+	logging.Infof(ctx, "Found %d zombie jobs for %s/%s", len(zombieJobs), jm.config.instanceTag, serverID)
 	for _, jobID := range zombieJobs {
 		// Log a line with job id so there's something in the job log to tell what happened.
-		jobCtx := ctx.WithField("job_id", jobID)
-		jobCtx.Errorf("This became a zombie, most likely the previous server instance was killed ungracefully")
+		jobCtx := beltctx.WithField(ctx, "job_id", jobID)
+		logging.Errorf(jobCtx, "This became a zombie, most likely the previous server instance was killed ungracefully")
 		if err = jm.emitErrEvent(ctx, jobID, job.EventJobFailed, fmt.Errorf("Job %d was zombieed", jobID)); err != nil {
-			ctx.Errorf("Failed to emit event: %v", err)
+			logging.Errorf(ctx, "Failed to emit event: %v", err)
 		}
 	}
 	return nil
 }
 
-func (jm *JobManager) listMyJobs(ctx xcontext.Context, serverID string, jobState job.State) ([]types.JobID, error) {
+func (jm *JobManager) listMyJobs(ctx context.Context, serverID string, jobState job.State) ([]types.JobID, error) {
 	queryFields := []storage.JobQueryField{
 		storage.QueryJobServerID(serverID),
 		storage.QueryJobStates(jobState),
@@ -256,14 +263,14 @@ func (jm *JobManager) listMyJobs(ctx xcontext.Context, serverID string, jobState
 	return jobs, nil
 }
 
-func (jm *JobManager) checkIdle(ctx xcontext.Context) bool {
+func (jm *JobManager) checkIdle(ctx context.Context) bool {
 	jm.jobsMu.Lock()
 	defer jm.jobsMu.Unlock()
 	if len(jm.jobs) == 0 {
 		return true
 	}
 	if jm.msgCounter%20 == 0 {
-		ctx.Infof("Waiting for %d jobs", len(jm.jobs))
+		logging.Infof(ctx, "Waiting for %d jobs", len(jm.jobs))
 	}
 	jm.msgCounter++
 	return false
@@ -289,26 +296,26 @@ func (jm *JobManager) StopAPI() {
 }
 
 // CancelAll cancels all running jobs.
-func (jm *JobManager) CancelAll(ctx xcontext.Context) {
+func (jm *JobManager) CancelAll(ctx context.Context) {
 	jm.jobsMu.Lock()
 	defer jm.jobsMu.Unlock()
 	for jobID, ji := range jm.jobs {
-		ctx.Debugf("JobManager: cancelling job %d", jobID)
+		logging.Debugf(ctx, "JobManager: cancelling job %d", jobID)
 		ji.cancel()
 	}
 }
 
 // CancelAll pauses all running jobs.
-func (jm *JobManager) PauseAll(ctx xcontext.Context) {
+func (jm *JobManager) PauseAll(ctx context.Context) {
 	jm.jobsMu.Lock()
 	defer jm.jobsMu.Unlock()
 	for jobID, ji := range jm.jobs {
-		ctx.Debugf("JobManager: pausing job %d", jobID)
+		logging.Debugf(ctx, "JobManager: pausing job %d", jobID)
 		ji.pause()
 	}
 }
 
-func (jm *JobManager) emitEventPayload(ctx xcontext.Context, jobID types.JobID, eventName event.Name, payload interface{}) error {
+func (jm *JobManager) emitEventPayload(ctx context.Context, jobID types.JobID, eventName event.Name, payload interface{}) error {
 	var payloadJSON json.RawMessage
 	if payload != nil {
 		if p, err := json.Marshal(payload); err == nil {
@@ -324,20 +331,20 @@ func (jm *JobManager) emitEventPayload(ctx xcontext.Context, jobID types.JobID, 
 		EmitTime:  time.Now(),
 	}
 	if err := jm.frameworkEvManager.Emit(ctx, ev); err != nil {
-		ctx.Warnf("Could not emit event %s for job %d: %v", eventName, jobID, err)
+		logging.Warnf(ctx, "Could not emit event %s for job %d: %v", eventName, jobID, err)
 		return err
 	}
 	return nil
 }
 
-func (jm *JobManager) emitErrEvent(ctx xcontext.Context, jobID types.JobID, eventName event.Name, err error) error {
+func (jm *JobManager) emitErrEvent(ctx context.Context, jobID types.JobID, eventName event.Name, err error) error {
 	if err != nil {
-		ctx.Errorf(err.Error())
+		logging.Errorf(ctx, err.Error())
 		return jm.emitEventPayload(ctx, jobID, eventName, &ErrorEventPayload{Err: *xjson.NewError(err)})
 	}
 	return jm.emitEventPayload(ctx, jobID, eventName, nil)
 }
 
-func (jm *JobManager) emitEvent(ctx xcontext.Context, jobID types.JobID, eventName event.Name) error {
+func (jm *JobManager) emitEvent(ctx context.Context, jobID types.JobID, eventName event.Name) error {
 	return jm.emitErrEvent(ctx, jobID, eventName, nil)
 }

@@ -6,6 +6,7 @@
 package jobmanager
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -16,10 +17,9 @@ import (
 	"github.com/linuxboot/contest/pkg/pluginregistry"
 	"github.com/linuxboot/contest/pkg/storage/limits"
 	"github.com/linuxboot/contest/pkg/test"
-	"github.com/linuxboot/contest/pkg/xcontext"
 )
 
-func newJob(ctx xcontext.Context, registry *pluginregistry.PluginRegistry, jobDescriptor *job.Descriptor, resolver stepsResolver) (*job.Job, error) {
+func newJob(ctx context.Context, registry *pluginregistry.PluginRegistry, jobDescriptor *job.Descriptor, resolver stepsResolver) (*job.Job, error) {
 
 	if resolver == nil {
 		return nil, fmt.Errorf("cannot create job without resolver")
@@ -91,7 +91,7 @@ func newJob(ctx xcontext.Context, registry *pluginregistry.PluginRegistry, jobDe
 }
 
 func buildTestsFromDescriptors(
-	ctx xcontext.Context,
+	ctx context.Context,
 	registry *pluginregistry.PluginRegistry,
 	testDescriptors []*test.TestDescriptor,
 	stepsDescriptors []test.TestStepsDescriptors) ([]*test.Test, error) {
@@ -150,19 +150,19 @@ func buildTestsFromDescriptors(
 }
 
 // NewJobFromDescriptor creates a job object from a job descriptor
-func NewJobFromDescriptor(ctx xcontext.Context, registry *pluginregistry.PluginRegistry, jobDescriptor *job.Descriptor) (*job.Job, error) {
+func NewJobFromDescriptor(ctx context.Context, registry *pluginregistry.PluginRegistry, jobDescriptor *job.Descriptor) (*job.Job, error) {
 	resolver := fetcherStepsResolver{jobDescriptor: jobDescriptor, registry: registry}
 	return newJob(ctx, registry, jobDescriptor, resolver)
 }
 
 // NewJobFromExtendedDescriptor creates a job object from an extended job descriptor
-func NewJobFromExtendedDescriptor(ctx xcontext.Context, registry *pluginregistry.PluginRegistry, jobDescriptor *job.ExtendedDescriptor) (*job.Job, error) {
+func NewJobFromExtendedDescriptor(ctx context.Context, registry *pluginregistry.PluginRegistry, jobDescriptor *job.ExtendedDescriptor) (*job.Job, error) {
 	resolver := literalStepsResolver{stepsDescriptors: jobDescriptor.TestStepsDescriptors}
 	return newJob(ctx, registry, &jobDescriptor.Descriptor, resolver)
 }
 
 // NewJobFromJSONDescriptor builds a descriptor object from a JSON serialization
-func NewJobFromJSONDescriptor(ctx xcontext.Context, registry *pluginregistry.PluginRegistry, jobDescriptorJSON string) (*job.Job, error) {
+func NewJobFromJSONDescriptor(ctx context.Context, registry *pluginregistry.PluginRegistry, jobDescriptorJSON string) (*job.Job, error) {
 	var jd *job.Descriptor
 	if err := json.Unmarshal([]byte(jobDescriptorJSON), &jd); err != nil {
 		return nil, err

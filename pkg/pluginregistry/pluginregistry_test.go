@@ -6,15 +6,17 @@
 package pluginregistry
 
 import (
+	"context"
 	"encoding/json"
 	"testing"
 
 	"github.com/linuxboot/contest/pkg/event"
 	"github.com/linuxboot/contest/pkg/event/testevent"
 	"github.com/linuxboot/contest/pkg/test"
-	"github.com/linuxboot/contest/pkg/xcontext"
-	"github.com/linuxboot/contest/pkg/xcontext/bundles/logrusctx"
-	"github.com/linuxboot/contest/pkg/xcontext/logger"
+
+	"github.com/facebookincubator/go-belt/beltctx"
+	"github.com/facebookincubator/go-belt/tool/logger"
+	"github.com/facebookincubator/go-belt/tool/logger/implementation/logrus"
 
 	"github.com/stretchr/testify/require"
 )
@@ -30,7 +32,7 @@ func NewAStep() test.TestStep {
 }
 
 // ValidateParameters validates the parameters for the AStep
-func (e AStep) ValidateParameters(ctx xcontext.Context, params test.TestStepParameters) error {
+func (e AStep) ValidateParameters(ctx context.Context, params test.TestStepParameters) error {
 	return nil
 }
 
@@ -41,7 +43,7 @@ func (e AStep) Name() string {
 
 // Run executes the AStep
 func (e AStep) Run(
-	ctx xcontext.Context,
+	ctx context.Context,
 	ch test.TestStepChannels,
 	ev testevent.Emitter,
 	stepsVars test.StepsVariables,
@@ -52,7 +54,8 @@ func (e AStep) Run(
 }
 
 func TestRegisterTestStep(t *testing.T) {
-	ctx, cancel := logrusctx.NewContext(logger.LevelDebug)
+	ctx, cancel := context.WithCancel(logger.CtxWithLogger(context.Background(), logrus.Default()))
+	defer beltctx.Flush(ctx)
 	defer cancel()
 	pr := NewPluginRegistry(ctx)
 	err := pr.RegisterTestStep("AStep", NewAStep, []event.Name{"AStepEventName"})
@@ -60,7 +63,8 @@ func TestRegisterTestStep(t *testing.T) {
 }
 
 func TestRegisterTestStepDoesNotValidate(t *testing.T) {
-	ctx, cancel := logrusctx.NewContext(logger.LevelDebug)
+	ctx, cancel := context.WithCancel(logger.CtxWithLogger(context.Background(), logrus.Default()))
+	defer beltctx.Flush(ctx)
 	defer cancel()
 	pr := NewPluginRegistry(ctx)
 	err := pr.RegisterTestStep("AStep", NewAStep, []event.Name{"Event which does not validate"})

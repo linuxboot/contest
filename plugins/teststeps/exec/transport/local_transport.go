@@ -3,17 +3,19 @@
 // This source code is licensed under the MIT license found in the
 // LICENSE file in the root directory of this source tree.
 
+//go:build unsafe
 // +build unsafe
 
 package transport
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
 	"os/exec"
 
-	"github.com/linuxboot/contest/pkg/xcontext"
+	"github.com/linuxboot/contest/pkg/logging"
 )
 
 type LocalTransport struct{}
@@ -22,7 +24,7 @@ func NewLocalTransport() Transport {
 	return &LocalTransport{}
 }
 
-func (lt *LocalTransport) NewProcess(ctx xcontext.Context, bin string, args []string) (Process, error) {
+func (lt *LocalTransport) NewProcess(ctx context.Context, bin string, args []string) (Process, error) {
 	return newLocalProcess(ctx, bin, args)
 }
 
@@ -31,7 +33,7 @@ type localProcess struct {
 	cmd *exec.Cmd
 }
 
-func newLocalProcess(ctx xcontext.Context, bin string, args []string) (Process, error) {
+func newLocalProcess(ctx context.Context, bin string, args []string) (Process, error) {
 	if err := checkBinary(bin); err != nil {
 		return nil, err
 	}
@@ -40,8 +42,8 @@ func newLocalProcess(ctx xcontext.Context, bin string, args []string) (Process, 
 	return &localProcess{cmd}, nil
 }
 
-func (lp *localProcess) Start(ctx xcontext.Context) error {
-	ctx.Debugf("starting local binary: %v", lp)
+func (lp *localProcess) Start(ctx context.Context) error {
+	logging.Debugf(ctx, "starting local binary: %v", lp)
 	if err := lp.cmd.Start(); err != nil {
 		return fmt.Errorf("failed to start process: %w", err)
 	}
@@ -49,7 +51,7 @@ func (lp *localProcess) Start(ctx xcontext.Context) error {
 	return nil
 }
 
-func (lp *localProcess) Wait(_ xcontext.Context) error {
+func (lp *localProcess) Wait(_ context.Context) error {
 	if err := lp.cmd.Wait(); err != nil {
 		var e *exec.ExitError
 		if errors.As(err, &e) {

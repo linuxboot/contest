@@ -1,11 +1,12 @@
 package rdb
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/google/go-safeweb/safesql"
 	adminServerJob "github.com/linuxboot/contest/cmds/admin_server/job"
-	"github.com/linuxboot/contest/pkg/xcontext"
+	"github.com/linuxboot/contest/pkg/logging"
 )
 
 var (
@@ -39,7 +40,7 @@ func New(dbURI, driveName string) (*Storage, error) {
 }
 
 // GetTags returns tags that has a tag matches tagPattern
-func (r *Storage) GetTags(ctx xcontext.Context, tagPattern string) ([]adminServerJob.Tag, error) {
+func (r *Storage) GetTags(ctx context.Context, tagPattern string) ([]adminServerJob.Tag, error) {
 	var resultErr error
 	res := []adminServerJob.Tag{}
 	doneChan := make(chan struct{})
@@ -57,7 +58,7 @@ func (r *Storage) GetTags(ctx xcontext.Context, tagPattern string) ([]adminServe
 		defer func() {
 			err = rows.Close()
 			if err != nil {
-				ctx.Errorf("error while closing the rows reader: %w", err)
+				logging.Errorf(ctx, "error while closing the rows reader: %w", err)
 			}
 		}()
 
@@ -87,7 +88,7 @@ func (r *Storage) GetTags(ctx xcontext.Context, tagPattern string) ([]adminServe
 }
 
 // GetJobs returns jobs with final report if exists that are under a given tagName
-func (r *Storage) GetJobs(ctx xcontext.Context, tagName string) ([]adminServerJob.Job, error) {
+func (r *Storage) GetJobs(ctx context.Context, tagName string) ([]adminServerJob.Job, error) {
 	var resultErr error
 	res := []adminServerJob.Job{}
 	doneChan := make(chan struct{})
@@ -105,7 +106,7 @@ func (r *Storage) GetJobs(ctx xcontext.Context, tagName string) ([]adminServerJo
 		defer func() {
 			err = rows.Close()
 			if err != nil {
-				ctx.Errorf("error while closing the rows reader: %w", err)
+				logging.Errorf(ctx, "error while closing the rows reader: %w", err)
 			}
 		}()
 

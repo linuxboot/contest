@@ -16,8 +16,8 @@ import (
 	"github.com/linuxboot/contest/pkg/storage"
 	log "github.com/sirupsen/logrus"
 
-	"github.com/linuxboot/contest/tools/migration/rdbms/migrationlib"
 	"github.com/google/go-safeweb/safesql"
+	"github.com/linuxboot/contest/tools/migration/rdbms/migrationlib"
 	// this blank import registers the mysql driver
 	_ "github.com/go-sql-driver/mysql"
 )
@@ -33,7 +33,6 @@ type db interface {
 	Exec(query safesql.TrustedSQLString, args ...interface{}) (sql.Result, error)
 	Query(query safesql.TrustedSQLString, args ...interface{}) (*sql.Rows, error)
 }
-
 
 // tx defines an interface for a backend that supports transaction like operations
 type tx interface {

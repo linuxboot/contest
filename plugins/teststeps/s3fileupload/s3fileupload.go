@@ -9,6 +9,7 @@ import (
 	"archive/tar"
 	"bytes"
 	"compress/gzip"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -24,9 +25,10 @@ import (
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/linuxboot/contest/pkg/event"
 	"github.com/linuxboot/contest/pkg/event/testevent"
+	"github.com/linuxboot/contest/pkg/logging"
 	"github.com/linuxboot/contest/pkg/target"
 	"github.com/linuxboot/contest/pkg/test"
-	"github.com/linuxboot/contest/pkg/xcontext"
+
 	"github.com/linuxboot/contest/plugins/teststeps"
 )
 
@@ -65,7 +67,7 @@ func (ts FileUpload) Name() string {
 	return Name
 }
 
-func emitEvent(ctx xcontext.Context, name event.Name, payload interface{}, tgt *target.Target, ev testevent.Emitter) error {
+func emitEvent(ctx context.Context, name event.Name, payload interface{}, tgt *target.Target, ev testevent.Emitter) error {
 	payloadStr, err := json.Marshal(payload)
 	if err != nil {
 		return fmt.Errorf("cannot encode payload for event '%s': %w", name, err)
@@ -84,7 +86,7 @@ func emitEvent(ctx xcontext.Context, name event.Name, payload interface{}, tgt *
 
 // Run executes the awsFileUpload.
 func (ts *FileUpload) Run(
-	ctx xcontext.Context,
+	ctx context.Context,
 	ch test.TestStepChannels,
 	ev testevent.Emitter,
 	stepsVars test.StepsVariables,
@@ -95,7 +97,7 @@ func (ts *FileUpload) Run(
 	if err := ts.validateAndPopulate(params); err != nil {
 		return nil, err
 	}
-	f := func(ctx xcontext.Context, target *target.Target) error {
+	f := func(ctx context.Context, target *target.Target) error {
 		// expand args
 		path, err := ts.localPath.Expand(target, stepsVars)
 		if err != nil {
@@ -188,7 +190,7 @@ func (ts *FileUpload) validateAndPopulate(params test.TestStepParameters) error 
 }
 
 // ValidateParameters validates the parameters associated to the TestStep
-func (ts *FileUpload) ValidateParameters(_ xcontext.Context, params test.TestStepParameters) error {
+func (ts *FileUpload) ValidateParameters(_ context.Context, params test.TestStepParameters) error {
 	return ts.validateAndPopulate(params)
 }
 
@@ -203,7 +205,7 @@ func Load() (string, test.TestStepFactory, []event.Name) {
 }
 
 // createTarArchive creates compressed data writer and invokes addFileToArchive
-func createTarArchive(file string, ctx xcontext.Context) (*bytes.Buffer, error) {
+func createTarArchive(file string, ctx context.Context) (*bytes.Buffer, error) {
 	// Create buffer for the compressed data
 	var buf bytes.Buffer
 	// Create gzip and tar writers
@@ -220,7 +222,7 @@ func createTarArchive(file string, ctx xcontext.Context) (*bytes.Buffer, error) 
 }
 
 // addFileToArchive takes the data and writes it into the tar archive
-func addFileToArchive(tarwriter *tar.Writer, filename string, ctx xcontext.Context) error {
+func addFileToArchive(tarwriter *tar.Writer, filename string, ctx context.Context) error {
 	// Open the file which shall be written into the tar archive
 	file, err := os.Open(filename)
 	if err != nil {
@@ -228,7 +230,7 @@ func addFileToArchive(tarwriter *tar.Writer, filename string, ctx xcontext.Conte
 	}
 	defer func() {
 		if err := file.Close(); err != nil {
-			ctx.Warnf("failed to close file '%s': %w", filename, err)
+			logging.Warnf(ctx, "failed to close file '%s': %w", filename, err)
 		}
 	}()
 
@@ -257,7 +259,7 @@ func addFileToArchive(tarwriter *tar.Writer, filename string, ctx xcontext.Conte
 }
 
 // Upload the file that is specified in the JobDescritor
-func (ts *FileUpload) upload(filename string, data []byte, ctx xcontext.Context) (string, error) {
+func (ts *FileUpload) upload(filename string, data []byte, ctx context.Context) (string, error) {
 
 	// Create an AWS session
 	s, err := session.NewSession(&aws.Config{Region: aws.String(ts.s3Region),
@@ -288,7 +290,7 @@ func (ts *FileUpload) upload(filename string, data []byte, ctx xcontext.Context)
 	if err != nil {
 		return "", fmt.Errorf("could not upload the file: %w", err)
 	} else {
-		ctx.Infof("Pushed the file to S3 Bucket!")
+		logging.Infof(ctx, "Pushed the file to S3 Bucket!")
 	}
 	// Create download link for public ACL
 	url := strings.Join([]string{"https://", ts.s3Bucket, ".s3.amazonaws.com/", uploadPath}, "")

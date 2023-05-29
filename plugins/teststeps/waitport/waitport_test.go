@@ -1,6 +1,7 @@
 package waitport
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"sync"
@@ -10,7 +11,7 @@ import (
 	"github.com/linuxboot/contest/pkg/storage"
 	"github.com/linuxboot/contest/pkg/target"
 	"github.com/linuxboot/contest/pkg/test"
-	"github.com/linuxboot/contest/pkg/xcontext"
+
 	"github.com/linuxboot/contest/plugins/storage/memory"
 )
 
@@ -25,7 +26,7 @@ func TestWaitForTCPPort(t *testing.T) {
 		}
 	}()
 
-	ctx, cancel := xcontext.WithCancel(xcontext.Background())
+	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	m, err := memory.New()

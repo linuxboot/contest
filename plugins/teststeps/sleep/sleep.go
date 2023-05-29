@@ -6,6 +6,7 @@
 package sleep
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -13,8 +14,11 @@ import (
 
 	"github.com/linuxboot/contest/pkg/event"
 	"github.com/linuxboot/contest/pkg/event/testevent"
+	"github.com/linuxboot/contest/pkg/logging"
+	"github.com/linuxboot/contest/pkg/signaling"
+	"github.com/linuxboot/contest/pkg/signals"
 	"github.com/linuxboot/contest/pkg/test"
-	"github.com/linuxboot/contest/pkg/xcontext"
+
 	"github.com/linuxboot/contest/plugins/teststeps"
 )
 
@@ -53,7 +57,7 @@ func getDuration(params test.TestStepParameters) (time.Duration, error) {
 
 // ValidateParameters validates the parameters that will be passed to the Run
 // and Resume methods of the test step.
-func (ss *sleepStep) ValidateParameters(_ xcontext.Context, params test.TestStepParameters) error {
+func (ss *sleepStep) ValidateParameters(_ context.Context, params test.TestStepParameters) error {
 	_, err := getDuration(params)
 	return err
 }
@@ -69,7 +73,7 @@ type sleepStepData struct {
 
 // Run executes the step
 func (ss *sleepStep) Run(
-	ctx xcontext.Context,
+	ctx context.Context,
 	ch test.TestStepChannels,
 	ev testevent.Emitter,
 	stepsVars test.StepsVariables,
@@ -80,7 +84,7 @@ func (ss *sleepStep) Run(
 	if err != nil {
 		return nil, err
 	}
-	fn := func(ctx xcontext.Context, target *teststeps.TargetWithData) error {
+	fn := func(ctx context.Context, target *teststeps.TargetWithData) error {
 		var deadline time.Time
 		// copy, can be different per target
 		var sleepTime = dur
@@ -93,7 +97,7 @@ func (ss *sleepStep) Run(
 			}
 			deadline = time.Unix(ssd.DeadlineMS/1000, (ssd.DeadlineMS%1000)*1000000)
 			sleepTime = time.Until(deadline)
-			ctx.Debugf("restored with %v unix, in %s", ssd.DeadlineMS, time.Until(deadline))
+			logging.Debugf(ctx, "restored with %v unix, in %s", ssd.DeadlineMS, time.Until(deadline))
 		} else {
 			deadline = time.Now().Add(dur)
 		}
@@ -102,8 +106,8 @@ func (ss *sleepStep) Run(
 		select {
 		case <-time.After(sleepTime):
 			return nil
-		case <-ctx.Until(xcontext.ErrPaused):
-			ctx.Debugf("%s: Paused with %s left", target.Target, time.Until(deadline))
+		case <-signaling.Until(ctx, signals.Paused):
+			logging.Debugf(ctx, "%s: Paused with %s left", target.Target, time.Until(deadline))
 			ssd := &sleepStepData{
 				DeadlineMS: deadline.UnixNano() / 1000000,
 			}
@@ -112,9 +116,9 @@ func (ss *sleepStep) Run(
 			if err != nil {
 				return err
 			}
-			return xcontext.ErrPaused
+			return signals.Paused
 		case <-ctx.Done():
-			ctx.Debugf("%s: Cancelled with %s left", target.Target, time.Until(deadline))
+			logging.Debugf(ctx, "%s: Cancelled with %s left", target.Target, time.Until(deadline))
 		}
 		return nil
 	}

@@ -1,13 +1,16 @@
 package variables
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+
 	"github.com/linuxboot/contest/pkg/event"
 	"github.com/linuxboot/contest/pkg/event/testevent"
+	"github.com/linuxboot/contest/pkg/logging"
 	"github.com/linuxboot/contest/pkg/target"
 	"github.com/linuxboot/contest/pkg/test"
-	"github.com/linuxboot/contest/pkg/xcontext"
+
 	"github.com/linuxboot/contest/plugins/teststeps"
 )
 
@@ -28,7 +31,7 @@ func (ts *Variables) Name() string {
 
 // Run executes the cmd step.
 func (ts *Variables) Run(
-	ctx xcontext.Context,
+	ctx context.Context,
 	ch test.TestStepChannels,
 	ev testevent.Emitter,
 	stepsVars test.StepsVariables,
@@ -38,9 +41,9 @@ func (ts *Variables) Run(
 	if err := ts.ValidateParameters(ctx, inputParams); err != nil {
 		return nil, err
 	}
-	return teststeps.ForEachTarget(Name, ctx, ch, func(ctx xcontext.Context, target *target.Target) error {
+	return teststeps.ForEachTarget(Name, ctx, ch, func(ctx context.Context, target *target.Target) error {
 		for name, ps := range inputParams {
-			ctx.Debugf("add variable %s, value: %s", name, ps[0])
+			logging.Debugf(ctx, "add variable %s, value: %s", name, ps[0])
 			if err := stepsVars.Add(target.ID, name, ps[0].RawMessage); err != nil {
 				return err
 			}
@@ -50,7 +53,7 @@ func (ts *Variables) Run(
 }
 
 // ValidateParameters validates the parameters associated to the TestStep
-func (ts *Variables) ValidateParameters(ctx xcontext.Context, params test.TestStepParameters) error {
+func (ts *Variables) ValidateParameters(ctx context.Context, params test.TestStepParameters) error {
 	for name, ps := range params {
 		if err := test.CheckIdentifier(name); err != nil {
 			return fmt.Errorf("invalid variable name: '%s': %w", name, err)

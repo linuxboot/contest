@@ -6,15 +6,16 @@
 package rdbms
 
 import (
+	"context"
 	"fmt"
+
 	"github.com/google/go-safeweb/safesql"
 	"github.com/linuxboot/contest/pkg/job"
 	"github.com/linuxboot/contest/pkg/storage"
 	"github.com/linuxboot/contest/pkg/types"
-	"github.com/linuxboot/contest/pkg/xcontext"
 )
 
-func (r *RDBMS) ListJobs(_ xcontext.Context, query *storage.JobQuery) ([]types.JobID, error) {
+func (r *RDBMS) ListJobs(_ context.Context, query *storage.JobQuery) ([]types.JobID, error) {
 	res := []types.JobID{}
 
 	// Quoting SQL strings is hard. https://github.com/golang/go/issues/18478
@@ -42,7 +43,7 @@ func (r *RDBMS) ListJobs(_ xcontext.Context, query *storage.JobQuery) ([]types.J
 				safesql.New(" ON jobs.job_id = jt"),
 				safesql.NewFromUint64(uint64(i)),
 				safesql.New(".job_id"),
-				),
+			),
 		)
 	}
 	var conds []safesql.TrustedSQLString
@@ -62,7 +63,7 @@ func (r *RDBMS) ListJobs(_ xcontext.Context, query *storage.JobQuery) ([]types.J
 				safesql.New("jobs.state IN ("),
 				safesql.TrustedSQLStringJoin(stst, safesql.New(", ")),
 				safesql.New(")")),
-			)
+		)
 	}
 	// Now the corresponding conditions.
 	for i, tag := range query.Tags {

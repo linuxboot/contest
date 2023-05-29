@@ -6,6 +6,7 @@
 package limits_test
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"strings"
@@ -13,16 +14,16 @@ import (
 	"testing"
 	"time"
 
+	"github.com/facebookincubator/go-belt/tool/logger"
 	"github.com/linuxboot/contest/pkg/api"
 	"github.com/linuxboot/contest/pkg/event"
 	"github.com/linuxboot/contest/pkg/job"
 	"github.com/linuxboot/contest/pkg/jobmanager"
+	"github.com/linuxboot/contest/pkg/logging"
 	"github.com/linuxboot/contest/pkg/pluginregistry"
 	"github.com/linuxboot/contest/pkg/storage/limits"
 	"github.com/linuxboot/contest/pkg/test"
-	"github.com/linuxboot/contest/pkg/xcontext"
-	"github.com/linuxboot/contest/pkg/xcontext/bundles/logrusctx"
-	"github.com/linuxboot/contest/pkg/xcontext/logger"
+
 	"github.com/linuxboot/contest/plugins/reporters/noop"
 	"github.com/linuxboot/contest/plugins/targetmanagers/targetlist"
 	"github.com/linuxboot/contest/plugins/testfetchers/literal"
@@ -35,9 +36,7 @@ import (
 // This tests are bad, because they touche so may things which are not related to storage limitations and
 // depend on order of checks in validation code, but this is the price of having them all in one package
 
-var (
-	ctx, _ = logrusctx.NewContext(logger.LevelDebug)
-)
+var ctx = logging.WithBelt(context.Background(), logger.LevelDebug)
 
 func TestServerID(t *testing.T) {
 	_, err := api.New(api.OptionServerID(strings.Repeat("A", limits.MaxServerIDLen+1)))
@@ -53,7 +52,7 @@ func TestRequestorName(t *testing.T) {
 	apiInst := api.API{}
 	timeout := time.Second
 	err := apiInst.SendEvent(&api.Event{
-		Context: xcontext.Background(),
+		Context: context.Background(),
 		Msg:     eventMsg{requestor: api.EventRequestor(strings.Repeat("A", limits.MaxRequestorNameLen+1))},
 	}, &timeout)
 	assertLenError(t, "Requestor name", err)

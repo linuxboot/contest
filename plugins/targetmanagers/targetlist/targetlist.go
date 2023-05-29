@@ -6,16 +6,18 @@
 // Package targetlist implements a simple target manager that contains a static
 // list of targets. Use it as follows in a job descriptor:
 // "TargetManager": "targetlist",
-// "TargetManagerAcquireParameters": {
-//     "Targets": [
-//         {
-//             "Name": "hostname1.example.com",
-//             "ID": "id1"
-//         },
-//         {
-//             "Name": "hostname2.example.com",
-//             "ID": "id2"
-//         }
+//
+//	"TargetManagerAcquireParameters": {
+//	    "Targets": [
+//	        {
+//	            "Name": "hostname1.example.com",
+//	            "ID": "id1"
+//	        },
+//	        {
+//	            "Name": "hostname2.example.com",
+//	            "ID": "id2"
+//	        }
+//
 // ]
 // }
 //
@@ -28,15 +30,16 @@
 package targetlist
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
 	"time"
 
+	"github.com/linuxboot/contest/pkg/logging"
 	"github.com/linuxboot/contest/pkg/target"
 	"github.com/linuxboot/contest/pkg/types"
-	"github.com/linuxboot/contest/pkg/xcontext"
 )
 
 // Name defined the name of the plugin
@@ -81,24 +84,24 @@ func (t TargetList) ValidateReleaseParameters(params []byte) (interface{}, error
 }
 
 // Acquire implements contest.TargetManager.Acquire
-func (t *TargetList) Acquire(ctx xcontext.Context, jobID types.JobID, jobTargetManagerAcquireTimeout time.Duration, parameters interface{}, tl target.Locker) ([]*target.Target, error) {
+func (t *TargetList) Acquire(ctx context.Context, jobID types.JobID, jobTargetManagerAcquireTimeout time.Duration, parameters interface{}, tl target.Locker) ([]*target.Target, error) {
 	acquireParameters, ok := parameters.(AcquireParameters)
 	if !ok {
 		return nil, fmt.Errorf("Acquire expects %T object, got %T", acquireParameters, parameters)
 	}
 
 	if err := tl.Lock(ctx, jobID, jobTargetManagerAcquireTimeout, acquireParameters.Targets); err != nil {
-		ctx.Warnf("Failed to lock %d targets: %v", len(acquireParameters.Targets), err)
+		logging.Warnf(ctx, "Failed to lock %d targets: %v", len(acquireParameters.Targets), err)
 		return nil, err
 	}
 
-	ctx.Infof("Acquired %d targets", len(acquireParameters.Targets))
+	logging.Infof(ctx, "Acquired %d targets", len(acquireParameters.Targets))
 	return acquireParameters.Targets, nil
 }
 
 // Release releases the acquired resources.
-func (t *TargetList) Release(ctx xcontext.Context, jobID types.JobID, targets []*target.Target, params interface{}) error {
-	ctx.Infof("Released %d targets", len(targets))
+func (t *TargetList) Release(ctx context.Context, jobID types.JobID, targets []*target.Target, params interface{}) error {
+	logging.Infof(ctx, "Released %d targets", len(targets))
 	return nil
 }
 

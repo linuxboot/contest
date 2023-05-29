@@ -6,6 +6,7 @@
 package slowecho
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"strconv"
@@ -15,9 +16,10 @@ import (
 
 	"github.com/linuxboot/contest/pkg/event"
 	"github.com/linuxboot/contest/pkg/event/testevent"
+	"github.com/linuxboot/contest/pkg/logging"
 	"github.com/linuxboot/contest/pkg/target"
 	"github.com/linuxboot/contest/pkg/test"
-	"github.com/linuxboot/contest/pkg/xcontext"
+
 	"github.com/linuxboot/contest/plugins/teststeps"
 )
 
@@ -63,7 +65,7 @@ func sleepTime(secStr string) (time.Duration, error) {
 
 // ValidateParameters validates the parameters that will be passed to the Run
 // and Resume methods of the test step.
-func (e *Step) ValidateParameters(_ xcontext.Context, params test.TestStepParameters) error {
+func (e *Step) ValidateParameters(_ context.Context, params test.TestStepParameters) error {
 	if t := params.GetOne("text"); t.IsEmpty() {
 		return errors.New("missing 'text' field in slowecho parameters")
 	}
@@ -81,7 +83,7 @@ func (e *Step) ValidateParameters(_ xcontext.Context, params test.TestStepParame
 
 // Run executes the step
 func (e *Step) Run(
-	ctx xcontext.Context,
+	ctx context.Context,
 	ch test.TestStepChannels,
 	ev testevent.Emitter,
 	stepsVars test.StepsVariables,
@@ -96,15 +98,15 @@ func (e *Step) Run(
 	if clk == nil {
 		clk = clock.New()
 	}
-	f := func(ctx xcontext.Context, t *target.Target) error {
-		ctx.Infof("Waiting %v for target %s", sleep, t.ID)
+	f := func(ctx context.Context, t *target.Target) error {
+		logging.Infof(ctx, "Waiting %v for target %s", sleep, t.ID)
 		select {
 		case <-clk.After(sleep):
 		case <-ctx.Done():
-			ctx.Infof("Returning because cancellation is requested")
-			return xcontext.ErrCanceled
+			logging.Infof(ctx, "Returning because cancellation is requested")
+			return context.Canceled
 		}
-		ctx.Infof("target %s: %s", t, params.GetOne("text"))
+		logging.Infof(ctx, "target %s: %s", t, params.GetOne("text"))
 		return nil
 	}
 	return teststeps.ForEachTarget(Name, ctx, ch, f)

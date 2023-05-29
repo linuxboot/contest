@@ -6,16 +6,16 @@
 package transport
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 
 	"github.com/linuxboot/contest/pkg/test"
-	"github.com/linuxboot/contest/pkg/xcontext"
 )
 
 type Transport interface {
-	NewProcess(ctx xcontext.Context, bin string, args []string) (Process, error)
+	NewProcess(ctx context.Context, bin string, args []string) (Process, error)
 }
 
 // ExitError is returned by Process.Wait when the controlled process exited with
@@ -29,8 +29,8 @@ func (e *ExitError) Error() string {
 }
 
 type Process interface {
-	Start(ctx xcontext.Context) error
-	Wait(ctx xcontext.Context) error
+	Start(ctx context.Context) error
+	Wait(ctx context.Context) error
 
 	StdoutPipe() (io.Reader, error)
 	StderrPipe() (io.Reader, error)

@@ -6,12 +6,13 @@
 package exec
 
 import (
+	"context"
 	"encoding/json"
 	"strings"
 	"testing"
 
 	"github.com/linuxboot/contest/pkg/event/testevent"
-	"github.com/linuxboot/contest/pkg/xcontext"
+
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
@@ -22,7 +23,7 @@ type mockEmitter struct {
 	Calls []testevent.Data
 }
 
-func (e *mockEmitter) Emit(ctx xcontext.Context, data testevent.Data) error {
+func (e *mockEmitter) Emit(ctx context.Context, data testevent.Data) error {
 	e.Calls = append(e.Calls, data)
 
 	args := e.Called(ctx, data)
@@ -30,7 +31,7 @@ func (e *mockEmitter) Emit(ctx xcontext.Context, data testevent.Data) error {
 }
 
 func TestOCPEventParser(t *testing.T) {
-	ctx := xcontext.Background()
+	ctx := context.Background()
 
 	ev := &mockEmitter{}
 	ev.On("Emit", ctx, mock.Anything).Return(nil)

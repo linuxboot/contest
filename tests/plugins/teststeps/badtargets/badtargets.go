@@ -6,6 +6,7 @@
 package badtargets
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 
@@ -13,7 +14,6 @@ import (
 	"github.com/linuxboot/contest/pkg/event/testevent"
 	"github.com/linuxboot/contest/pkg/target"
 	"github.com/linuxboot/contest/pkg/test"
-	"github.com/linuxboot/contest/pkg/xcontext"
 )
 
 // Name is the name used to look this plugin up.
@@ -32,7 +32,7 @@ func (ts *badTargets) Name() string {
 
 // Run executes a step that messes up the flow of targets.
 func (ts *badTargets) Run(
-	ctx xcontext.Context,
+	ctx context.Context,
 	ch test.TestStepChannels,
 	ev testevent.Emitter,
 	stepsVars test.StepsVariables,
@@ -54,30 +54,30 @@ func (ts *badTargets) Run(
 				select {
 				case ch.Out <- test.TestStepResult{Target: &tgt2}:
 				case <-ctx.Done():
-					return nil, xcontext.ErrCanceled
+					return nil, context.Canceled
 				}
 			case "TDup":
 				select {
 				case ch.Out <- test.TestStepResult{Target: tgt}:
 				case <-ctx.Done():
-					return nil, xcontext.ErrCanceled
+					return nil, context.Canceled
 				}
 				select {
 				case ch.Out <- test.TestStepResult{Target: tgt}:
 				case <-ctx.Done():
-					return nil, xcontext.ErrCanceled
+					return nil, context.Canceled
 				}
 			case "TExtra":
 				tgt2 := &target.Target{ID: "TExtra2"}
 				select {
 				case ch.Out <- test.TestStepResult{Target: tgt}:
 				case <-ctx.Done():
-					return nil, xcontext.ErrCanceled
+					return nil, context.Canceled
 				}
 				select {
 				case ch.Out <- test.TestStepResult{Target: tgt2}:
 				case <-ctx.Done():
-					return nil, xcontext.ErrCanceled
+					return nil, context.Canceled
 				}
 			case "T1":
 				// Mangle the returned target name.
@@ -85,19 +85,19 @@ func (ts *badTargets) Run(
 				select {
 				case ch.Out <- test.TestStepResult{Target: tgt2}:
 				case <-ctx.Done():
-					return nil, xcontext.ErrCanceled
+					return nil, context.Canceled
 				}
 			default:
 				return nil, fmt.Errorf("Unexpected target name: %q", tgt.ID)
 			}
 		case <-ctx.Done():
-			return nil, xcontext.ErrCanceled
+			return nil, context.Canceled
 		}
 	}
 }
 
 // ValidateParameters validates the parameters associated to the TestStep
-func (ts *badTargets) ValidateParameters(ctx xcontext.Context, params test.TestStepParameters) error {
+func (ts *badTargets) ValidateParameters(ctx context.Context, params test.TestStepParameters) error {
 	return nil
 }
 

@@ -6,10 +6,11 @@
 package readmeta_test
 
 import (
+	"context"
+
 	"github.com/linuxboot/contest/pkg/event/testevent"
 	"github.com/linuxboot/contest/pkg/job"
 	"github.com/linuxboot/contest/pkg/types"
-	"github.com/linuxboot/contest/pkg/xcontext"
 )
 
 // Name defines the name of the reporter used within the plugin registry
@@ -36,7 +37,7 @@ func (n *Readmeta) Name() string {
 }
 
 // RunReport calculates the report to be associated with a job run.
-func (n *Readmeta) RunReport(ctx xcontext.Context, parameters interface{}, runStatus *job.RunStatus, ev testevent.Fetcher) (bool, interface{}, error) {
+func (n *Readmeta) RunReport(ctx context.Context, parameters interface{}, runStatus *job.RunStatus, ev testevent.Fetcher) (bool, interface{}, error) {
 	// test metadata exists
 	jobID, ok1 := types.JobIDFromContext(ctx)
 	// note this must use panic to abort the test run, as this is a test for the job runner which ignore the actual outcome
@@ -51,7 +52,7 @@ func (n *Readmeta) RunReport(ctx xcontext.Context, parameters interface{}, runSt
 }
 
 // FinalReport calculates the final report to be associated to a job.
-func (n *Readmeta) FinalReport(ctx xcontext.Context, parameters interface{}, runStatuses []job.RunStatus, ev testevent.Fetcher) (bool, interface{}, error) {
+func (n *Readmeta) FinalReport(ctx context.Context, parameters interface{}, runStatuses []job.RunStatus, ev testevent.Fetcher) (bool, interface{}, error) {
 	// this one only has jobID, there is no specific runID in the final reporter
 	jobID, ok1 := types.JobIDFromContext(ctx)
 	// note this must use panic to abort the test run, as this is a test for the job runner which ignore the actual outcome

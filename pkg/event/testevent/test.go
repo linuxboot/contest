@@ -6,6 +6,7 @@
 package testevent
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -14,7 +15,6 @@ import (
 	"github.com/linuxboot/contest/pkg/event/internal/querytools"
 	"github.com/linuxboot/contest/pkg/target"
 	"github.com/linuxboot/contest/pkg/types"
-	"github.com/linuxboot/contest/pkg/xcontext"
 )
 
 // Header models the header of a test event, which consists in metadata that defines the
@@ -143,12 +143,12 @@ func (value queryFieldRunID) queryFieldPointer(query *Query) interface{} { retur
 
 // Emitter defines the interface that emitter objects must implement
 type Emitter interface {
-	Emit(ctx xcontext.Context, event Data) error
+	Emit(ctx context.Context, event Data) error
 }
 
 // Fetcher defines the interface that fetcher objects must implement
 type Fetcher interface {
-	Fetch(ctx xcontext.Context, fields ...QueryField) ([]Event, error)
+	Fetch(ctx context.Context, fields ...QueryField) ([]Event, error)
 }
 
 // EmitterFetcher defines the interface that objects supporting emitting and fetching events must implement

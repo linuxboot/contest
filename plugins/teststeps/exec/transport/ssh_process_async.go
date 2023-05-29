@@ -7,6 +7,7 @@ package transport
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -15,8 +16,9 @@ import (
 
 	"github.com/insomniacslk/xjson"
 	"github.com/kballard/go-shellquote"
+	"github.com/linuxboot/contest/pkg/logging"
 	"github.com/linuxboot/contest/pkg/remote"
-	"github.com/linuxboot/contest/pkg/xcontext"
+
 	"golang.org/x/crypto/ssh"
 )
 
@@ -36,7 +38,7 @@ type sshProcessAsync struct {
 }
 
 func newSSHProcessAsync(
-	ctx xcontext.Context,
+	ctx context.Context,
 	addr string, clientConfig *ssh.ClientConfig,
 	agent string, timeQuota xjson.Duration,
 	bin string, args []string,
@@ -64,7 +66,7 @@ func newSSHProcessAsync(
 	}, nil
 }
 
-func (spa *sshProcessAsync) Start(ctx xcontext.Context) error {
+func (spa *sshProcessAsync) Start(ctx context.Context) error {
 	errChan := make(chan error, 1)
 	resChan := make(chan string, 1)
 
@@ -91,7 +93,7 @@ func (spa *sshProcessAsync) Start(ctx xcontext.Context) error {
 			return
 		}
 
-		ctx.Debugf("starting remote agent: %s", spa.cmd)
+		logging.Debugf(ctx, "starting remote agent: %s", spa.cmd)
 		if err := session.Start(spa.cmd); err != nil {
 			errChan <- fmt.Errorf("failed to start process: %w", err)
 			return
@@ -110,7 +112,7 @@ func (spa *sshProcessAsync) Start(ctx xcontext.Context) error {
 		return err
 
 	case sid := <-resChan:
-		ctx.Debugf("remote sid: %s", sid)
+		logging.Debugf(ctx, "remote sid: %s", sid)
 
 		outWriter := spa.outWriter
 		if outWriter == nil {
@@ -142,7 +144,7 @@ func (spa *sshProcessAsync) Start(ctx xcontext.Context) error {
 	}
 }
 
-func (spa *sshProcessAsync) Wait(_ xcontext.Context) error {
+func (spa *sshProcessAsync) Wait(_ context.Context) error {
 	defer spa.stack.Done()
 
 	// wait for process
@@ -188,7 +190,7 @@ type asyncMonitor struct {
 }
 
 func (m *asyncMonitor) Start(
-	ctx xcontext.Context,
+	ctx context.Context,
 	outWriter io.WriteCloser, errWriter io.WriteCloser,
 	exitChan chan<- error,
 ) {
@@ -198,18 +200,18 @@ func (m *asyncMonitor) Start(
 	for {
 		select {
 		case <-time.After(time.Second):
-			ctx.Debugf("polling remote process: %s", m.sid)
+			logging.Debugf(ctx, "polling remote process: %s", m.sid)
 
 			stdout, err, runerr := m.runAgent(ctx, "poll")
 			if err != nil {
-				ctx.Warnf("failed to run agent: %w", err)
+				logging.Warnf(ctx, "failed to run agent: %w", err)
 				continue
 			}
 
 			if runerr != nil {
 				// agent started but failed wait or exited with non-zero status
 				if err := m.reap(ctx); err != nil {
-					ctx.Warnf("monitor error: %w", err)
+					logging.Warnf(ctx, "monitor error: %w", err)
 				}
 
 				exitChan <- runerr
@@ -218,17 +220,17 @@ func (m *asyncMonitor) Start(
 
 			var msg remote.PollMessage
 			if err := remote.RecvResponse(bytes.NewReader(stdout), &msg); err != nil {
-				ctx.Warnf("failed to deserialize agent output: %w", err)
+				logging.Warnf(ctx, "failed to deserialize agent output: %w", err)
 			}
 
 			// append stdout, stderr; blocking until read
 			if _, err := outWriter.Write([]byte(msg.Stdout)); err != nil {
-				ctx.Warnf("failed to write to stdout pipe: %w", err)
+				logging.Warnf(ctx, "failed to write to stdout pipe: %w", err)
 				continue
 			}
 
 			if _, err := errWriter.Write([]byte(msg.Stderr)); err != nil {
-				ctx.Warnf("failed to write to stderr pipe: %w", err)
+				logging.Warnf(ctx, "failed to write to stderr pipe: %w", err)
 				continue
 			}
 
@@ -241,7 +243,7 @@ func (m *asyncMonitor) Start(
 			if msg.ExitCode != nil {
 				// agent controlled process exited by itself, error was empty
 				if err := m.reap(ctx); err != nil {
-					ctx.Warnf("monitor error: %w", err)
+					logging.Warnf(ctx, "monitor error: %w", err)
 				}
 
 				code := *msg.ExitCode
@@ -254,11 +256,11 @@ func (m *asyncMonitor) Start(
 			}
 
 		case <-ctx.Done():
-			ctx.Debugf("killing remote process, reason: cancellation")
+			logging.Debugf(ctx, "killing remote process, reason: cancellation")
 
 			err := m.kill(ctx)
 			if err := m.reap(ctx); err != nil {
-				ctx.Warnf("monitor error: %w", err)
+				logging.Warnf(ctx, "monitor error: %w", err)
 			}
 
 			exitChan <- err
@@ -267,8 +269,8 @@ func (m *asyncMonitor) Start(
 	}
 }
 
-func (m *asyncMonitor) kill(ctx xcontext.Context) error {
-	ctx.Debugf("killing remote process: %s", m.sid)
+func (m *asyncMonitor) kill(ctx context.Context) error {
+	logging.Debugf(ctx, "killing remote process: %s", m.sid)
 
 	_, err, runerr := m.runAgent(ctx, "kill")
 	if err != nil {
@@ -282,8 +284,8 @@ func (m *asyncMonitor) kill(ctx xcontext.Context) error {
 	return nil
 }
 
-func (m *asyncMonitor) reap(ctx xcontext.Context) error {
-	ctx.Debugf("reaping remote process: %s", m.sid)
+func (m *asyncMonitor) reap(ctx context.Context) error {
+	logging.Debugf(ctx, "reaping remote process: %s", m.sid)
 
 	_, err, runerr := m.runAgent(ctx, "reap")
 	if err != nil {
@@ -296,7 +298,7 @@ func (m *asyncMonitor) reap(ctx xcontext.Context) error {
 	return nil
 }
 
-func (m *asyncMonitor) runAgent(ctx xcontext.Context, verb string) ([]byte, error, error) {
+func (m *asyncMonitor) runAgent(ctx context.Context, verb string) ([]byte, error, error) {
 	client, err := ssh.Dial("tcp", m.addr, m.clientConfig)
 	if err != nil {
 		return nil, fmt.Errorf("cannot connect to SSH server %s: %v", m.addr, err), nil
@@ -314,7 +316,7 @@ func (m *asyncMonitor) runAgent(ctx xcontext.Context, verb string) ([]byte, erro
 	session.Stderr = &stderr
 
 	cmd := shellquote.Join(m.agent, verb, m.sid)
-	ctx.Debugf("starting agent command: %s", cmd)
+	logging.Debugf(ctx, "starting agent command: %s", cmd)
 	if err := session.Start(cmd); err != nil {
 		return nil, fmt.Errorf("failed to start remote agent: %w", err), nil
 	}
@@ -323,7 +325,7 @@ func (m *asyncMonitor) runAgent(ctx xcontext.Context, verb string) ([]byte, erro
 	runerr := session.Wait()
 
 	if stderr.Len() > 0 {
-		ctx.Debugf("agent produces unexpected stderr: %v", stderr.String())
+		logging.Debugf(ctx, "agent produces unexpected stderr: %v", stderr.String())
 	}
 	return stdout.Bytes(), nil, runerr
 }

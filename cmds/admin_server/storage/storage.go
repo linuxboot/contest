@@ -1,10 +1,9 @@
 package storage
 
 import (
+	"context"
 	"errors"
 	"time"
-
-	"github.com/linuxboot/contest/pkg/xcontext"
 )
 
 var (
@@ -19,8 +18,8 @@ var (
 )
 
 type Storage interface {
-	StoreLogs(ctx xcontext.Context, logs []Log) error
-	GetLogs(ctx xcontext.Context, query Query) (*Result, error)
+	StoreLogs(ctx context.Context, logs []Log) error
+	GetLogs(ctx context.Context, query Query) (*Result, error)
 }
 
 // Log defines the basic log info pushed by the server
@@ -42,7 +41,7 @@ type Query struct {
 	Page      uint
 }
 
-//Result defines the expected result returned from the db
+// Result defines the expected result returned from the db
 type Result struct {
 	Logs     []Log
 	Count    uint64

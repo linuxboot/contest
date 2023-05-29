@@ -6,6 +6,7 @@
 package runner
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 
@@ -13,10 +14,10 @@ import (
 	"github.com/linuxboot/contest/pkg/event/frameworkevent"
 	"github.com/linuxboot/contest/pkg/event/testevent"
 	"github.com/linuxboot/contest/pkg/job"
+	"github.com/linuxboot/contest/pkg/logging"
 	"github.com/linuxboot/contest/pkg/target"
 	"github.com/linuxboot/contest/pkg/test"
 	"github.com/linuxboot/contest/pkg/types"
-	"github.com/linuxboot/contest/pkg/xcontext"
 )
 
 // targetRoutingEvents gather all event names which track the flow of targets
@@ -73,7 +74,7 @@ func (jr *JobRunner) buildTargetStatuses(coordinates job.TestStepCoordinates, ta
 }
 
 // buildTestStepStatus builds the status object of a test step belonging to a test
-func (jr *JobRunner) buildTestStepStatus(ctx xcontext.Context, coordinates job.TestStepCoordinates) (*job.TestStepStatus, error) {
+func (jr *JobRunner) buildTestStepStatus(ctx context.Context, coordinates job.TestStepCoordinates) (*job.TestStepStatus, error) {
 
 	testStepStatus := job.TestStepStatus{TestStepCoordinates: coordinates}
 
@@ -106,7 +107,7 @@ func (jr *JobRunner) buildTestStepStatus(ctx xcontext.Context, coordinates job.T
 			// we don't want target routing events in step events, but we want
 			// them in target events below
 			if _, skip := targetRoutingEvents[ev.Data.EventName]; skip {
-				ctx.Warnf("Found routing event '%s' with no target associated, this could indicate a bug", ev.Data.EventName)
+				logging.Warnf(ctx, "Found routing event '%s' with no target associated, this could indicate a bug", ev.Data.EventName)
 				continue
 			}
 			// this goes into TestStepStatus.Events
@@ -127,7 +128,7 @@ func (jr *JobRunner) buildTestStepStatus(ctx xcontext.Context, coordinates job.T
 }
 
 // buildTestStatus builds the status of a test belonging to a specific to a test
-func (jr *JobRunner) buildTestStatus(ctx xcontext.Context, coordinates job.TestCoordinates, currentJob *job.Job) (*job.TestStatus, error) {
+func (jr *JobRunner) buildTestStatus(ctx context.Context, coordinates job.TestCoordinates, currentJob *job.Job) (*job.TestStatus, error) {
 
 	var currentTest *test.Test
 	// Identify the test within the Job for which we are asking to calculate the status
@@ -234,7 +235,7 @@ func (jr *JobRunner) buildTestStatus(ctx xcontext.Context, coordinates job.TestC
 }
 
 // BuildRunStatus builds the status of a run with a job
-func (jr *JobRunner) BuildRunStatus(ctx xcontext.Context, coordinates job.RunCoordinates, currentJob *job.Job) (*job.RunStatus, error) {
+func (jr *JobRunner) BuildRunStatus(ctx context.Context, coordinates job.RunCoordinates, currentJob *job.Job) (*job.RunStatus, error) {
 
 	runStatus := job.RunStatus{RunCoordinates: coordinates, TestStatuses: make([]job.TestStatus, len(currentJob.Tests))}
 
@@ -250,7 +251,7 @@ func (jr *JobRunner) BuildRunStatus(ctx xcontext.Context, coordinates job.RunCoo
 }
 
 // BuildRunStatuses builds the status of all runs belonging to the job
-func (jr *JobRunner) BuildRunStatuses(ctx xcontext.Context, currentJob *job.Job) ([]job.RunStatus, error) {
+func (jr *JobRunner) BuildRunStatuses(ctx context.Context, currentJob *job.Job) ([]job.RunStatus, error) {
 
 	// Calculate the status only for the runs which effectively were executed
 	runStartEvents, err := jr.frameworkEventManager.Fetch(ctx, frameworkevent.QueryEventName(EventRunStarted), frameworkevent.QueryJobID(currentJob.ID))

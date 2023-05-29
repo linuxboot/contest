@@ -6,18 +6,19 @@
 package noop
 
 import (
+	"context"
 	"testing"
 	"time"
 
+	"github.com/facebookincubator/go-belt/tool/logger"
+	"github.com/linuxboot/contest/pkg/logging"
 	"github.com/linuxboot/contest/pkg/target"
 	"github.com/linuxboot/contest/pkg/types"
-	"github.com/linuxboot/contest/pkg/xcontext/bundles/logrusctx"
-	"github.com/linuxboot/contest/pkg/xcontext/logger"
 	"github.com/stretchr/testify/require"
 )
 
 var (
-	ctx, _ = logrusctx.NewContext(logger.LevelDebug)
+	ctx = logging.WithBelt(context.Background(), logger.LevelDebug)
 )
 
 func TestNoopNew(t *testing.T) {

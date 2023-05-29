@@ -9,6 +9,7 @@
 package tests
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"testing"
@@ -16,15 +17,15 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/facebookincubator/go-belt/tool/logger"
 	"github.com/linuxboot/contest/pkg/event"
+	"github.com/linuxboot/contest/pkg/logging"
 	"github.com/linuxboot/contest/pkg/pluginregistry"
 	"github.com/linuxboot/contest/pkg/runner"
 	"github.com/linuxboot/contest/pkg/storage"
 	"github.com/linuxboot/contest/pkg/target"
 	"github.com/linuxboot/contest/pkg/test"
 	"github.com/linuxboot/contest/pkg/types"
-	"github.com/linuxboot/contest/pkg/xcontext/bundles/logrusctx"
-	"github.com/linuxboot/contest/pkg/xcontext/logger"
 	"github.com/linuxboot/contest/plugins/storage/memory"
 	"github.com/linuxboot/contest/plugins/teststeps/cmd"
 	"github.com/linuxboot/contest/plugins/teststeps/echo"
@@ -39,7 +40,7 @@ import (
 )
 
 var (
-	ctx, _             = logrusctx.NewContext(logger.LevelDebug)
+	ctx                = logging.WithBelt(context.Background(), logger.LevelDebug)
 	storageEngineVault = storage.NewSimpleEngineVault()
 )
 

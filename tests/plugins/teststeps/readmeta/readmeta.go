@@ -6,6 +6,7 @@
 package readmeta
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 
@@ -14,7 +15,7 @@ import (
 	"github.com/linuxboot/contest/pkg/target"
 	"github.com/linuxboot/contest/pkg/test"
 	"github.com/linuxboot/contest/pkg/types"
-	"github.com/linuxboot/contest/pkg/xcontext"
+
 	"github.com/linuxboot/contest/plugins/teststeps"
 )
 
@@ -38,14 +39,14 @@ func (ts *readmeta) Name() string {
 
 // Run executes a step that reads the job metadata that must be in the context and panics if it is missing.
 func (ts *readmeta) Run(
-	ctx xcontext.Context,
+	ctx context.Context,
 	ch test.TestStepChannels,
 	ev testevent.Emitter,
 	stepsVars test.StepsVariables,
 	inputParams test.TestStepParameters,
 	resumeState json.RawMessage,
 ) (json.RawMessage, error) {
-	return teststeps.ForEachTarget(Name, ctx, ch, func(ctx xcontext.Context, t *target.Target) error {
+	return teststeps.ForEachTarget(Name, ctx, ch, func(ctx context.Context, t *target.Target) error {
 		jobID, ok1 := types.JobIDFromContext(ctx)
 		if jobID == 0 || !ok1 {
 			return fmt.Errorf("unable to extract jobID from context")
@@ -70,7 +71,7 @@ func (ts *readmeta) Run(
 }
 
 // ValidateParameters validates the parameters associated to the TestStep
-func (ts *readmeta) ValidateParameters(_ xcontext.Context, params test.TestStepParameters) error {
+func (ts *readmeta) ValidateParameters(_ context.Context, params test.TestStepParameters) error {
 	return nil
 }
 

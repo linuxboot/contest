@@ -9,13 +9,14 @@
 package tests
 
 import (
+	"context"
 	"testing"
 	"time"
 
 	"github.com/linuxboot/contest/pkg/runner"
 	"github.com/linuxboot/contest/pkg/test"
 	"github.com/linuxboot/contest/pkg/types"
-	"github.com/linuxboot/contest/pkg/xcontext"
+
 	"github.com/stretchr/testify/require"
 )
 
@@ -39,7 +40,7 @@ func TestCmdPlugin(t *testing.T) {
 		{TestStep: ts1, Parameters: params},
 	}
 
-	stateCtx, cancel := xcontext.WithCancel(ctx)
+	stateCtx, cancel := context.WithCancel(ctx)
 	errCh := make(chan error, 1)
 
 	go func() {

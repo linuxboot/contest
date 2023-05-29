@@ -1,6 +1,7 @@
 package runner
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"sync"
@@ -18,13 +19,14 @@ import (
 	"github.com/linuxboot/contest/pkg/event"
 	"github.com/linuxboot/contest/pkg/event/testevent"
 	"github.com/linuxboot/contest/pkg/job"
+	"github.com/linuxboot/contest/pkg/logging"
 	"github.com/linuxboot/contest/pkg/storage"
 	"github.com/linuxboot/contest/pkg/target"
 	"github.com/linuxboot/contest/pkg/test"
 	"github.com/linuxboot/contest/pkg/types"
-	"github.com/linuxboot/contest/pkg/xcontext"
-	"github.com/linuxboot/contest/pkg/xcontext/bundles/logrusctx"
-	"github.com/linuxboot/contest/pkg/xcontext/logger"
+
+	"github.com/facebookincubator/go-belt/beltctx"
+	"github.com/facebookincubator/go-belt/tool/logger"
 	"github.com/linuxboot/contest/plugins/targetmanagers/targetlist"
 	"github.com/linuxboot/contest/plugins/teststeps"
 	"github.com/linuxboot/contest/plugins/teststeps/echo"
@@ -53,16 +55,17 @@ func (s *JobRunnerSuite) SetupTest() {
 }
 
 func (s *JobRunnerSuite) TestSimpleJobStartFinish() {
-	ctx, cancel := logrusctx.NewContext(logger.LevelDebug)
+	ctx, cancel := context.WithCancel(logging.WithBelt(context.Background(), logger.LevelDebug))
+	defer beltctx.Flush(ctx)
 	defer cancel()
 
 	var mu sync.Mutex
 	var resultTargets []*target.Target
 
 	require.NoError(s.T(), s.RegisterStateFullStep(
-		func(ctx xcontext.Context, ch test.TestStepChannels, ev testevent.Emitter,
+		func(ctx context.Context, ch test.TestStepChannels, ev testevent.Emitter,
 			stepsVars test.StepsVariables, params test.TestStepParameters, resumeState json.RawMessage) (json.RawMessage, error) {
-			return teststeps.ForEachTarget(stateFullStepName, ctx, ch, func(ctx xcontext.Context, target *target.Target) error {
+			return teststeps.ForEachTarget(stateFullStepName, ctx, ch, func(ctx context.Context, target *target.Target) error {
 				assert.NotNil(s.T(), target)
 				mu.Lock()
 				defer mu.Unlock()
@@ -119,16 +122,17 @@ func (s *JobRunnerSuite) TestSimpleJobStartFinish() {
 }
 
 func (s *JobRunnerSuite) TestJobWithCleanupStepsStartToFinish() {
-	ctx, cancel := logrusctx.NewContext(logger.LevelDebug)
+	ctx, cancel := context.WithCancel(logging.WithBelt(context.Background(), logger.LevelDebug))
+	defer beltctx.Flush(ctx)
 	defer cancel()
 
 	var mu sync.Mutex
 	var resultTargets []*target.Target
 
 	require.NoError(s.T(), s.RegisterStateFullStep(
-		func(ctx xcontext.Context, ch test.TestStepChannels, ev testevent.Emitter,
+		func(ctx context.Context, ch test.TestStepChannels, ev testevent.Emitter,
 			stepsVars test.StepsVariables, params test.TestStepParameters, resumeState json.RawMessage) (json.RawMessage, error) {
-			return teststeps.ForEachTarget(stateFullStepName, ctx, ch, func(ctx xcontext.Context, target *target.Target) error {
+			return teststeps.ForEachTarget(stateFullStepName, ctx, ch, func(ctx context.Context, target *target.Target) error {
 				assert.NotNil(s.T(), target)
 				mu.Lock()
 				defer mu.Unlock()
@@ -192,7 +196,8 @@ func (s *JobRunnerSuite) TestJobWithCleanupStepsStartToFinish() {
 }
 
 func (s *JobRunnerSuite) TestJobWithTestRetry() {
-	ctx, cancel := logrusctx.NewContext(logger.LevelDebug)
+	ctx, cancel := context.WithCancel(logging.WithBelt(context.Background(), logger.LevelDebug))
+	defer beltctx.Flush(ctx)
 	defer cancel()
 
 	var mu sync.Mutex
@@ -200,9 +205,9 @@ func (s *JobRunnerSuite) TestJobWithTestRetry() {
 	var callsCount int
 
 	require.NoError(s.T(), s.RegisterStateFullStep(
-		func(ctx xcontext.Context, ch test.TestStepChannels, ev testevent.Emitter,
+		func(ctx context.Context, ch test.TestStepChannels, ev testevent.Emitter,
 			stepsVars test.StepsVariables, params test.TestStepParameters, resumeState json.RawMessage) (json.RawMessage, error) {
-			return teststeps.ForEachTarget(stateFullStepName, ctx, ch, func(ctx xcontext.Context, target *target.Target) error {
+			return teststeps.ForEachTarget(stateFullStepName, ctx, ch, func(ctx context.Context, target *target.Target) error {
 				assert.NotNil(s.T(), target)
 				mu.Lock()
 				defer mu.Unlock()
@@ -312,7 +317,8 @@ func (s *JobRunnerSuite) TestJobWithTestRetry() {
 }
 
 func (s *JobRunnerSuite) TestJobRetryOnFailedAcquire() {
-	ctx, cancel := logrusctx.NewContext(logger.LevelDebug)
+	ctx, cancel := context.WithCancel(logging.WithBelt(context.Background(), logger.LevelDebug))
+	defer beltctx.Flush(ctx)
 	defer cancel()
 
 	var mu sync.Mutex
@@ -320,7 +326,7 @@ func (s *JobRunnerSuite) TestJobRetryOnFailedAcquire() {
 	tm := stateFullTargetManager{
 		validateAcquireParametersFunc: func([]byte) (interface{}, error) { return nil, nil },
 		validateReleaseParametersFunc: func(bytes []byte) (interface{}, error) { return nil, nil },
-		acquireFunc: func(ctx xcontext.Context, jobID types.JobID, jobTargetManagerAcquireTimeout time.Duration,
+		acquireFunc: func(ctx context.Context, jobID types.JobID, jobTargetManagerAcquireTimeout time.Duration,
 			parameters interface{}, tl target.Locker,
 		) ([]*target.Target, error) {
 			mu.Lock()
@@ -337,7 +343,7 @@ func (s *JobRunnerSuite) TestJobRetryOnFailedAcquire() {
 				},
 			}, nil
 		},
-		releaseFunc: func(ctx xcontext.Context, jobID types.JobID, targets []*target.Target, parameters interface{}) error {
+		releaseFunc: func(ctx context.Context, jobID types.JobID, targets []*target.Target, parameters interface{}) error {
 			return nil
 		},
 	}
@@ -417,18 +423,19 @@ func (s *JobRunnerSuite) TestJobRetryOnFailedAcquire() {
 }
 
 func (s *JobRunnerSuite) TestAcquireFailed() {
-	ctx, cancel := logrusctx.NewContext(logger.LevelDebug)
+	ctx, cancel := context.WithCancel(logging.WithBelt(context.Background(), logger.LevelDebug))
+	defer beltctx.Flush(ctx)
 	defer cancel()
 
 	tm := stateFullTargetManager{
 		validateAcquireParametersFunc: func([]byte) (interface{}, error) { return nil, nil },
 		validateReleaseParametersFunc: func(bytes []byte) (interface{}, error) { return nil, nil },
-		acquireFunc: func(ctx xcontext.Context, jobID types.JobID, jobTargetManagerAcquireTimeout time.Duration,
+		acquireFunc: func(ctx context.Context, jobID types.JobID, jobTargetManagerAcquireTimeout time.Duration,
 			parameters interface{}, tl target.Locker,
 		) ([]*target.Target, error) {
 			return nil, fmt.Errorf("some error")
 		},
-		releaseFunc: func(ctx xcontext.Context, jobID types.JobID, targets []*target.Target, parameters interface{}) error {
+		releaseFunc: func(ctx context.Context, jobID types.JobID, targets []*target.Target, parameters interface{}) error {
 			return nil
 		},
 	}
@@ -497,7 +504,8 @@ func (s *JobRunnerSuite) TestAcquireFailed() {
 }
 
 func (s *JobRunnerSuite) TestResumeStateBadJobId() {
-	ctx, cancel := logrusctx.NewContext(logger.LevelDebug)
+	ctx, cancel := context.WithCancel(logging.WithBelt(context.Background(), logger.LevelDebug))
+	defer beltctx.Flush(ctx)
 	defer cancel()
 
 	acquireParameters := targetlist.AcquireParameters{
@@ -557,9 +565,9 @@ func (s *JobRunnerSuite) TestResumeStateBadJobId() {
 const stateFullStepName = "statefull"
 
 type stateFullStep struct {
-	runFunction func(ctx xcontext.Context, ch test.TestStepChannels, ev testevent.Emitter,
+	runFunction func(ctx context.Context, ch test.TestStepChannels, ev testevent.Emitter,
 		stepsVars test.StepsVariables, params test.TestStepParameters, resumeState json.RawMessage) (json.RawMessage, error)
-	validateFunction func(ctx xcontext.Context, params test.TestStepParameters) error
+	validateFunction func(ctx context.Context, params test.TestStepParameters) error
 }
 
 func (sfs *stateFullStep) Name() string {
@@ -567,7 +575,7 @@ func (sfs *stateFullStep) Name() string {
 }
 
 func (sfs *stateFullStep) Run(
-	ctx xcontext.Context,
+	ctx context.Context,
 	ch test.TestStepChannels,
 	ev testevent.Emitter,
 	stepsVars test.StepsVariables,
@@ -580,7 +588,7 @@ func (sfs *stateFullStep) Run(
 	return sfs.runFunction(ctx, ch, ev, stepsVars, params, resumeState)
 }
 
-func (sfs *stateFullStep) ValidateParameters(ctx xcontext.Context, params test.TestStepParameters) error {
+func (sfs *stateFullStep) ValidateParameters(ctx context.Context, params test.TestStepParameters) error {
 	if sfs.validateFunction == nil {
 		return nil
 	}
@@ -590,9 +598,9 @@ func (sfs *stateFullStep) ValidateParameters(ctx xcontext.Context, params test.T
 type stateFullTargetManager struct {
 	validateAcquireParametersFunc func([]byte) (interface{}, error)
 	validateReleaseParametersFunc func([]byte) (interface{}, error)
-	acquireFunc                   func(ctx xcontext.Context, jobID types.JobID, jobTargetManagerAcquireTimeout time.Duration,
+	acquireFunc                   func(ctx context.Context, jobID types.JobID, jobTargetManagerAcquireTimeout time.Duration,
 		parameters interface{}, tl target.Locker) ([]*target.Target, error)
-	releaseFunc func(ctx xcontext.Context, jobID types.JobID, targets []*target.Target, parameters interface{}) error
+	releaseFunc func(ctx context.Context, jobID types.JobID, targets []*target.Target, parameters interface{}) error
 }
 
 func (sfm stateFullTargetManager) ValidateAcquireParameters(params []byte) (interface{}, error) {
@@ -604,7 +612,7 @@ func (sfm stateFullTargetManager) ValidateReleaseParameters(params []byte) (inte
 }
 
 func (sfm stateFullTargetManager) Acquire(
-	ctx xcontext.Context,
+	ctx context.Context,
 	jobID types.JobID,
 	jobTargetManagerAcquireTimeout time.Duration,
 	parameters interface{},
@@ -613,7 +621,7 @@ func (sfm stateFullTargetManager) Acquire(
 	return sfm.acquireFunc(ctx, jobID, jobTargetManagerAcquireTimeout, parameters, tl)
 }
 
-func (sfm stateFullTargetManager) Release(ctx xcontext.Context, jobID types.JobID, targets []*target.Target, parameters interface{}) error {
+func (sfm stateFullTargetManager) Release(ctx context.Context, jobID types.JobID, targets []*target.Target, parameters interface{}) error {
 	return sfm.releaseFunc(ctx, jobID, targets, parameters)
 }
 
@@ -635,11 +643,11 @@ func (r *collectingReporter) ValidateFinalParameters([]byte) (interface{}, error
 	return nil, nil
 }
 
-func (r *collectingReporter) RunReport(ctx xcontext.Context, parameters interface{}, runStatus *job.RunStatus, ev testevent.Fetcher) (bool, interface{}, error) {
+func (r *collectingReporter) RunReport(ctx context.Context, parameters interface{}, runStatus *job.RunStatus, ev testevent.Fetcher) (bool, interface{}, error) {
 	r.runStatuses = append(r.runStatuses, *runStatus)
 	return true, nil, nil
 }
 
-func (r *collectingReporter) FinalReport(ctx xcontext.Context, parameters interface{}, runStatuses []job.RunStatus, ev testevent.Fetcher) (bool, interface{}, error) {
+func (r *collectingReporter) FinalReport(ctx context.Context, parameters interface{}, runStatuses []job.RunStatus, ev testevent.Fetcher) (bool, interface{}, error) {
 	return true, nil, nil
 }

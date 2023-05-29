@@ -6,6 +6,7 @@
 package memory
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"sort"
@@ -17,9 +18,9 @@ import (
 	"github.com/linuxboot/contest/pkg/event/frameworkevent"
 	"github.com/linuxboot/contest/pkg/event/testevent"
 	"github.com/linuxboot/contest/pkg/job"
+	"github.com/linuxboot/contest/pkg/logging"
 	"github.com/linuxboot/contest/pkg/storage"
 	"github.com/linuxboot/contest/pkg/types"
-	"github.com/linuxboot/contest/pkg/xcontext"
 	"golang.org/x/exp/slices"
 )
 
@@ -60,7 +61,7 @@ func emptyTestEventQuery(eventQuery *testevent.Query) bool {
 }
 
 // StoreTestEvent stores a test event into the database
-func (m *Memory) StoreTestEvent(_ xcontext.Context, event testevent.Event) error {
+func (m *Memory) StoreTestEvent(_ context.Context, event testevent.Event) error {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	event.SequenceID = uint64(len(m.testEvents)) + 1
@@ -121,7 +122,7 @@ func eventTestStepMatch(queryTestStepLabel, testStepLabel string) bool {
 }
 
 // GetTestEvents returns all test events that match the given query.
-func (m *Memory) GetTestEvents(_ xcontext.Context, eventQuery *testevent.Query) ([]testevent.Event, error) {
+func (m *Memory) GetTestEvents(_ context.Context, eventQuery *testevent.Query) ([]testevent.Event, error) {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 
@@ -156,7 +157,7 @@ func (m *Memory) Reset() error {
 }
 
 // StoreJobRequest stores a new job request
-func (m *Memory) StoreJobRequest(_ xcontext.Context, request *job.Request) (types.JobID, error) {
+func (m *Memory) StoreJobRequest(_ context.Context, request *job.Request) (types.JobID, error) {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 
@@ -176,7 +177,7 @@ func (m *Memory) StoreJobRequest(_ xcontext.Context, request *job.Request) (type
 }
 
 // GetJobRequest retrieves a job request from the in memory list
-func (m *Memory) GetJobRequest(_ xcontext.Context, jobID types.JobID) (*job.Request, error) {
+func (m *Memory) GetJobRequest(_ context.Context, jobID types.JobID) (*job.Request, error) {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	v := m.jobInfo[jobID]
@@ -188,7 +189,7 @@ func (m *Memory) GetJobRequest(_ xcontext.Context, jobID types.JobID) (*job.Requ
 
 // StoreReport stores a report associated to a job. Returns an error if there is
 // already a report associated with this run.
-func (m *Memory) StoreReport(_ xcontext.Context, report *job.Report) error {
+func (m *Memory) StoreReport(_ context.Context, report *job.Report) error {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	ji := m.jobInfo[report.JobID]
@@ -205,7 +206,7 @@ func (m *Memory) StoreReport(_ xcontext.Context, report *job.Report) error {
 }
 
 // GetJobReport returns the report associated to a given job
-func (m *Memory) GetJobReport(ctx xcontext.Context, jobID types.JobID) (*job.JobReport, error) {
+func (m *Memory) GetJobReport(ctx context.Context, jobID types.JobID) (*job.JobReport, error) {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	jr := &job.JobReport{JobID: jobID}
@@ -227,7 +228,7 @@ func (m *Memory) GetJobReport(ctx xcontext.Context, jobID types.JobID) (*job.Job
 		} else {
 			i := int(r.RunID) - 1
 			if i > len(jr.RunReports) {
-				ctx.Errorf("Incomplete set of run reports for job %d", jobID)
+				logging.Errorf(ctx, "Incomplete set of run reports for job %d", jobID)
 				break
 			}
 			if i == len(jr.RunReports) {
@@ -239,7 +240,7 @@ func (m *Memory) GetJobReport(ctx xcontext.Context, jobID types.JobID) (*job.Job
 	return jr, nil
 }
 
-func (m *Memory) ListJobs(_ xcontext.Context, query *storage.JobQuery) ([]types.JobID, error) {
+func (m *Memory) ListJobs(_ context.Context, query *storage.JobQuery) ([]types.JobID, error) {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	res := []types.JobID{}
@@ -295,7 +296,7 @@ jobLoop:
 }
 
 // StoreFrameworkEvent stores a framework event into the database
-func (m *Memory) StoreFrameworkEvent(_ xcontext.Context, event frameworkevent.Event) error {
+func (m *Memory) StoreFrameworkEvent(_ context.Context, event frameworkevent.Event) error {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	event.SequenceID = uint64(len(m.frameworkEvents)) + 1
@@ -304,7 +305,7 @@ func (m *Memory) StoreFrameworkEvent(_ xcontext.Context, event frameworkevent.Ev
 }
 
 // GetFrameworkEvent retrieves a framework event from storage
-func (m *Memory) GetFrameworkEvent(_ xcontext.Context, eventQuery *frameworkevent.Query) ([]frameworkevent.Event, error) {
+func (m *Memory) GetFrameworkEvent(_ context.Context, eventQuery *frameworkevent.Query) ([]frameworkevent.Event, error) {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 

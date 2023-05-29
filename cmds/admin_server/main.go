@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"crypto/tls"
 	"flag"
 	"fmt"
@@ -15,9 +16,8 @@ import (
 	"github.com/linuxboot/contest/cmds/admin_server/server"
 	mongoStorage "github.com/linuxboot/contest/cmds/admin_server/storage/mongo"
 	"github.com/linuxboot/contest/pkg/logging"
-	"github.com/linuxboot/contest/pkg/xcontext"
-	"github.com/linuxboot/contest/pkg/xcontext/bundles/logrusctx"
-	"github.com/linuxboot/contest/pkg/xcontext/logger"
+
+	"github.com/facebookincubator/go-belt/tool/logger"
 )
 
 var (
@@ -27,7 +27,7 @@ var (
 	flagContestDBURI *string
 	flagTLSCert      *string
 	flagTLSKey       *string
-	flagLogLevel     *string
+	logLevel         = logger.LevelDebug
 )
 
 func initFlags(cmd string) {
@@ -37,7 +37,7 @@ func initFlags(cmd string) {
 	flagContestDBURI = flagSet.String("contestdbURI", "contest:contest@tcp(localhost:3306)/contest_integ?parseTime=true", "Contest Database URI")
 	flagTLSCert = flagSet.String("tlsCert", "", "Path to the tls cert file")
 	flagTLSKey = flagSet.String("tlsKey", "", "Path to the tls key file")
-	flagLogLevel = flagSet.String("logLevel", "debug", "A log level, possible values: debug, info, warning, error, panic, fatal")
+	flagSet.Var(&logLevel, "logLevel", "A log level, possible values: debug, info, warning, error, panic, fatal")
 
 }
 
@@ -58,27 +58,21 @@ func main() {
 		exitWithError(err, 1)
 	}
 
-	logLevel, err := logger.ParseLogLevel(*flagLogLevel)
-	if err != nil {
-		exitWithError(err, 1)
-	}
+	ctx := logging.WithBelt(context.Background(), logLevel)
 
-	ctx, cancel := logrusctx.NewContext(logLevel, logging.DefaultOptions()...)
-	defer cancel()
-
-	storageCtx, cancel := xcontext.WithTimeout(ctx, 10*time.Second)
-	defer cancel()
+	storageCtx, storageCtxCancel := context.WithTimeout(ctx, 10*time.Second)
+	defer storageCtxCancel()
 
 	storage, err := mongoStorage.NewMongoStorage(storageCtx, *flagDBURI)
 	if err != nil {
 		exitWithError(err, 1)
 	}
-	closeCtx, cancel := xcontext.WithTimeout(xcontext.Background(), 10*time.Second)
+	closeCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	defer storage.Close(closeCtx)
 
 	var jobStorage *rdb.Storage
-	ctx.Debugf("init contest db connection %v \n", *flagContestDBURI)
+	logging.Debugf(ctx, "init contest db connection %v \n", *flagContestDBURI)
 	jobStorage, err = rdb.New(*flagContestDBURI, "mysql")
 	if err != nil {
 		exitWithError(err, 1)

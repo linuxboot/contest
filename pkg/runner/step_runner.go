@@ -11,16 +11,18 @@ import (
 	"github.com/linuxboot/contest/pkg/cerrors"
 	"github.com/linuxboot/contest/pkg/event"
 	"github.com/linuxboot/contest/pkg/event/testevent"
+	"github.com/linuxboot/contest/pkg/logging"
+	"github.com/linuxboot/contest/pkg/signaling"
+	"github.com/linuxboot/contest/pkg/signals"
 	"github.com/linuxboot/contest/pkg/target"
 	"github.com/linuxboot/contest/pkg/test"
-	"github.com/linuxboot/contest/pkg/xcontext"
 )
 
 type ChanNotifier interface {
 	NotifyCh() <-chan error
 }
 
-type AddTargetToStep func(ctx xcontext.Context, tgt *target.Target) (ChanNotifier, error)
+type AddTargetToStep func(ctx context.Context, tgt *target.Target) (ChanNotifier, error)
 
 type StepResult struct {
 	Err         error
@@ -88,7 +90,7 @@ func NewStepRunner() *StepRunner {
 }
 
 func (sr *StepRunner) Run(
-	ctx xcontext.Context,
+	ctx context.Context,
 	bundle test.TestStepBundle,
 	stepsVariables test.StepsVariables,
 	ev testevent.Emitter,
@@ -126,7 +128,7 @@ func (sr *StepRunner) Run(
 		}
 		sr.mu.Unlock()
 
-		ctx.Debugf("StepRunner finished")
+		logging.Debugf(ctx, "StepRunner finished")
 		sr.Stop()
 	}
 
@@ -134,23 +136,23 @@ func (sr *StepRunner) Run(
 	go func() {
 		defer finish()
 		sr.runningLoop(ctx, sr.input, stepOut, bundle, stepsVariables, ev, resumeState)
-		ctx.Debugf("Running loop finished")
+		logging.Debugf(ctx, "Running loop finished")
 	}()
 
 	go func() {
 		defer finish()
 		sr.outputLoop(ctx, stepOut, ev, bundle.TestStepLabel)
-		ctx.Debugf("Reading loop finished")
+		logging.Debugf(ctx, "Reading loop finished")
 	}()
 
 	sr.started = true
-	return func(ctx xcontext.Context, tgt *target.Target) (ChanNotifier, error) {
+	return func(ctx context.Context, tgt *target.Target) (ChanNotifier, error) {
 		return sr.addTarget(ctx, bundle, ev, tgt)
 	}, resumedTargetsResults, sr.notifyStopped, nil
 }
 
 func (sr *StepRunner) addTarget(
-	ctx xcontext.Context,
+	ctx context.Context,
 	bundle test.TestStepBundle,
 	ev testevent.Emitter,
 	tgt *target.Target,
@@ -204,8 +206,8 @@ func (sr *StepRunner) addTarget(
 			return targetInfo, nil
 		case <-stopped:
 			return nil, fmt.Errorf("step runner was stopped")
-		case <-ctx.Until(xcontext.ErrPaused):
-			return nil, xcontext.ErrPaused
+		case <-signaling.Until(ctx, signals.Paused):
+			return nil, signals.Paused
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		}
@@ -277,7 +279,7 @@ func (sr *StepRunner) Stop() {
 }
 
 func (sr *StepRunner) outputLoop(
-	ctx xcontext.Context,
+	ctx context.Context,
 	stepOut chan test.TestStepResult,
 	ev testevent.Emitter,
 	testStepLabel string,
@@ -286,7 +288,7 @@ func (sr *StepRunner) outputLoop(
 		select {
 		case res, ok := <-stepOut:
 			if !ok {
-				ctx.Debugf("Output channel closed")
+				logging.Debugf(ctx, "Output channel closed")
 				func() {
 					sr.mu.Lock()
 					defer sr.mu.Unlock()
@@ -312,7 +314,7 @@ func (sr *StepRunner) outputLoop(
 				sr.setErr(ctx, &cerrors.ErrTestStepReturnedNoTarget{StepName: testStepLabel})
 				return
 			}
-			ctx.Infof("Obtained '%v' for target '%s'", res, res.Target.ID)
+			logging.Infof(ctx, "Obtained '%v' for target '%s'", res, res.Target.ID)
 
 			shouldEmitTargetIn, targetResult, err := func() (bool, *resultNotifier, error) {
 				sr.mu.Lock()
@@ -351,20 +353,20 @@ func (sr *StepRunner) outputLoop(
 				err = emitEvent(ctx, ev, target.EventTargetErr, res.Target, target.ErrPayload{Error: res.Err.Error()})
 			}
 			if err != nil {
-				ctx.Errorf("failed to emit event: %s", err)
+				logging.Errorf(ctx, "failed to emit event: %s", err)
 				sr.setErr(ctx, err)
 				return
 			}
 			targetResult.postResult(res.Err)
 		case <-ctx.Done():
-			ctx.Debugf("IO loop detected context canceled")
+			logging.Debugf(ctx, "IO loop detected context canceled")
 			return
 		}
 	}
 }
 
 func (sr *StepRunner) runningLoop(
-	ctx xcontext.Context,
+	ctx context.Context,
 	stepIn <-chan *target.Target,
 	stepOut chan test.TestStepResult,
 	bundle test.TestStepBundle,
@@ -380,7 +382,7 @@ func (sr *StepRunner) runningLoop(
 		if recoverOccurred := safeCloseOutCh(stepOut); recoverOccurred {
 			sr.setErr(ctx, &cerrors.ErrTestStepClosedChannels{StepName: bundle.TestStepLabel})
 		}
-		ctx.Debugf("output channel closed")
+		logging.Debugf(ctx, "output channel closed")
 	}()
 
 	sr.mu.Lock()
@@ -400,7 +402,7 @@ func (sr *StepRunner) runningLoop(
 		inChannels := test.TestStepChannels{In: stepIn, Out: stepOut}
 		return bundle.TestStep.Run(ctx, inChannels, ev, stepsVariables, bundle.Parameters, resumeState)
 	}()
-	ctx.Debugf("TestStep finished '%v', rs: '%s'", err, string(resultResumeState))
+	logging.Debugf(ctx, "TestStep finished '%v', rs: '%s'", err, string(resultResumeState))
 
 	sr.mu.Lock()
 	sr.setErrLocked(ctx, err)
@@ -409,17 +411,17 @@ func (sr *StepRunner) runningLoop(
 }
 
 // setErr sets step runner error unless already set.
-func (sr *StepRunner) setErr(ctx xcontext.Context, err error) {
+func (sr *StepRunner) setErr(ctx context.Context, err error) {
 	sr.mu.Lock()
 	defer sr.mu.Unlock()
 	sr.setErrLocked(ctx, err)
 }
 
-func (sr *StepRunner) setErrLocked(ctx xcontext.Context, err error) {
+func (sr *StepRunner) setErrLocked(ctx context.Context, err error) {
 	if err == nil || sr.resultErr != nil {
 		return
 	}
-	ctx.Errorf("err: %v", err)
+	logging.Errorf(ctx, "err: %v", err)
 	sr.resultErr = err
 
 	sr.notifyStopped.postResult(err)
@@ -443,7 +445,7 @@ func safeCloseOutCh(ch chan test.TestStepResult) (recoverOccurred bool) {
 }
 
 // emitEvent emits the specified event with the specified JSON payload (if any).
-func emitEvent(ctx xcontext.Context, ev testevent.Emitter, name event.Name, tgt *target.Target, payload interface{}) error {
+func emitEvent(ctx context.Context, ev testevent.Emitter, name event.Name, tgt *target.Target, payload interface{}) error {
 	var payloadJSON *json.RawMessage
 	if payload != nil {
 		payloadBytes, jmErr := json.Marshal(payload)

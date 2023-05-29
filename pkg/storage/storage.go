@@ -6,7 +6,9 @@
 package storage
 
 import (
-	"github.com/linuxboot/contest/pkg/xcontext"
+	"context"
+
+	"github.com/linuxboot/contest/pkg/logging"
 )
 
 // ConsistencyModel hints at whether queries should go to the primary database
@@ -18,7 +20,9 @@ const (
 	ConsistentEventually
 )
 
-const consistencyModelKey = "storage_consistency_model"
+type consistencyModelKeyT string
+
+const consistencyModelKey = consistencyModelKeyT("storage_consistency_model")
 
 // Storage defines the interface that storage engines must implement
 type Storage interface {
@@ -47,9 +51,9 @@ type ResettableStorage interface {
 	Reset() error
 }
 
-func isStronglyConsistent(ctx xcontext.Context) bool {
+func isStronglyConsistent(ctx context.Context) bool {
 	value := ctx.Value(consistencyModelKey)
-	ctx.Debugf("consistency model check: %v", value)
+	logging.Debugf(ctx, "consistency model check: %v", value)
 
 	switch model := value.(type) {
 	case ConsistencyModel:
@@ -60,6 +64,6 @@ func isStronglyConsistent(ctx xcontext.Context) bool {
 	}
 }
 
-func WithConsistencyModel(ctx xcontext.Context, model ConsistencyModel) xcontext.Context {
-	return xcontext.WithValue(ctx, consistencyModelKey, model)
+func WithConsistencyModel(ctx context.Context, model ConsistencyModel) context.Context {
+	return context.WithValue(ctx, consistencyModelKey, model)
 }

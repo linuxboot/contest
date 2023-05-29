@@ -6,10 +6,10 @@
 package target
 
 import (
+	"context"
 	"time"
 
 	"github.com/linuxboot/contest/pkg/types"
-	"github.com/linuxboot/contest/pkg/xcontext"
 )
 
 // locker defines the locking engine used by ConTest.
@@ -34,7 +34,7 @@ type Locker interface {
 	// Locks are reentrant, locking existing locks (with the same owner)
 	// extends the deadline.
 	// Passing empty list of targets is allowed and is a no-op.
-	Lock(ctx xcontext.Context, jobID types.JobID, duration time.Duration, targets []*Target) error
+	Lock(ctx context.Context, jobID types.JobID, duration time.Duration, targets []*Target) error
 
 	// TryLock attempts to lock up to limit of the given targets.
 	// The job ID is the owner of the lock.
@@ -44,18 +44,18 @@ type Locker interface {
 	// Locks are reentrant, locking existing locks (with the same owner)
 	// extends the deadline.
 	// Passing empty list of targets is allowed and is a no-op.
-	TryLock(ctx xcontext.Context, jobID types.JobID, duration time.Duration, targets []*Target, limit uint) ([]string, error)
+	TryLock(ctx context.Context, jobID types.JobID, duration time.Duration, targets []*Target, limit uint) ([]string, error)
 
 	// Unlock unlocks the specificied targets if they are held by the given owner.
 	// Unlock allows expired locks by the same owner but unlocking a target that wasn't locked
 	// or that is now or has since been locked by a different owner is a failure.
 	// Passing empty list of targets is allowed and is a no-op.
-	Unlock(ctx xcontext.Context, jobID types.JobID, targets []*Target) error
+	Unlock(ctx context.Context, jobID types.JobID, targets []*Target) error
 
 	// RefreshLocks extends existing locks on the given targets for the specified duration.
 	// This call will fail if even a single target is not currently locked by the specified job.
 	// Passing empty list of targets is allowed and is a no-op.
-	RefreshLocks(ctx xcontext.Context, jobID types.JobID, duration time.Duration, targets []*Target) error
+	RefreshLocks(ctx context.Context, jobID types.JobID, duration time.Duration, targets []*Target) error
 
 	// Close finalizes the locker and releases resources.
 	// No API calls must be in flight when this is invoked or afterwards.
