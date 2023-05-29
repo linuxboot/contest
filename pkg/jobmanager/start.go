@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/facebookincubator/go-belt/beltctx"
+	"github.com/facebookincubator/go-belt/tool/experimental/errmon"
 	"github.com/facebookincubator/go-belt/tool/experimental/metrics"
 	"github.com/linuxboot/contest/pkg/api"
 	"github.com/linuxboot/contest/pkg/job"
@@ -84,9 +85,19 @@ func (jm *JobManager) start(ev *api.Event) *api.EventResponse {
 func (jm *JobManager) startJob(ctx context.Context, j *job.Job, resumeState *job.PauseEventPayload) {
 	jm.jobsMu.Lock()
 	defer jm.jobsMu.Unlock()
-	jobCtx, jobCancel := context.WithCancel(ctx)
+	jobCtx := ctx
+	jobCtx, jobCancel := context.WithCancel(jobCtx)
 	jobCtx, jobPause := signaling.WithSignal(jobCtx, signals.Paused)
-	jm.jobs[j.ID] = &jobInfo{job: j, pause: jobPause, cancel: jobCancel}
+	jm.jobs[j.ID] = &jobInfo{
+		job: j,
+		pause: func() {
+			logging.Debugf(ctx, "pausing job")
+			jobPause()
+		},
+		cancel: func() {
+			logging.Debugf(ctx, "cancelling job context")
+			jobCancel()
+		}}
 	go jm.runJob(jobCtx, j, resumeState)
 }
 
@@ -117,11 +128,13 @@ func (jm *JobManager) runJob(ctx context.Context, j *job.Job, resumeState *job.P
 	logging.Debugf(ctx, "Job %d: runner finished, err %v", j.ID, err)
 	switch err {
 	case context.Canceled:
-		_ = jm.emitEvent(ctx, j.ID, job.EventJobCancelled)
+		_err := jm.emitEvent(ctx, j.ID, job.EventJobCancelled)
+		errmon.ObserveErrorCtx(ctx, _err)
 		return
 	case signals.Paused:
 		if err := jm.emitEventPayload(ctx, j.ID, job.EventJobPaused, resumeState); err != nil {
-			_ = jm.emitErrEvent(ctx, j.ID, job.EventJobPauseFailed, fmt.Errorf("Job %+v failed pausing: %v", j, err))
+			_err := jm.emitErrEvent(ctx, j.ID, job.EventJobPauseFailed, fmt.Errorf("job %+v failed pausing: %w", j, err))
+			errmon.ObserveErrorCtx(ctx, _err)
 		} else {
 			logging.Infof(ctx, "Successfully paused job %d (run %d, %d targets)", j.ID, resumeState.RunID, len(resumeState.Targets))
 			logging.Debugf(ctx, "Job %d pause state: %+v", j.ID, resumeState)
@@ -131,9 +144,10 @@ func (jm *JobManager) runJob(ctx context.Context, j *job.Job, resumeState *job.P
 	select {
 	case <-signaling.Until(ctx, signals.Paused):
 		// We were asked to pause but failed to do so.
-		pauseErr := fmt.Errorf("Job %+v failed pausing: %v", j, err)
+		pauseErr := fmt.Errorf("job %+v failed pausing: %w", j, err)
 		logging.Errorf(ctx, "%v", pauseErr)
-		_ = jm.emitErrEvent(ctx, j.ID, job.EventJobPauseFailed, pauseErr)
+		_err := jm.emitErrEvent(ctx, j.ID, job.EventJobPauseFailed, pauseErr)
+		errmon.ObserveErrorCtx(ctx, _err)
 		return
 	default:
 	}
@@ -141,7 +155,8 @@ func (jm *JobManager) runJob(ctx context.Context, j *job.Job, resumeState *job.P
 	// at this point it is safe to emit the job status event. Note: this is
 	// checking `err` from the `jm.jobRunner.Run()` call above.
 	if err != nil {
-		_ = jm.emitErrEvent(ctx, j.ID, job.EventJobFailed, fmt.Errorf("Job %d failed after %s: %w", j.ID, duration, err))
+		_err := jm.emitErrEvent(ctx, j.ID, job.EventJobFailed, fmt.Errorf("job %d failed after %s: %w", j.ID, duration, err))
+		errmon.ObserveErrorCtx(ctx, _err)
 	} else {
 		logging.Infof(ctx, "Job %+v completed after %s", j, duration)
 		err = jm.emitEvent(ctx, j.ID, job.EventJobCompleted)

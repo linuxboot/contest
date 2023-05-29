@@ -35,6 +35,7 @@ import (
 	"github.com/linuxboot/contest/pkg/target"
 	"github.com/linuxboot/contest/pkg/types"
 
+	"github.com/facebookincubator/go-belt/beltctx"
 	"github.com/facebookincubator/go-belt/tool/logger"
 	"github.com/linuxboot/contest/plugins/reporters/targetsuccess"
 	"github.com/linuxboot/contest/plugins/targetlocker/inmemory"
@@ -354,7 +355,9 @@ func (suite *TestJobManagerSuite) initJobManager(instanceTag string) {
 	require.NoError(suite.T(), err)
 
 	suite.jm = jm
-	suite.jmCtx, suite.jmCancel = context.WithCancel(logging.WithBelt(context.Background(), logger.LevelDebug))
+	ctx := logging.WithBelt(context.Background(), logger.LevelTrace)
+	ctx = beltctx.WithField(ctx, "integ-test", suite.T().Name())
+	suite.jmCtx, suite.jmCancel = context.WithCancel(ctx)
 	suite.jmCtx, suite.jmPause = signaling.WithSignal(suite.jmCtx, signals.Paused)
 }
 

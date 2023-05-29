@@ -105,7 +105,10 @@ func (tr *TestRunner) Run(
 
 	// Peel off contexts used for steps and target handlers.
 	runCtx, runCancel := context.WithCancel(ctx)
-	defer runCancel()
+	defer func() {
+		logging.Debugf(ctx, "run finished, cancelling the context")
+		runCancel()
+	}()
 
 	var targetStates map[string]*targetState
 
@@ -238,7 +241,9 @@ func (tr *TestRunner) Run(
 				if !ok {
 					return resultErr
 				}
+				logging.Tracef(ctx, "got event from targetErrors: %v", runErr)
 			case runErr = <-stepsErrorsCh:
+				logging.Tracef(ctx, "got event from stepsErrorsCh: %v", runErr)
 			}
 			if runErr != nil && runErr != signals.Paused && resultErr == nil {
 				resultErr = runErr
@@ -355,7 +360,7 @@ func (tr *TestRunner) waitSteps(ctx context.Context) ([]json.RawMessage, error) 
 		if err != nil {
 			stepsNeverReturned = append(stepsNeverReturned, ss.GetTestStepLabel())
 			ss.SetError(ctx, &cerrors.ErrTestStepsNeverReturned{StepNames: []string{ss.GetTestStepLabel()}})
-			// Stop step context, this will help release the reader.
+			logging.Debugf(ctx, "stopping step context, this will help release the reader")
 			ss.ForceStop()
 		} else if resultErr == nil && result.Err != nil && result.Err != signals.Paused {
 			resultErr = result.Err
@@ -488,7 +493,7 @@ loop:
 
 				case <-ctx.Done():
 					err = ctx.Err()
-					logging.Debugf(ctx, "Canceled target context during waiting for target result")
+					logging.Debugf(ctx, "Canceled target context during waiting for target result: %v", err)
 				}
 
 			case signals.Paused:

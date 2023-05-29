@@ -127,7 +127,11 @@ func (ss *stepState) Run(ctx context.Context) error {
 		return nil
 	}
 
-	stepCtx, cancel := context.WithCancel(ctx)
+	stepCtx, stepCtxCancel := context.WithCancel(ctx)
+	cancel := func() {
+		logging.Debugf(stepCtx, "cancelling step context")
+		stepCtxCancel()
+	}
 	stepCtx = beltctx.WithField(stepCtx, "step_index", strconv.Itoa(ss.stepIndex))
 	stepCtx = beltctx.WithField(stepCtx, "step_label", ss.sb.TestStepLabel)
 

@@ -161,7 +161,10 @@ func (jm *JobManager) Run(ctx context.Context, resumeJobs bool) error {
 	}
 
 	apiCtx, apiCancel := context.WithCancel(ctx)
-	jm.apiCancel = apiCancel
+	jm.apiCancel = func() {
+		logging.Debugf(ctx, "cancelling API context")
+		apiCancel()
+	}
 
 	errCh := make(chan error, 1)
 	go func() {
