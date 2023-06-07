@@ -165,6 +165,45 @@ func (p *Parameter) flashRead(ctx xcontext.Context, arg string, target *target.T
 
 	endpoint := fmt.Sprintf("%s:%s/contexts/%s/machines/%s/auxiliaries/%s/api/flash", p.host, p.port, p.contextID, p.machineID, p.deviceID)
 
+	targetInfo, err := getTargetState(ctx, endpoint)
+	if err != nil {
+		return err
+	}
+	if targetInfo.State == "busy" {
+		return fmt.Errorf("DUT is currently busy")
+	}
+	if targetInfo.State == "error" {
+		log.Infof("error from operation on flash: %s", targetInfo.Error)
+	}
+
+	err = loadTarget(ctx, endpoint, arg)
+	if err != nil {
+		return fmt.Errorf("loading binary image from DUT failed: %v\n", err)
+	}
+
+	timestamp := time.Now()
+
+	for {
+		targetInfo, err := getTargetState(ctx, endpoint)
+		if err != nil {
+			return err
+		}
+		if targetInfo.State == "ready" {
+			break
+		}
+		if targetInfo.State == "busy" {
+			time.Sleep(time.Second)
+
+			continue
+		}
+		if targetInfo.State == "error" {
+			return fmt.Errorf("error while reading binary image from DUT: %s", targetInfo.Error)
+		}
+		if time.Since(timestamp) >= defaultTimeoutParameter {
+			return fmt.Errorf("reading binary image from DUT failed: timeout")
+		}
+	}
+
 	if err := readTarget(ctx, endpoint, arg); err != nil {
 		return err
 	}
@@ -258,6 +297,46 @@ func readTarget(ctx xcontext.Context, endpoint string, filePath string) error {
 	_, err = io.Copy(file, resp.Body)
 	if err != nil {
 		return fmt.Errorf("failed to copy binary to file: %v", err)
+	}
+
+	return nil
+}
+
+// loadTarget downloads the binary from the target and stores it at 'filePath'.
+func loadTarget(ctx xcontext.Context, endpoint string, filePath string) error {
+	log := ctx.Logger()
+
+	endpoint = fmt.Sprintf("%s%s", endpoint, "/file")
+
+	postFlash := postFlash{
+		Action: "read",
+	}
+
+	flashBody, err := json.Marshal(postFlash)
+	if err != nil {
+		return fmt.Errorf("failed to marshal body: %w", err)
+	}
+
+	resp, err := HTTPRequest(ctx, http.MethodPost, endpoint, bytes.NewBuffer(flashBody))
+	if err != nil {
+		return fmt.Errorf("failed to do http request")
+	}
+
+	jsonBody, err := json.Marshal(resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to marshal resp.Body: %v", err)
+	}
+
+	if ctx.Writer() != nil {
+		writer := ctx.Writer()
+		_, err := writer.Write(jsonBody)
+		if err != nil {
+			log.Warnf("writing to ctx.Writer failed: %w", err)
+		}
+	}
+
+	if resp.StatusCode != http.StatusCreated {
+		return fmt.Errorf("failed to load image on target: %v: %v", resp.StatusCode, resp.Body)
 	}
 
 	return nil
