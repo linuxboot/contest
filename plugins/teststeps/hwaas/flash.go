@@ -288,7 +288,7 @@ func readTarget(ctx xcontext.Context, endpoint string, filePath string) error {
 	}
 
 	// open/create file and copy the http response body into it
-	file, err := os.OpenFile(filePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+	file, err := os.OpenFile(filePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644)
 	if err != nil {
 		return fmt.Errorf("failed to open/create file at the provided path: %v", err)
 	}
@@ -305,8 +305,6 @@ func readTarget(ctx xcontext.Context, endpoint string, filePath string) error {
 // loadTarget downloads the binary from the target and stores it at 'filePath'.
 func loadTarget(ctx xcontext.Context, endpoint string, filePath string) error {
 	log := ctx.Logger()
-
-	endpoint = fmt.Sprintf("%s%s", endpoint, "/file")
 
 	postFlash := postFlash{
 		Action: "read",
