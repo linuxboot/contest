@@ -26,41 +26,8 @@ func (p *Parameter) flashWrite(ctx xcontext.Context, arg string, target *target.
 		return fmt.Errorf("no file was set to read or write")
 	}
 
-	state, err := p.getState(ctx, "reset")
-	if err != nil {
+	if err := p.resetDUT(ctx, &stdout); err != nil {
 		return err
-	}
-	if state == "off" {
-		// Than turn off the pdu, even if the graceful shutdown was not working
-		statusCode, err := p.pressPDU(ctx, http.MethodDelete)
-		if err != nil {
-			return err
-		}
-		if statusCode == http.StatusOK {
-			toStdout(ctx, &stdout, "pdu was set to state 'off'")
-		} else {
-			return fmt.Errorf("pdu could not set to state 'off'")
-		}
-
-		// Than pull the reset switch on on
-		statusCode, err = p.postReset(ctx, "on")
-		if err != nil {
-			return err
-		}
-		if statusCode == http.StatusOK {
-			state, err = p.getState(ctx, "reset")
-			if err != nil {
-				return err
-			}
-
-			if state == "on" {
-				toStdout(ctx, &stdout, "reset is in state 'on'")
-			} else {
-				return fmt.Errorf("reset could not be set to state 'on'")
-			}
-		} else {
-			return fmt.Errorf("reset could not be set to state 'on'")
-		}
 	}
 
 	endpoint := fmt.Sprintf("%s:%s/contexts/%s/machines/%s/auxiliaries/%s/api/flash", p.host, p.port, p.contextID, p.machineID, p.deviceID)
@@ -81,67 +48,16 @@ func (p *Parameter) flashWrite(ctx xcontext.Context, arg string, target *target.
 		return fmt.Errorf("flashing DUT with %s failed: %v\n", arg, err)
 	}
 
-	timestamp := time.Now()
-
-	for {
-		targetInfo, err := getTargetState(ctx, endpoint)
-		if err != nil {
-			return err
-		}
-		if targetInfo.State == "ready" {
-			break
-		}
-		if targetInfo.State == "busy" {
-			time.Sleep(time.Second)
-
-			continue
-		}
-		if targetInfo.State == "error" {
-			return fmt.Errorf("error while flashing DUT: %s", targetInfo.Error)
-		}
-		if time.Since(timestamp) >= defaultTimeoutParameter {
-			return fmt.Errorf("flashing DUT failed: timeout")
-		}
+	if err := waitFlash(ctx, endpoint); err != nil {
+		return err
 	}
 
 	toStdout(ctx, &stdout, "successfully flashed binary on DUT")
 
-	// Make device bootable again reset switch on off
-	// Pull reset to off
-	statusCode, err := p.postReset(ctx, "off")
-	if err != nil {
+	// Make device bootable again
+	if err := p.unresetDUT(ctx, &stdout); err != nil {
 		return err
 	}
-	if statusCode == http.StatusOK {
-		state, err := p.getState(ctx, "reset")
-		if err != nil {
-			return err
-		}
-
-		if state == "off" {
-			toStdout(ctx, &stdout, "reset was set to state 'off'")
-		} else {
-			return fmt.Errorf("reset switch could not be turned off")
-		}
-	} else {
-		return fmt.Errorf("reset switch could not be turned off")
-	}
-
-	time.Sleep(time.Second)
-
-	// Than turn on the pdu again
-	statusCode, err = p.pressPDU(ctx, http.MethodPut)
-	if err != nil {
-		return err
-	}
-
-	if statusCode == http.StatusOK {
-		toStdout(ctx, &stdout, "pdu was set to state 'on'")
-	} else {
-		return fmt.Errorf("pdu could not be powered on")
-	}
-
-	time.Sleep(5 * time.Second)
 
 	if p.emitStdout {
 		log.Infof("Emitting stdout event")
@@ -163,6 +79,10 @@ func (p *Parameter) flashRead(ctx xcontext.Context, arg string, target *target.T
 		return fmt.Errorf("no file was set to read or write")
 	}
 
+	if err := p.resetDUT(ctx, &stdout); err != nil {
+		return err
+	}
+
 	endpoint := fmt.Sprintf("%s:%s/contexts/%s/machines/%s/auxiliaries/%s/api/flash", p.host, p.port, p.contextID, p.machineID, p.deviceID)
 
 	targetInfo, err := getTargetState(ctx, endpoint)
@@ -181,27 +101,8 @@ func (p *Parameter) flashRead(ctx xcontext.Context, arg string, target *target.T
 		return fmt.Errorf("loading binary image from DUT failed: %v\n", err)
 	}
 
-	timestamp := time.Now()
-
-	for {
-		targetInfo, err := getTargetState(ctx, endpoint)
-		if err != nil {
-			return err
-		}
-		if targetInfo.State == "ready" {
-			break
-		}
-		if targetInfo.State == "busy" {
-			time.Sleep(time.Second)
-
-			continue
-		}
-		if targetInfo.State == "error" {
-			return fmt.Errorf("error while reading binary image from DUT: %s", targetInfo.Error)
-		}
-		if time.Since(timestamp) >= defaultTimeoutParameter {
-			return fmt.Errorf("reading binary image from DUT failed: timeout")
-		}
+	if err := waitFlash(ctx, endpoint); err != nil {
+		return err
 	}
 
 	if err := readTarget(ctx, endpoint, arg); err != nil {
@@ -209,6 +110,11 @@ func (p *Parameter) flashRead(ctx xcontext.Context, arg string, target *target.T
 	}
 
 	toStdout(ctx, &stdout, "binary image downloaded successfully")
+
+	// Make device bootable again
+	if err := p.unresetDUT(ctx, &stdout); err != nil {
+		return err
+	}
 
 	if p.emitStdout {
 		log.Infof("Emitting stdout event")
@@ -415,6 +321,118 @@ func flashTarget(ctx xcontext.Context, endpoint string, filePath string) error {
 
 	if resp.StatusCode != http.StatusCreated {
 		return fmt.Errorf("failed to flash binary on target: %v: %v", resp.StatusCode, resp.Body)
+	}
+
+	return nil
+}
+
+// resetDUT sets the dut into a state, were it cannot be booted. In this state it is safe to
+// do all flash operations.
+func (p *Parameter) resetDUT(ctx xcontext.Context, stdout *string) error {
+	state, err := p.getState(ctx, "reset")
+	if err != nil {
+		return err
+	}
+	if state == "off" {
+		// Than turn off the pdu, even if the graceful shutdown was not working
+		statusCode, err := p.pressPDU(ctx, http.MethodDelete)
+		if err != nil {
+			return err
+		}
+		if statusCode == http.StatusOK {
+			toStdout(ctx, stdout, "pdu was set to state 'off'")
+		} else {
+			return fmt.Errorf("pdu could not set to state 'off'")
+		}
+
+		// Than pull the reset switch on on
+		statusCode, err = p.postReset(ctx, "on")
+		if err != nil {
+			return err
+		}
+		if statusCode == http.StatusOK {
+			state, err = p.getState(ctx, "reset")
+			if err != nil {
+				return err
+			}
+
+			if state == "on" {
+				toStdout(ctx, stdout, "reset is in state 'on'")
+			} else {
+				return fmt.Errorf("reset could not be set to state 'on'")
+			}
+		} else {
+			return fmt.Errorf("reset could not be set to state 'on'")
+		}
+	}
+
+	return nil
+}
+
+// unresetDUT sets the dut into a state, were it can be booted again. PDU has to be turned on
+// and reset has to pull on off.
+func (p *Parameter) unresetDUT(ctx xcontext.Context, stdout *string) error {
+	statusCode, err := p.postReset(ctx, "off")
+	if err != nil {
+		return err
+	}
+	if statusCode == http.StatusOK {
+		state, err := p.getState(ctx, "reset")
+		if err != nil {
+			return err
+		}
+
+		if state == "off" {
+			toStdout(ctx, stdout, "reset was set to state 'off'")
+		} else {
+			return fmt.Errorf("reset switch could not be turned off")
+		}
+	} else {
+		return fmt.Errorf("reset switch could not be turned off")
+	}
+
+	time.Sleep(time.Second)
+
+	// Than turn on the pdu again
+	statusCode, err = p.pressPDU(ctx, http.MethodPut)
+	if err != nil {
+		return err
+	}
+
+	if statusCode == http.StatusOK {
+		toStdout(ctx, stdout, "pdu was set to state 'on'")
+	} else {
+		return fmt.Errorf("pdu could not be powered on")
+	}
+
+	time.Sleep(5 * time.Second)
+
+	return nil
+}
+
+// waitFlash wait for the process that is running on the Flash endpoint, either its write or read.
+func waitFlash(ctx xcontext.Context, endpoint string) error {
+	timestamp := time.Now()
+
+	for {
+		targetInfo, err := getTargetState(ctx, endpoint)
+		if err != nil {
+			return err
+		}
+		if targetInfo.State == "ready" {
+			break
+		}
+		if targetInfo.State == "busy" {
+			time.Sleep(time.Second)
+
+			continue
+		}
+		if targetInfo.State == "error" {
+			return fmt.Errorf("error while flashing DUT: %s", targetInfo.Error)
+		}
+		if time.Since(timestamp) >= defaultTimeoutParameter {
+			return fmt.Errorf("flashing DUT failed: timeout")
+		}
 	}
 
 	return nil
