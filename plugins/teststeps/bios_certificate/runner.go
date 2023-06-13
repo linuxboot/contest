@@ -18,6 +18,7 @@ const (
 	supportedProto = "ssh"
 	privileged     = "sudo"
 	cmd            = "cert"
+	jsonFlag       = "--json"
 )
 
 type outcome error
@@ -109,6 +110,7 @@ func (r *TargetRunner) runEnable(
 			"enable",
 			fmt.Sprintf("--password=%s", params.Parameter.Password),
 			fmt.Sprintf("--cert=%s", params.Parameter.CertPath),
+			jsonFlag,
 		},
 	)
 	if err != nil {
@@ -166,6 +168,7 @@ func (r *TargetRunner) runUpdate(
 			"update",
 			fmt.Sprintf("--private-key=%s", params.Parameter.Password),
 			fmt.Sprintf("--cert=%s", params.Parameter.CertPath),
+			jsonFlag,
 		},
 	)
 	if err != nil {
@@ -223,6 +226,7 @@ func (r *TargetRunner) runDisable(
 			"disable",
 			fmt.Sprintf("--password=%s", params.Parameter.Password),
 			fmt.Sprintf("--private-key=%s", params.Parameter.KeyPath),
+			jsonFlag,
 		},
 	)
 	if err != nil {
