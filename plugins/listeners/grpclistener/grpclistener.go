@@ -107,7 +107,7 @@ func (s *GRPCServer) StartJob(ctx context.Context, req *connect.Request[contestl
 	if err != nil {
 		return connect.NewResponse(&contestlistener.StartJobResponse{
 			JobId: 0,
-			Error: "Job is nil",
+			Error: err.Error(),
 		}), err
 	}
 
