@@ -39,7 +39,7 @@ type inputStepParams struct {
 // Name is the name used to look this plugin up.
 var Name = "Set Bios Setting"
 
-// TestStep implementation for the exec plugin
+// TestStep implementation for this teststep plugin
 type TestStep struct {
 	inputStepParams
 }
@@ -62,7 +62,7 @@ func (ts *TestStep) populateParams(stepParams test.TestStepParameters) error {
 	}
 
 	if err := json.Unmarshal(input.JSON(), &ts.inputStepParams); err != nil {
-		return fmt.Errorf("failed to deserialize %q parameters", in)
+		return fmt.Errorf("failed to deserialize %q parameters: %v", in, err)
 	}
 
 	return nil

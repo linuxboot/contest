@@ -29,7 +29,6 @@ type inputStepParams struct {
 
 	Parameter struct {
 		ToolPath string `json:"tool_path,omitempty"`
-		Option   string `json:"option,omitempty"`
 	} `json:"parameter"`
 }
 
@@ -41,7 +40,7 @@ type Expect struct {
 // Name is the name used to look this plugin up.
 var Name = "Get Bios Setting"
 
-// TestStep implementation for the exec plugin
+// TestStep re
 type TestStep struct {
 	inputStepParams
 	expectStepParams []Expect
@@ -65,7 +64,7 @@ func (ts *TestStep) populateParams(stepParams test.TestStepParameters) error {
 	}
 
 	if err := json.Unmarshal(input.JSON(), &ts.inputStepParams); err != nil {
-		return fmt.Errorf("failed to deserialize %q parameters", in)
+		return fmt.Errorf("failed to deserialize %q parameters: %v", in, err)
 	}
 
 	expect := stepParams.Get(out)
@@ -77,7 +76,7 @@ func (ts *TestStep) populateParams(stepParams test.TestStepParameters) error {
 
 	for _, item := range expect {
 		if err := json.Unmarshal(item.JSON(), &tmp); err != nil {
-			return fmt.Errorf("failed to deserialize %q parameters", out)
+			return fmt.Errorf("failed to deserialize %q parameters: %v", out, err)
 		}
 
 		expectParams = append(expectParams, tmp)

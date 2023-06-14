@@ -66,7 +66,7 @@ func (ts *TestStep) populateParams(stepParams test.TestStepParameters) error {
 	}
 
 	if err := json.Unmarshal(input.JSON(), &ts.inputStepParams); err != nil {
-		return fmt.Errorf("failed to deserialize %q parameters", in)
+		return fmt.Errorf("failed to deserialize %q parameters: %v", in, err)
 	}
 
 	if expect := stepParams.GetOne(out); expect.IsEmpty() {
@@ -74,7 +74,7 @@ func (ts *TestStep) populateParams(stepParams test.TestStepParameters) error {
 	}
 
 	if err := json.Unmarshal(expect.JSON(), &ts.expectStepParams); err != nil {
-		return fmt.Errorf("failed to deserialize %q parameters", out)
+		return fmt.Errorf("failed to deserialize %q parameters: %v", out, err)
 	}
 
 	return nil

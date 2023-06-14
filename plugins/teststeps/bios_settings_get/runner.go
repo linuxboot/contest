@@ -5,9 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"strings"
 	"time"
 
-	"github.com/firmwareci/system-suite/pkg/wmi"
 	"github.com/linuxboot/contest/pkg/event/testevent"
 	"github.com/linuxboot/contest/pkg/target"
 	"github.com/linuxboot/contest/pkg/test"
@@ -19,7 +19,7 @@ const (
 	supportedProto = "ssh"
 	privileged     = "sudo"
 	cmd            = "wmi"
-	argument       = "list"
+	argument       = "get"
 	jsonFlag       = "--json"
 )
 
@@ -30,8 +30,16 @@ type TargetRunner struct {
 	ev testevent.Emitter
 }
 
+// Output is the data structure for a bios option that is returned
+type Output struct {
+	Data Data `json:"data"`
+}
+
 type Data struct {
-	WMIOptions wmi.WMIOptions `json:"data"`
+	Name           string   `json:"name"`
+	Path           string   `json:"path"`
+	PossibleValues []string `json:"possible_values"`
+	Value          string   `json:"value"`
 }
 
 type Error struct {
@@ -46,7 +54,7 @@ func NewTargetRunner(ts *TestStep, ev testevent.Emitter) *TargetRunner {
 }
 
 func (r *TargetRunner) Run(ctx xcontext.Context, target *target.Target) error {
-	ctx.Infof("Executing on target %s", target)
+	var stdoutMsg, stderrMsg strings.Builder
 
 	// limit the execution time if specified
 	timeout := r.ts.Options.Timeout
@@ -64,82 +72,116 @@ func (r *TargetRunner) Run(ctx xcontext.Context, target *target.Target) error {
 	)
 
 	if err := pe.ExpandObject(r.ts.inputStepParams, &inputParams); err != nil {
-		return err
+		err := fmt.Errorf("failed to expand input parameter: %v", err)
+		stderrMsg.WriteString(fmt.Sprintf("%v", err))
+
+		return emitStderr(ctx, EventStderr, stderrMsg.String(), target, r.ev, err)
 	}
 
 	if err := pe.ExpandObject(r.ts.expectStepParams, &expectParams); err != nil {
-		return err
+		err := fmt.Errorf("failed to expand expect parameter: %v", err)
+		stderrMsg.WriteString(fmt.Sprintf("%v", err))
+
+		return emitStderr(ctx, EventStderr, stderrMsg.String(), target, r.ev, err)
 	}
 
+	writeTestStep(r.ts, &stdoutMsg, &stderrMsg)
+
 	if inputParams.Transport.Proto != supportedProto {
-		return fmt.Errorf("only %q is supported as protocol in this teststep", supportedProto)
+		err := fmt.Errorf("only %q is supported as protocol in this teststep", supportedProto)
+		stderrMsg.WriteString(fmt.Sprintf("%v", err))
+
+		return emitStderr(ctx, EventStderr, stderrMsg.String(), target, r.ev, err)
 	}
 
 	transportProto, err := transport.NewTransport(inputParams.Transport.Proto, inputParams.Transport.Options, pe)
 	if err != nil {
-		return fmt.Errorf("failed to create transport: %w", err)
+		err := fmt.Errorf("failed to create transport: %w", err)
+		stderrMsg.WriteString(fmt.Sprintf("%v", err))
+
+		return emitStderr(ctx, EventStderr, stderrMsg.String(), target, r.ev, err)
 	}
 
 	// for any ambiguity, outcome is an error interface, but it encodes whether the process
 	// was launched sucessfully and it resulted in a failure; err means the launch failed
-	outcome, err := r.runGet(ctx, target, transportProto, inputParams, expectParams)
+	_, err = r.runGet(ctx, &stdoutMsg, &stderrMsg, target, transportProto, inputParams, expectParams)
 	if err != nil {
-		return err
+		return emitStderr(ctx, EventStderr, stderrMsg.String(), target, r.ev, err)
 	}
 
-	return outcome
+	if err := emitEvent(ctx, EventStdout, eventPayload{Msg: stdoutMsg.String()}, target, r.ev); err != nil {
+		return fmt.Errorf("cannot emit event: %v", err)
+	}
+
+	return err
 }
 
 func (r *TargetRunner) runGet(
-	ctx xcontext.Context, target *target.Target,
+	ctx xcontext.Context, stdoutMsg, stderrMsg *strings.Builder, target *target.Target,
 	transport transport.Transport, inputParams inputStepParams, expectParams []Expect,
 ) (outcome, error) {
-	proc, err := transport.NewProcess(
-		ctx,
-		privileged,
-		[]string{
+	var (
+		outcome  outcome
+		finalErr error
+	)
+
+	for _, expect := range expectParams {
+		args := []string{
 			inputParams.Parameter.ToolPath,
 			cmd,
 			argument,
+			fmt.Sprintf("--option=%s", expect.Option),
 			jsonFlag,
-		},
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create process: %v", err)
+		}
+
+		writeCommand(privileged, args, stdoutMsg, stderrMsg)
+
+		proc, err := transport.NewProcess(ctx, privileged, args)
+		if err != nil {
+			err := fmt.Errorf("failed to create process: %v", err)
+			stderrMsg.WriteString(fmt.Sprintf("%v\n", err))
+
+			return nil, err
+		}
+
+		stdoutPipe, err := proc.StdoutPipe()
+		if err != nil {
+			err := fmt.Errorf("failed to pipe stdout: %v", err)
+			stderrMsg.WriteString(fmt.Sprintf("%v\n", err))
+
+			return nil, err
+		}
+
+		stderrPipe, err := proc.StderrPipe()
+		if err != nil {
+			err := fmt.Errorf("failed to pipe stderr: %v", err)
+			stderrMsg.WriteString(fmt.Sprintf("%v\n", err))
+
+			return nil, err
+		}
+
+		// try to start the process, if that succeeds then the outcome is the result of
+		// waiting on the process for its result; this way there's a semantic difference
+		// between "an error occured while launching" and "this was the outcome of the execution"
+		outcome = proc.Start(ctx)
+		if outcome == nil {
+			outcome = proc.Wait(ctx)
+		}
+
+		stdout, stderr := getOutputFromReader(stdoutPipe, stderrPipe)
+
+		err = parseOutput(stdoutMsg, stderrMsg, stdout, stderr, expect)
+		if err != nil {
+			finalErr = err
+
+			continue
+		}
+
+		stdoutMsg.WriteString("\n")
+		stderrMsg.WriteString("\n")
 	}
 
-	stdoutPipe, err := proc.StdoutPipe()
-	if err != nil {
-		return nil, fmt.Errorf("failed to pipe stdout: %v", err)
-	}
-
-	stderrPipe, err := proc.StderrPipe()
-	if err != nil {
-		return nil, fmt.Errorf("failed to pipe stderr: %v", err)
-	}
-
-	// try to start the process, if that succeeds then the outcome is the result of
-	// waiting on the process for its result; this way there's a semantic difference
-	// between "an error occured while launching" and "this was the outcome of the execution"
-	outcome := proc.Start(ctx)
-	if outcome == nil {
-		outcome = proc.Wait(ctx)
-	}
-
-	stdout, stderr := getOutputFromReader(stdoutPipe, stderrPipe)
-
-	if err := parseListOutput(stdout, stderr, expectParams); err != nil {
-		return nil, err
-	}
-
-	if err := emitEvent(ctx, EventStdout, eventPayload{Msg: string(stdout)}, target, r.ev); err != nil {
-		return nil, fmt.Errorf("cannot emit event: %v", err)
-	}
-	if err := emitEvent(ctx, EventStderr, eventPayload{Msg: string(stderr)}, target, r.ev); err != nil {
-		return nil, fmt.Errorf("cannot emit event: %v", err)
-	}
-
-	return outcome, nil
+	return outcome, finalErr
 }
 
 // getOutputFromReader reads data from the provided io.Reader instances
@@ -170,55 +212,44 @@ func readBuffer(r io.Reader) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func parseListOutput(stdout, stderr []byte, expectOptions []Expect) error {
-	data := Data{}
-	err := Error{}
-
+func parseOutput(stdoutMsg, stderrMsg *strings.Builder, stdout, stderr []byte, expectOption Expect) error {
+	output := Output{}
 	if len(stdout) != 0 {
-		if err := json.Unmarshal(stdout, &data); err != nil {
+		if err := json.Unmarshal(stdout, &output); err != nil {
 			return fmt.Errorf("failed to unmarshal stdout: %v", err)
 		}
 	}
 
+	err := Error{}
 	if len(stderr) != 0 {
 		if err := json.Unmarshal(stderr, &err); err != nil {
 			return fmt.Errorf("failed to unmarshal stderr: %v", err)
 		}
 	}
 
-	errorMsg := fmt.Errorf("")
-
 	if err.Msg == "" {
-		for _, item := range expectOptions {
-			found := false
-			for _, attribute := range data.WMIOptions.Attributes {
-				if attribute.Name == item.Option {
-					found = true
-					if attribute.Value != item.Value {
-						errorMsg = fmt.Errorf("%vexpected setting %s value is not as expected, have %q want %q\n",
-							errorMsg, attribute.Name, attribute.Value, item.Value)
-					}
-				}
-			}
+		if expectOption.Option == output.Data.Name {
+			if expectOption.Value != output.Data.Value {
+				err := fmt.Errorf("Expected setting '%s' value is not as expected, have '%s' want '%s'.\n",
+					expectOption.Option, output.Data.Value, expectOption.Value)
+				stderrMsg.WriteString(fmt.Sprintf("Command Stderr:\n%v\n", err))
 
-			if item.Option == "IsEnabled" {
-				if item.Value == "true" && data.WMIOptions.Authentication["Admin"].IsEnabled {
-					return nil
-				} else if item.Value == "false" && !data.WMIOptions.Authentication["Admin"].IsEnabled {
-					return nil
-				} else {
-					errorMsg = fmt.Errorf("%vexpected setting 'Admin - IsEnabled' value is not as expected, have \"%t\" want %q\n",
-						errorMsg, data.WMIOptions.Authentication["Admin"].IsEnabled, item.Value)
-				}
+				return err
+			} else {
+				stdoutMsg.WriteString(fmt.Sprintf("Command Stdout:\nBIOS setting '%s' is set as expected: '%s'.\n", expectOption.Option, expectOption.Value))
+				stderrMsg.WriteString(fmt.Sprintf("Command Stdout:\nBIOS setting '%s' is set as expected: '%s'.\n", expectOption.Option, expectOption.Value))
+				return nil
 			}
+		} else {
+			err := fmt.Errorf("Expected setting '%s' is not found in the attribute list.\n", expectOption.Option)
+			stderrMsg.WriteString(fmt.Sprintf("Command Stderr:\n%v\n", err))
 
-			if !found {
-				errorMsg = fmt.Errorf("%vexpected setting %s is not found in the attribute list\n", errorMsg, item.Option)
-			}
+			return err
 		}
 	} else {
-		errorMsg = fmt.Errorf("%s", err.Msg)
-	}
+		err := fmt.Errorf("%s.\n", err.Msg)
+		stderrMsg.WriteString(fmt.Sprintf("Command Stderr:\n%v\n", err))
 
-	return errorMsg
+		return err
+	}
 }
