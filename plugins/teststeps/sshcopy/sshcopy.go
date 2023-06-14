@@ -218,6 +218,18 @@ func (scp *SSHCopy) Run(ctx xcontext.Context, ch test.TestStepChannels, params t
 				}
 				defer dstFile.Close()
 
+				// Get the file permissions of the source file
+				srcFileInfo, err := os.Stat(srcPath)
+				if err != nil {
+					return err
+				}
+
+				// Set the same file permissions on the destination file
+				err = sftpClient.Chmod(destinationPath+srcPath[len(sourcePath):], srcFileInfo.Mode())
+				if err != nil {
+					return err
+				}
+
 				// Copy local file contents to remote file
 				srcFile, err := os.Open(srcPath)
 				if err != nil {
@@ -236,24 +248,35 @@ func (scp *SSHCopy) Run(ctx xcontext.Context, ch test.TestStepChannels, params t
 			}
 
 		} else {
-			// open source file
-			sourceFile, err := os.Open(sourcePath)
+			// Create destination file
+			dstFile, err := sftpClient.OpenFile(destinationPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC)
 			if err != nil {
 				return fmt.Errorf("failed to open the provided source file: %v", err)
 			}
-			defer sourceFile.Close()
+			defer dstFile.Close()
 
-			// create destination file
-			destinationFile, err := sftpClient.OpenFile(destinationPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC)
+			// Copy local file contents to remote file
+			srcFile, err := os.Open(sourcePath)
 			if err != nil {
 				return fmt.Errorf("failed to open the provided source file: %v", err)
 			}
-			defer destinationFile.Close()
+			defer srcFile.Close()
 
-			// copy source content to destination
-			_, err = io.Copy(destinationFile, sourceFile)
+			_, err = io.Copy(dstFile, srcFile)
 			if err != nil {
 				return fmt.Errorf("failed to copy source file to destination: %v", err)
+			}
+
+			// Get the file permissions of the source file
+			srcFileInfo, err := os.Stat(sourcePath)
+			if err != nil {
+				return err
+			}
+
+			// Set the same file permissions on the destination file
+			err = sftpClient.Chmod(destinationPath+sourcePath[len(sourcePath):], srcFileInfo.Mode())
+			if err != nil {
+				return err
 			}
 		}
 
