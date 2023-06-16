@@ -27,8 +27,8 @@ github.com/envoyproxy/go-control-plane v0.9.0/go.mod h1:YTl/9mNaCwkRvm6d1a2C3ymF
 github.com/envoyproxy/go-control-plane v0.9.1-0.20191026205805-5f8ba28d4473/go.mod h1:YTl/9mNaCwkRvm6d1a2C3ymFceY/DCBVvsKhRF0iEA4=
 github.com/envoyproxy/go-control-plane v0.9.4/go.mod h1:6rpuAdCZL397s3pYoYcLgu1mIlRU8Am5FuJP05cCM98=
 github.com/envoyproxy/protoc-gen-validate v0.1.0/go.mod h1:iSmxcyjqTsJpI2R4NaDN7+kN2VEUnK/pcBlmesArF7c=
-github.com/facebookincubator/go-belt v0.0.0-20230519225445-7590c998d440 h1:wLBr+/pwyzzmzwcfV2ZTTVRHoJ71cucOB2xVbfq6YjQ=
-github.com/facebookincubator/go-belt v0.0.0-20230519225445-7590c998d440/go.mod h1:JBAZF82h/QDBLiwj2dhQrlhHh0ErRsW0xsIZXrNS5vg=
+github.com/facebookincubator/go-belt v0.0.0-20230616172813-edd90f5c776c h1:pQ4Yzniap2xylEI1jxsPaF6aiH99yKTPk7B3DOq7iyE=
+github.com/facebookincubator/go-belt v0.0.0-20230616172813-edd90f5c776c/go.mod h1:JBAZF82h/QDBLiwj2dhQrlhHh0ErRsW0xsIZXrNS5vg=
 github.com/gin-contrib/sse v0.1.0 h1:Y/yl/+YNO8GZSjAhjMsSuLt29uWRFHdHYUb5lYOV9qE=
 github.com/gin-contrib/sse v0.1.0/go.mod h1:RHrZQHXnP2xjPF+u1gW/2HnVO7nvIa9PG3Gm+fLHvGI=
 github.com/gin-gonic/gin v1.9.0 h1:OjyFBKICoexlu99ctXNR2gg+c5pKrKMuyjgARg9qeY8=

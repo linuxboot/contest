@@ -45,7 +45,7 @@ require (
 
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
-	github.com/facebookincubator/go-belt v0.0.0-20230519225445-7590c998d440
+	github.com/facebookincubator/go-belt v0.0.0-20230616172813-edd90f5c776c
 	github.com/gin-contrib/sse v0.1.0 // indirect
 	github.com/go-playground/locales v0.14.1 // indirect
 	github.com/go-playground/universal-translator v0.18.1 // indirect
