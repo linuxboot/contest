@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/linuxboot/contest/pkg/event/testevent"
@@ -13,200 +14,133 @@ import (
 	"github.com/linuxboot/contest/pkg/xcontext"
 )
 
-// powerOn turns on the device. To power the device on we have to fulfill this requirements -> reset is off -> pdu is on.
-func (p *Parameter) powerOn(ctx xcontext.Context, target *target.Target, ev testevent.Emitter) error {
-	log := ctx.Logger()
+const (
+	on    = "on"
+	off   = "off"
+	reset = "reset"
+	led   = "led"
+)
 
-	var stdout string
+// powerCmds is a helper function to call into the different power commands
+func (r *TargetRunner) powerCmds(ctx xcontext.Context, stdoutMsg, stderrMsg *strings.Builder, target *target.Target, args []string) error {
+	if len(args) >= 1 {
 
-	state, err := p.getState(ctx, "reset")
-	if err != nil {
-		return err
-	}
+		switch args[0] {
 
-	if state == "on" {
-		// First pull reset switch on off
-		statusCode, err := p.postReset(ctx, "off")
-		if err != nil {
-			return err
-		}
-		if statusCode == http.StatusOK {
-			state, err := p.getState(ctx, "reset")
-			if err != nil {
+		case "on":
+			if err := r.ts.powerOn(ctx, stdoutMsg, stderrMsg, target, r.ev); err != nil {
 				return err
 			}
 
-			if state == "off" {
-				toStdout(ctx, &stdout, "reset was set to state 'off'")
-			} else {
-				return fmt.Errorf("reset could not be set to state 'off'")
+			return nil
+
+		case "off":
+			if err := r.ts.powerOffSoft(ctx, stdoutMsg, stderrMsg, target, r.ev); err != nil {
+				return err
 			}
-		} else {
-			return fmt.Errorf("reset could not be set to state 'off'")
+
+			if len(args) >= 2 {
+				if args[1] == "hard" {
+					if err := r.ts.powerOffHard(ctx, stdoutMsg, stderrMsg, target, r.ev); err != nil {
+						return err
+					}
+				} else {
+					return fmt.Errorf("failed to execute the power off command. The last argument is not valid. The only possible value is 'hard'.")
+				}
+			}
+
+			return nil
+
+		default:
+			return fmt.Errorf("failed to execute the power command. The argument '%s' is not valid. Possible values are 'on' and 'off'.", args)
 		}
 	} else {
-		toStdout(ctx, &stdout, "reset is in state 'off'")
+		return fmt.Errorf("failed to execute the power command. Args is empty. Possible values are 'on' and 'off'.")
+	}
+}
+
+// powerOn turns on the device. To power the device on we have to fulfill this requirements -> reset is off -> pdu is on.
+func (ts *TestStep) powerOn(ctx xcontext.Context, stdoutMsg, stderrMsg *strings.Builder, target *target.Target, ev testevent.Emitter) error {
+	if err := ts.unresetDUT(ctx); err != nil {
+		return fmt.Errorf("Failed to power on DUT: %v", err)
 	}
 
 	time.Sleep(time.Second)
 
-	// Than turn on the pdu again
-	statusCode, err := p.pressPDU(ctx, http.MethodPut)
+	// Check the led if the device is on
+	state, err := ts.getState(ctx, led)
 	if err != nil {
 		return err
 	}
 
-	if statusCode == http.StatusOK {
-		toStdout(ctx, &stdout, "pdu was set to state 'on'")
-	} else {
-		return fmt.Errorf("pdu could not be set to state 'on'")
-	}
-
-	time.Sleep(time.Second)
-
-	// Than press the power button
-	statusCode, err = p.postPower(ctx, "3s")
-	if err != nil {
-		return err
-	}
-	if statusCode == http.StatusOK {
-		toStdout(ctx, &stdout, "DUT is starting")
+	if state != on {
+		time.Sleep(time.Second)
+		if err := ts.postPower(ctx, "3s"); err != nil {
+			return fmt.Errorf("Failed to power on DUT: %v", err)
+		}
 
 		time.Sleep(5 * time.Second)
-	} else {
-		return fmt.Errorf("DUT could not be turned on")
 	}
 
 	// Check the led if the device is on
-	state, err = p.getState(ctx, "led")
+	state, err = ts.getState(ctx, led)
 	if err != nil {
 		return err
 	}
 
-	if state != "on" {
-		return fmt.Errorf("DUT could not be powered on")
+	if state != on {
+		return fmt.Errorf("Failed to power on DUT: State is '%s'", state)
 	}
 
-	toStdout(ctx, &stdout, "DUT is powered 'on'")
-
-	if p.emitStdout {
-		log.Infof("Emitting stdout event")
-		if err := emitEvent(ctx, EventStdout, eventStdoutPayload{Msg: stdout}, target, ev); err != nil {
-			log.Warnf("Failed to emit event: %v", err)
-		}
-	}
+	stdoutMsg.WriteString("DUT was powered on successfully.\n")
 
 	return nil
 }
 
 // powerOffSoft turns off the device.
-func (p *Parameter) powerOffSoft(ctx xcontext.Context, target *target.Target, ev testevent.Emitter) error {
-	log := ctx.Logger()
-
-	var stdout string
-
+func (ts *TestStep) powerOffSoft(ctx xcontext.Context, stdoutMsg, stderrMsg *strings.Builder, target *target.Target, ev testevent.Emitter) error {
 	// First check if device needs to be powered down
 	// Check the led if the device is on
-	state, err := p.getState(ctx, "led")
+	state, err := ts.getState(ctx, led)
 	if err != nil {
-		return err
+		return fmt.Errorf("Failed to power off DUT: %v", err)
 	}
 
-	if state == "on" {
+	if state == on {
+		time.Sleep(time.Second)
 		// If device is on, press power button for 12s
-		statusCode, err := p.postPower(ctx, "12s")
-		if err != nil {
-			return err
+		if err := ts.postPower(ctx, "12s"); err != nil {
+			return fmt.Errorf("Failed to power off DUT: %v", err)
 		}
-		if statusCode == http.StatusOK {
-			toStdout(ctx, &stdout, "DUT is shutting 'off'")
 
-			time.Sleep(12 * time.Second)
-		} else {
-			toStdout(ctx, &stdout, "DUT could not be powered 'off' gracefully")
-		}
-	} else {
-		toStdout(ctx, &stdout, "DUT is already powered 'off'")
+		time.Sleep(12 * time.Second)
 	}
 
-	time.Sleep(time.Second)
-
-	toStdout(ctx, &stdout, "DUT successfully powered 'off'")
-
-	if p.emitStdout {
-		log.Infof("Emitting stdout event")
-		if err := emitEvent(ctx, EventStdout, eventStdoutPayload{Msg: stdout}, target, ev); err != nil {
-			log.Warnf("Failed to emit event: %v", err)
-		}
-	}
+	stdoutMsg.WriteString("DUT was powered off successfully.\n")
 
 	return nil
 }
 
 // powerOffHard ensures that -> pdu is off & reset is on.
-func (p *Parameter) powerOffHard(ctx xcontext.Context, target *target.Target, ev testevent.Emitter) error {
-	log := ctx.Logger()
-
-	var stdout string
-
-	// Than turn off the pdu, even if the graceful shutdown was not working
-	statusCode, err := p.pressPDU(ctx, http.MethodDelete)
-	if err != nil {
-		return err
-	}
-	if statusCode == http.StatusOK {
-		toStdout(ctx, &stdout, "pdu was set to state 'off'")
-	} else {
-		return fmt.Errorf("pdu could not set to state 'off'")
+func (ts *TestStep) powerOffHard(ctx xcontext.Context, stdoutMsg, stderrMsg *strings.Builder, target *target.Target, ev testevent.Emitter) error {
+	if err := ts.resetDUT(ctx); err != nil {
+		return fmt.Errorf("Failed to reset DUT: %v", err)
 	}
 
-	time.Sleep(time.Second)
-
-	state, err := p.getState(ctx, "reset")
-	if err != nil {
-		return err
-	}
-	if state == "off" {
-		// Than pull the reset switch on on
-		statusCode, err = p.postReset(ctx, "on")
-		if err != nil {
-			return err
-		}
-		if statusCode == http.StatusOK {
-			state, err := p.getState(ctx, "reset")
-			if err != nil {
-				return err
-			}
-
-			if state == "on" {
-				toStdout(ctx, &stdout, "reset is in state 'on'")
-			} else {
-				return fmt.Errorf("reset could not set to state 'on'")
-			}
-		} else {
-			return fmt.Errorf("reset could not set to state 'on'")
-		}
-	} else {
-		toStdout(ctx, &stdout, "reset is in state 'on'")
-	}
-
-	toStdout(ctx, &stdout, "successfully cut off power from DUT")
-
-	if p.emitStdout {
-		log.Infof("Emitting stdout event")
-		if err := emitEvent(ctx, EventStdout, eventStdoutPayload{Msg: stdout}, target, ev); err != nil {
-			log.Warnf("Failed to emit event: %v", err)
-		}
-	}
+	stdoutMsg.WriteString("DUT was resetted successfully.\n")
 
 	return nil
 }
 
+type postPower struct {
+	Duration string `json:"duration"` // possible values: 0s-20s
+}
+
 // postPower pushes the power button for the time of 'duration'.
 // duration can be set from 0s to 20s.
-func (p *Parameter) postPower(ctx xcontext.Context, duration string) (int, error) {
-	endpoint := fmt.Sprintf("%s:%s/contexts/%s/machines/%s/auxiliaries/%s/api/power",
-		p.host, p.port, p.contextID, p.machineID, p.deviceID)
+func (ts *TestStep) postPower(ctx xcontext.Context, duration string) error {
+	endpoint := fmt.Sprintf("%s:%d/contexts/%s/machines/%s/auxiliaries/%s/api/power",
+		ts.Parameter.Host, ts.Parameter.Port, ts.Parameter.ContextID, ts.Parameter.MachineID, ts.Parameter.DeviceID)
 
 	postPower := postPower{
 		Duration: duration,
@@ -214,91 +148,223 @@ func (p *Parameter) postPower(ctx xcontext.Context, duration string) (int, error
 
 	powerBody, err := json.Marshal(postPower)
 	if err != nil {
-		return 0, fmt.Errorf("failed to marshal body: %w", err)
+		return fmt.Errorf("Failed to marshal body: %w", err)
 	}
 
 	resp, err := HTTPRequest(ctx, http.MethodPost, endpoint, bytes.NewBuffer(powerBody))
 	if err != nil {
-		return 0, fmt.Errorf("failed to do http request: %v", err)
+		return fmt.Errorf("Failed to do HTTP request: %v", err)
 	}
 	defer resp.Body.Close()
 
-	return resp.StatusCode, nil
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("Failed to Post to Power. Statuscode: %d, Response Body: %v", resp.StatusCode, resp.Body)
+	}
+
+	return nil
 }
 
 // pressPDU toggles the PDU as you define the method input parameter.
 // http.MethodDelete does power off the pdu.
 // http.MethodPut does power on the pdu.
-func (p *Parameter) pressPDU(ctx xcontext.Context, method string) (int, error) {
+func (ts *TestStep) pressPDU(ctx xcontext.Context, method string) error {
 	if method != http.MethodDelete && method != http.MethodPut {
-		return 0, fmt.Errorf("invalid method")
+		return fmt.Errorf("Invalid method '%s'. Only supported methods for toggeling the PDU are: '%s' and '%s'", method, http.MethodDelete, http.MethodPut)
 	}
 
-	endpoint := fmt.Sprintf("%s:%s/contexts/%s/machines/%s/power", p.host, p.port, p.contextID, p.machineID)
+	endpoint := fmt.Sprintf("%s:%d/contexts/%s/machines/%s/power",
+		ts.Parameter.Host, ts.Parameter.Port, ts.Parameter.ContextID, ts.Parameter.MachineID)
 
 	resp, err := HTTPRequest(ctx, method, endpoint, bytes.NewBuffer(nil))
 	if err != nil {
-		return 0, fmt.Errorf("failed to do http request: %v", err)
-	}
-	defer resp.Body.Close()
-
-	return resp.StatusCode, nil
-}
-
-// postReset toggles the Reset button regarding the state that is passed in.
-// A valid state is either 'on' or 'off'.
-func (p *Parameter) postReset(ctx xcontext.Context, state string) (int, error) {
-	if state != "on" && state != "off" {
-		return 0, fmt.Errorf("invalid state")
-	}
-
-	endpoint := fmt.Sprintf("%s:%s/contexts/%s/machines/%s/auxiliaries/%s/api/reset",
-		p.host, p.port, p.contextID, p.machineID, p.deviceID)
-
-	postReset := postReset{
-		State: state,
-	}
-
-	resetBody, err := json.Marshal(postReset)
-	if err != nil {
-		return 0, fmt.Errorf("failed to marshal body: %w", err)
-	}
-
-	resp, err := HTTPRequest(ctx, http.MethodPost, endpoint, bytes.NewBuffer(resetBody))
-	if err != nil {
-		return 0, fmt.Errorf("failed to do http request: %v", err)
-	}
-	defer resp.Body.Close()
-
-	return resp.StatusCode, nil
-}
-
-// getState returns the state of either: 'led', 'reset' or 'vcc'.
-// The input parameter command should have one of this values.
-func (p *Parameter) getState(ctx xcontext.Context, command string) (string, error) {
-	endpoint := fmt.Sprintf("%s:%s/contexts/%s/machines/%s/auxiliaries/%s/api/%s",
-		p.host, p.port, p.contextID, p.machineID, p.deviceID, command)
-
-	resp, err := HTTPRequest(ctx, http.MethodGet, endpoint, bytes.NewBuffer(nil))
-	if err != nil {
-		return "", fmt.Errorf("failed to do http request: %v", err)
+		return fmt.Errorf("Failed to do HTTP request: %v", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("vcc pin status could not be retrieved")
+		return fmt.Errorf("PDU could not be set to the correct state. Statuscode: %d, Response Body: %v", resp.StatusCode, resp.Body)
+	} else {
+		powerState, err := ts.getPDUState(ctx)
+		if err != nil {
+			return err
+		}
+
+		if method == http.MethodPut && !powerState || method == http.MethodDelete && powerState {
+			return fmt.Errorf("Failed to toggle PDU. Method: '%s', State: '%t'", method, powerState)
+		}
+	}
+
+	return nil
+}
+
+type postReset struct {
+	State string `json:"state"` // possible values: "on" or "off"
+}
+
+// postReset toggles the Reset button regarding the state that is passed in.
+// A valid state is either 'on' or 'off'.
+func (ts *TestStep) postReset(ctx xcontext.Context, wantState string) error {
+	if wantState != on && wantState != off {
+		return fmt.Errorf("Invalid state '%s'. Only supported states for reset are: '%s' and '%s'", wantState, on, off)
+	}
+
+	endpoint := fmt.Sprintf("%s:%d/contexts/%s/machines/%s/auxiliaries/%s/api/reset",
+		ts.Parameter.Host, ts.Parameter.Port, ts.Parameter.ContextID, ts.Parameter.MachineID, ts.Parameter.DeviceID)
+
+	postReset := postReset{
+		State: wantState,
+	}
+
+	resetBody, err := json.Marshal(postReset)
+	if err != nil {
+		return fmt.Errorf("Failed to marshal body: %w", err)
+	}
+
+	resp, err := HTTPRequest(ctx, http.MethodPost, endpoint, bytes.NewBuffer(resetBody))
+	if err != nil {
+		return fmt.Errorf("Failed to do HTTP request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("Reset could not be set to state '%s'", wantState)
+	} else {
+		state, err := ts.getState(ctx, reset)
+		if err != nil {
+			return err
+		}
+
+		if state != wantState {
+			return fmt.Errorf("Reset could not be set to state '%s'. State is '%s'", wantState, state)
+		}
+	}
+
+	return nil
+}
+
+// this struct can be used for GET /vcc /led /reset
+type getState struct {
+	State string `json:"state"` // possible values: "on" or "off"
+}
+
+// getState returns the state of either: 'led', 'reset' or 'vcc'.
+// The input parameter command should have one of this values.
+func (ts *TestStep) getState(ctx xcontext.Context, command string) (string, error) {
+	endpoint := fmt.Sprintf("%s:%d/contexts/%s/machines/%s/auxiliaries/%s/api/%s",
+		ts.Parameter.Host, ts.Parameter.Port, ts.Parameter.ContextID, ts.Parameter.MachineID, ts.Parameter.DeviceID, command)
+
+	resp, err := HTTPRequest(ctx, http.MethodGet, endpoint, bytes.NewBuffer(nil))
+	if err != nil {
+		return "", fmt.Errorf("Failed to do HTTP request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("State could not be retrieved. Statuscode: %d, Response Body: %v", resp.StatusCode, resp.Body)
 	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return "", fmt.Errorf("could not extract response body: %v", err)
+		return "", fmt.Errorf("Could not extract response body: %v", err)
 	}
 
 	data := getState{}
 
 	if err := json.Unmarshal(body, &data); err != nil {
-		return "", fmt.Errorf("could not unmarshal response body: %v", err)
+		return "", fmt.Errorf("Could not unmarshal response body: %v", err)
 	}
 
 	return data.State, nil
+}
+
+// getPDUState returns the state of either: 'led', 'reset' or 'vcc'.
+// The input parameter command should have one of this values.
+func (ts *TestStep) getPDUState(ctx xcontext.Context) (bool, error) {
+	endpoint := fmt.Sprintf("%s:%d/contexts/%s/machines/%s/power",
+		ts.Parameter.Host, ts.Parameter.Port, ts.Parameter.ContextID, ts.Parameter.MachineID)
+
+	resp, err := HTTPRequest(ctx, http.MethodGet, endpoint, bytes.NewBuffer(nil))
+	if err != nil {
+		return false, fmt.Errorf("Failed to do HTTP request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return false, fmt.Errorf("PDU state could not be retrieved. Statuscode: %d, Response Body: %v", resp.StatusCode, resp.Body)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return false, fmt.Errorf("Could not extract response body: %v", err)
+	}
+
+	var state bool
+
+	if err := json.Unmarshal(body, &state); err != nil {
+		return false, fmt.Errorf("Could not unmarshal response body: %v", err)
+	}
+
+	return state, nil
+}
+
+// resetDUT sets the dut into a state, were it cannot be booted. In this state it is safe to
+// do all flash operations.
+func (ts *TestStep) resetDUT(ctx xcontext.Context) error {
+	state, err := ts.getState(ctx, reset)
+	if err != nil {
+		return err
+	}
+
+	if state == off {
+		if err = ts.postReset(ctx, on); err != nil {
+			return err
+		}
+	}
+
+	time.Sleep(time.Second)
+
+	powerState, err := ts.getPDUState(ctx)
+	if err != nil {
+		return err
+	}
+
+	if powerState {
+		if err := ts.pressPDU(ctx, http.MethodDelete); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// unresetDUT sets the dut into a state, were it can be booted again. PDU has to be turned on
+// and reset has to pull on off.
+func (ts *TestStep) unresetDUT(ctx xcontext.Context) error {
+	state, err := ts.getState(ctx, reset)
+	if err != nil {
+		return err
+	}
+
+	if state == on {
+		if err := ts.postReset(ctx, off); err != nil {
+			return err
+		}
+	}
+
+	time.Sleep(time.Second)
+
+	powerState, err := ts.getPDUState(ctx)
+	if err != nil {
+		return err
+	}
+
+	if !powerState {
+		if err := ts.pressPDU(ctx, http.MethodPut); err != nil {
+			return err
+		}
+	}
+
+	time.Sleep(time.Second)
+
+	return nil
 }
