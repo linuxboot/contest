@@ -7,12 +7,15 @@ import (
 	"io"
 	"io/ioutil"
 	"net"
+	"os"
+	"path/filepath"
 	"strconv"
 	"time"
 
 	"github.com/insomniacslk/xjson"
 	"github.com/kballard/go-shellquote"
 	"github.com/linuxboot/contest/pkg/xcontext"
+	"github.com/pkg/sftp"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -229,4 +232,182 @@ func (sp *sshProcess) StderrPipe() (io.Reader, error) {
 
 func (sp *sshProcess) String() string {
 	return sp.cmd
+}
+
+type sftpCopy struct {
+	client    *sftp.Client
+	src       string
+	dst       string
+	recursive bool
+
+	stack *deferedStack
+}
+
+func (st *SSHTransport) NewCopy(ctx xcontext.Context, src, dst string, recursive bool) (Copy, error) {
+	var signer ssh.Signer
+	if st.IdentityFile != "" {
+		key, err := ioutil.ReadFile(st.IdentityFile)
+		if err != nil {
+			return nil, fmt.Errorf("cannot read private key at %s: %v", st.IdentityFile, err)
+		}
+		signer, err = ssh.ParsePrivateKey(key)
+		if err != nil {
+			return nil, fmt.Errorf("cannot parse private key: %v", err)
+		}
+	}
+
+	auth := []ssh.AuthMethod{}
+	if signer != nil {
+		auth = append(auth, ssh.PublicKeys(signer))
+	}
+	if st.Password != "" {
+		auth = append(auth, ssh.Password(st.Password))
+	}
+
+	addr := net.JoinHostPort(st.Host, strconv.Itoa(st.Port))
+	clientConfig := &ssh.ClientConfig{
+		User: st.User,
+		Auth: auth,
+		// TODO expose this in the plugin arguments
+		//HostKeyCallback: ssh.FixedHostKey(hostKey),
+		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		Timeout:         time.Duration(st.Timeout),
+	}
+
+	// stack mechanism similar to defer, but run after the exec process ends
+	stack := newDeferedStack()
+
+	client, err := ssh.Dial("tcp", addr, clientConfig)
+	if err != nil {
+		return nil, fmt.Errorf("cannot connect to SSH server %s: %v", addr, err)
+	}
+
+	SFTPClient, err := sftp.NewClient(client)
+	if err != nil {
+		return nil, fmt.Errorf("cannot create an new sftp client on top of the SSH connection: %v", err)
+	}
+
+	// cleanup the ssh client after the operations have ended
+	stack.Add(func() {
+		if err := client.Close(); err != nil {
+			ctx.Warnf("failed to close SSH client: %v", err)
+		}
+	})
+
+	return &sftpCopy{client: SFTPClient, src: src, dst: dst, recursive: recursive, stack: stack}, nil
+}
+
+func (sc *sftpCopy) Copy(ctx xcontext.Context) error {
+
+	if sc.recursive {
+		if err := filepath.Walk(sc.src, func(srcPath string, info os.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
+
+			// we don't want to copy dirs and hidden files
+			if info.IsDir() || filepath.Base(srcPath)[0] == '.' {
+				return nil
+			}
+
+			// create directory if it does not exist
+			dstDir := filepath.Dir(sc.dst + srcPath[len(sc.src):])
+			err = sc.client.MkdirAll(dstDir)
+			if err != nil {
+				return fmt.Errorf("failed to create all dir: %v", err)
+			}
+
+			// Create remote file
+			dstFile, err := sc.client.Create(sc.dst + srcPath[len(sc.src):])
+			if err != nil {
+				return fmt.Errorf("failed to create the destination file: %v", err)
+			}
+			defer dstFile.Close()
+
+			// Get the file permissions of the source file
+			srcFileInfo, err := os.Stat(srcPath)
+			if err != nil {
+				return fmt.Errorf("failed to get source info: %w", err)
+			}
+
+			// Set the same file permissions on the destination file
+			err = sc.client.Chmod(sc.dst+srcPath[len(sc.src):], srcFileInfo.Mode())
+			if err != nil {
+				return fmt.Errorf("failed to change permissions of destination file: %v", err)
+			}
+
+			// Copy local file contents to remote file
+			srcFile, err := os.Open(srcPath)
+			if err != nil {
+				return fmt.Errorf("failed to open the provided source file: %v", err)
+			}
+			defer srcFile.Close()
+
+			copiedData, err := io.Copy(dstFile, srcFile)
+			if err != nil {
+				return fmt.Errorf("failed to copy source file to destination: %v", err)
+			}
+
+			if copiedData != srcFileInfo.Size() {
+				return fmt.Errorf("Copied file does not have the same size. Source file size in bytes: '%d', Destination file size in bytes: '%d'",
+					srcFileInfo.Size(), copiedData)
+			}
+
+			return nil
+		}); err != nil {
+			return fmt.Errorf("failed to copy source file to destination recursively: %v", err)
+		}
+	} else {
+		srcFileInfo, err := os.Stat(sc.src)
+		if err != nil {
+			return fmt.Errorf("failed to get source info: %w", err)
+		}
+
+		if srcFileInfo.IsDir() {
+			if !sc.recursive {
+				return fmt.Errorf("source is a directory, recursive copy is required")
+			}
+		}
+
+		// Create destination file
+		dstFile, err := sc.client.OpenFile(sc.dst, os.O_WRONLY|os.O_CREATE|os.O_TRUNC)
+		if err != nil {
+			return fmt.Errorf("failed to create the destination file: %v", err)
+		}
+		defer dstFile.Close()
+
+		// Set the same file permissions on the destination file
+		err = sc.client.Chmod(sc.dst+sc.src[len(sc.src):], srcFileInfo.Mode())
+		if err != nil {
+			return fmt.Errorf("failed to change permissions on destination file: %v", err)
+		}
+
+		// Copy local file contents to remote file
+		srcFile, err := os.Open(sc.src)
+		if err != nil {
+			return fmt.Errorf("failed to open the provided source file: %v", err)
+		}
+		defer srcFile.Close()
+
+		copiedData, err := io.Copy(dstFile, srcFile)
+		if err != nil {
+			return fmt.Errorf("failed to copy source file to destination: %v", err)
+		}
+
+		if copiedData != srcFileInfo.Size() {
+			return fmt.Errorf("Copied file does not have the same size. Source file size in bytes: '%d', Destination file size in bytes: '%d'",
+				srcFileInfo.Size(), copiedData)
+		}
+	}
+
+	sc.client.Close()
+	return nil
+}
+
+func (sc *sftpCopy) String() string {
+	if sc.recursive {
+		return fmt.Sprintf("scp -r %s %s", sc.src, sc.dst)
+	} else {
+		return fmt.Sprintf("scp %s %s", sc.src, sc.dst)
+	}
 }

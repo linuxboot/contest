@@ -19,8 +19,15 @@ type Process interface {
 	String() string
 }
 
+type Copy interface {
+	Copy(ctx xcontext.Context) error
+
+	String() string
+}
+
 type Transport interface {
 	NewProcess(ctx xcontext.Context, bin string, args []string) (Process, error)
+	NewCopy(ctx xcontext.Context, source, destination string, recursive bool) (Copy, error)
 }
 
 func NewTransport(proto string, configSource json.RawMessage, expander *test.ParamExpander) (Transport, error) {

@@ -85,7 +85,7 @@ func writeCommand(command string, host string, builders ...*strings.Builder) {
 
 // Function to format command output information and append it to a string builder.
 func writeCommandOutput(builder *strings.Builder, stdout string) {
-	builder.WriteString(fmt.Sprintf("Output:\n %s", stdout))
+	builder.WriteString(fmt.Sprintf("Output:\n%s", stdout))
 }
 
 // emitStderr emits the whole error message an returns the error
