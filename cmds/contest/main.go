@@ -32,6 +32,7 @@ import (
 	bios_setting_get "github.com/linuxboot/contest/plugins/teststeps/bios_settings_get"
 	bios_setting_set "github.com/linuxboot/contest/plugins/teststeps/bios_settings_set"
 	ts_cmd "github.com/linuxboot/contest/plugins/teststeps/cmd"
+	copy "github.com/linuxboot/contest/plugins/teststeps/copy"
 	cpucmd "github.com/linuxboot/contest/plugins/teststeps/cpucmd"
 	dutctl "github.com/linuxboot/contest/plugins/teststeps/dutctl"
 	echo "github.com/linuxboot/contest/plugins/teststeps/echo"
@@ -42,7 +43,6 @@ import (
 	randecho "github.com/linuxboot/contest/plugins/teststeps/randecho"
 	sleep "github.com/linuxboot/contest/plugins/teststeps/sleep"
 	sshcmd "github.com/linuxboot/contest/plugins/teststeps/sshcmd"
-	sshcopy "github.com/linuxboot/contest/plugins/teststeps/sshcopy"
 
 	// the reporter plugins
 	noop "github.com/linuxboot/contest/plugins/reporters/noop"
@@ -62,7 +62,7 @@ func getPluginConfig() *server.PluginConfig {
 	pc.TestStepLoaders = append(pc.TestStepLoaders, randecho.Load)
 	pc.TestStepLoaders = append(pc.TestStepLoaders, sleep.Load)
 	pc.TestStepLoaders = append(pc.TestStepLoaders, sshcmd.Load)
-	pc.TestStepLoaders = append(pc.TestStepLoaders, sshcopy.Load)
+	pc.TestStepLoaders = append(pc.TestStepLoaders, copy.Load)
 	pc.TestStepLoaders = append(pc.TestStepLoaders, bios_setting_set.Load)
 	pc.TestStepLoaders = append(pc.TestStepLoaders, bios_setting_get.Load)
 	pc.TestStepLoaders = append(pc.TestStepLoaders, bios_certificate.Load)
