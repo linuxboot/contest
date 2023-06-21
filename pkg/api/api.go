@@ -13,6 +13,8 @@ import (
 	"time"
 
 	"github.com/facebookincubator/go-belt/beltctx"
+	"github.com/linuxboot/contest/pkg/signaling"
+	"github.com/linuxboot/contest/pkg/signals"
 	"github.com/linuxboot/contest/pkg/storage"
 	"github.com/linuxboot/contest/pkg/storage/limits"
 	"github.com/linuxboot/contest/pkg/types"
@@ -170,10 +172,9 @@ func (a *API) Start(ctx context.Context, requestor EventRequestor, jobDescriptor
 	// signals to the job's context. Therefore we use a fresh context
 	// (without any cancels and signalings) and just passthrough its
 	// observability belt.
-	//
-	// It also loose context values, but there are no any values
-	// we care about here.
-	ctx = beltctx.WithField(beltctx.WithBelt(context.Background(), beltctx.Belt(ctx)), "api_method", "start")
+	ctx = newValuesProxyContext(ctx)                   // ignore the cancel and deadline signals
+	ctx, _ = signaling.WithSignal(ctx, signals.Paused) // ignore the pause signal
+	ctx = beltctx.WithField(ctx, "api_method", "start")
 
 	ev := &Event{
 		Context:  ctx,
