@@ -197,6 +197,45 @@ The "copy" teststep allows you to copy files or directories to a destination loc
       options:
         timeout: 2m
 ```
+## DutCtl Teststep
+
+The "dutctl" teststep allows you to control a device of your choide. Power, Flash and Serial commands are supported.
+
+**YAML Description**
+```yaml
+- name: dutctl
+  label: dutctl teststep
+  parameters:
+    input: 
+      - parameter:
+            host: TARGET_HOST               # mandatory, type: string
+            command: COMMAND_NAME           # mandatory, type: string
+            args: [ARG1, ARG2, ARG3]        # optional, type: array of strings
+            input: INPUT_STRING             # opitonal, type: string
+        options:
+            timeout: TIMEOUT                # optional, type: duration, default: 1m
+    expect: 
+      - regex: EXPECTED_REGEX1              # opitonal, type: string
+      - regex: EXPECTED_REGEX2              # opitonal, type: string
+```
+
+**Example Usage**
+```yaml
+- name: dutctl
+  label: dutctl teststep
+  parameters:
+    input:
+    - parameter:
+        host: 192.168.1.100
+        command: power
+        args: [on]
+        input: "user\n"
+      options:
+        timeout: 2m
+    expect:
+    - regex: searchedString
+    - regex: (everypossibleregex)
+```
 
 ## HWaaS Teststep
 
