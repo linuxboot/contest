@@ -31,6 +31,7 @@ import (
 	bios_certificate "github.com/linuxboot/contest/plugins/teststeps/bios_certificate"
 	bios_setting_get "github.com/linuxboot/contest/plugins/teststeps/bios_settings_get"
 	bios_setting_set "github.com/linuxboot/contest/plugins/teststeps/bios_settings_set"
+	chipsec "github.com/linuxboot/contest/plugins/teststeps/chipsec"
 	ts_cmd "github.com/linuxboot/contest/plugins/teststeps/cmd"
 	copy "github.com/linuxboot/contest/plugins/teststeps/copy"
 	cpucmd "github.com/linuxboot/contest/plugins/teststeps/cpucmd"
@@ -57,6 +58,7 @@ func getPluginConfig() *server.PluginConfig {
 	pc.TestFetcherLoaders = append(pc.TestFetcherLoaders, uri.Load)
 	pc.TestStepLoaders = append(pc.TestStepLoaders, ts_cmd.Load)
 	pc.TestStepLoaders = append(pc.TestStepLoaders, cpucmd.Load)
+	pc.TestStepLoaders = append(pc.TestStepLoaders, chipsec.Load)
 	pc.TestStepLoaders = append(pc.TestStepLoaders, echo.Load)
 	pc.TestStepLoaders = append(pc.TestStepLoaders, exec.Load)
 	pc.TestStepLoaders = append(pc.TestStepLoaders, randecho.Load)
