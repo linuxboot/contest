@@ -151,6 +151,55 @@ The "BIOS Set" teststep allows you to set BIOS settings with a specific value.
           value: bios value
 ```
 
+## ChipSec Teststep
+
+The "ChipSec" teststep allows you to run different chipsec modules on your DUT.
+
+**YAML Description**
+```yaml
+- name: chipsec
+  label: Run ChipSec tests
+  parameters:
+    input: 
+      - transport:
+          proto: ssh                            # mandatory, type: string, options: local, ssh
+          options:                              # mandatory when using ssh protocol
+            host: TARGET_HOST                   # mandatory, type: string
+            port: SSH_PORT                      # optional, type: integer, default: 22
+            user: USERNAME                      # mandatory, type: string
+            password: PASSWORD                  # optional, type: string
+            identity_file: IDENTITY_FILE        # optional, type: string
+        parameter:
+            tool_path: TOOL_PATH                # optional, type: string
+            modules: [MODULE1, MODULE2]         # optional, type: array of strings
+        options:
+            timeout: TIMEOUT                    # optional, type: duration, default: 1m
+```
+
+**Example Usage**
+```yaml
+- name: chipsec
+  label: Run ChipSec tests
+  parameters:
+    input: 
+    - transport:
+        proto: ssh
+        options:
+          host: "[[.Host]]"
+          user: user
+          password: password
+      parameter:
+        tool_path: /home/secunettest/chipsec
+        modules: [
+          common.bios_kbrd_buffer, 
+          common.bios_smi, 
+          common.bios_ts, 
+        ]
+      options:
+        timeout: 1m
+```
+
+
 ## Copy Teststep
 
 The "copy" teststep allows you to copy files or directories to a destination locally or on a target device using SSH protocol.
