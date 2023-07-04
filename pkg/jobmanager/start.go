@@ -98,7 +98,14 @@ func (jm *JobManager) startJob(ctx context.Context, j *job.Job, resumeState *job
 			logging.Debugf(ctx, "cancelling job context")
 			jobCancel()
 		}}
-	go jm.runJob(jobCtx, j, resumeState)
+
+	go func() {
+		defer func() {
+			errmon.ObserveRecoverCtx(ctx, recover())
+		}()
+
+		jm.runJob(jobCtx, j, resumeState)
+	}()
 }
 
 func (jm *JobManager) runJob(ctx context.Context, j *job.Job, resumeState *job.PauseEventPayload) {

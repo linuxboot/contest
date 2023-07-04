@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/facebookincubator/go-belt/beltctx"
+	"github.com/facebookincubator/go-belt/tool/experimental/errmon"
 	"github.com/insomniacslk/xjson"
 
 	"github.com/linuxboot/contest/pkg/api"
@@ -183,6 +184,9 @@ loop:
 			logging.Debugf(ev.Context, "Handling event %+v", ev)
 			handlerWg.Add(1)
 			go func() {
+				defer func() {
+					errmon.ObserveRecoverCtx(ev.Context, recover())
+				}()
 				defer handlerWg.Done()
 				jm.handleEvent(ev)
 			}()
