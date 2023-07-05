@@ -286,6 +286,50 @@ The "dutctl" teststep allows you to control a device of your choide. Power, Flas
     - regex: (everypossibleregex)
 ```
 
+## FWTS Teststep
+
+The "FWTS" teststep allows you to run the Firmware Testsuite on your DUT.
+
+**YAML Description**
+```yaml
+- name: fwts
+  label: Run fwts tests
+  parameters:
+    input: 
+      - transport:
+          proto: ssh                            # mandatory, type: string, options: local, ssh
+          options:                              # mandatory when using ssh protocol
+            host: TARGET_HOST                   # mandatory, type: string
+            port: SSH_PORT                      # optional, type: integer, default: 22
+            user: USERNAME                      # mandatory, type: string
+            password: PASSWORD                  # optional, type: string
+            identity_file: IDENTITY_FILE        # optional, type: string
+        parameter:
+            flags: [FLAG1, FLAG2]               # optional, type: array of strings
+        options:
+            timeout: TIMEOUT                    # optional, type: duration, default: 1m
+```
+
+**Example Usage**
+```yaml
+- name: fwts
+  label: Run fwts tests
+  parameters:
+    input: 
+    - transport:
+        proto: ssh
+        options:
+          host: "[[.Host]]"
+          user: user
+          password: password
+      parameter:
+        flags: [-b]
+      options:
+        timeout: 1m
+```
+
+
+
 ## HWaaS Teststep
 
 The "hwaas" teststep allows you to control a DUT via the HWaaS API.
