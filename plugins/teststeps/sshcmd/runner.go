@@ -62,6 +62,8 @@ func (r *TargetRunner) Run(ctx xcontext.Context, target *target.Target) error {
 
 	_, err = r.runCMD(ctx, &stdoutMsg, &stderrMsg, target, transport)
 	if err != nil {
+		stderrMsg.WriteString(fmt.Sprintf("%v\n", err))
+
 		return emitStderr(ctx, EventStderr, stderrMsg.String(), target, r.ev, err)
 	}
 
@@ -75,7 +77,7 @@ func (r *TargetRunner) Run(ctx xcontext.Context, target *target.Target) error {
 func (r *TargetRunner) runCMD(ctx xcontext.Context, stdoutMsg, stderrMsg *strings.Builder, target *target.Target,
 	transport transport.Transport,
 ) (outcome, error) {
-	proc, err := transport.NewProcess(ctx, r.ts.Bin.Executable, r.ts.Bin.Args)
+	proc, err := transport.NewProcess(ctx, r.ts.Bin.Executable, r.ts.Bin.Args, r.ts.Bin.WorkingDir)
 	if err != nil {
 		err := fmt.Errorf("Failed to create proc: %w", err)
 		stderrMsg.WriteString(fmt.Sprintf("%v\n", err))
@@ -84,6 +86,9 @@ func (r *TargetRunner) runCMD(ctx xcontext.Context, stdoutMsg, stderrMsg *string
 	}
 
 	writeCommand(proc.String(), stdoutMsg, stderrMsg)
+
+	stderrMsg.WriteString(fmt.Sprintf("Command Stderr:\n"))
+	stdoutMsg.WriteString(fmt.Sprintf("Command Stdout:\n"))
 
 	stdoutPipe, err := proc.StdoutPipe()
 	if err != nil {
@@ -110,8 +115,12 @@ func (r *TargetRunner) runCMD(ctx xcontext.Context, stdoutMsg, stderrMsg *string
 	}
 
 	stdout, stderr := getOutputFromReader(stdoutPipe, stderrPipe)
-	stdoutMsg.WriteString(fmt.Sprintf("Command Stdout:\n%s\n", string(stdout)))
-	stderrMsg.WriteString(fmt.Sprintf("Command Stderr:\n%s\n", string(stderr)))
+
+	if outcome != nil {
+		return nil, fmt.Errorf("Error executing command: %v.\nLogs:\n%s\n", outcome, string(stderr))
+	}
+
+	stdoutMsg.WriteString(fmt.Sprintf("%s\n", string(stdout)))
 
 	err = parseOutput(stdoutMsg, stderrMsg, stdout, r.ts.expectStepParams)
 	if err != nil {

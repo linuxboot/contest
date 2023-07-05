@@ -26,7 +26,7 @@ type Copy interface {
 }
 
 type Transport interface {
-	NewProcess(ctx xcontext.Context, bin string, args []string) (Process, error)
+	NewProcess(ctx xcontext.Context, bin string, args []string, workingDir string) (Process, error)
 	NewCopy(ctx xcontext.Context, source, destination string, recursive bool) (Copy, error)
 }
 

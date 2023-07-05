@@ -136,7 +136,7 @@ func (r *TargetRunner) runGet(
 
 		writeCommand(privileged, args, stdoutMsg, stderrMsg)
 
-		proc, err := transport.NewProcess(ctx, privileged, args)
+		proc, err := transport.NewProcess(ctx, privileged, args, "")
 		if err != nil {
 			err := fmt.Errorf("failed to create process: %v", err)
 			stderrMsg.WriteString(fmt.Sprintf("%v\n", err))

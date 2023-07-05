@@ -10,10 +10,10 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/insomniacslk/xjson"
-	"github.com/kballard/go-shellquote"
 	"github.com/linuxboot/contest/pkg/xcontext"
 	"github.com/pkg/sftp"
 	"golang.org/x/crypto/ssh"
@@ -45,7 +45,7 @@ func NewSSHTransport(config SSHTransportConfig) Transport {
 	return &SSHTransport{config}
 }
 
-func (st *SSHTransport) NewProcess(ctx xcontext.Context, bin string, args []string) (Process, error) {
+func (st *SSHTransport) NewProcess(ctx xcontext.Context, bin string, args []string, workingDir string) (Process, error) {
 	var signer ssh.Signer
 	if st.IdentityFile != "" {
 		key, err := ioutil.ReadFile(st.IdentityFile)
@@ -91,50 +91,48 @@ func (st *SSHTransport) NewProcess(ctx xcontext.Context, bin string, args []stri
 		}
 	})
 
-	return st.new(ctx, client, bin, args, stack)
-}
-
-func (st *SSHTransport) new(ctx xcontext.Context, client *ssh.Client, bin string, args []string, stack *deferedStack) (Process, error) {
-	return newSSHProcess(ctx, client, bin, args, stack)
+	return st.newSSHProcess(ctx, client, bin, args, workingDir, stack)
 }
 
 type sshProcess struct {
 	session       *ssh.Session
 	cmd           string
+	workingDir    string
 	keepAliveDone chan struct{}
 
 	stack *deferedStack
 }
 
-func newSSHProcess(ctx xcontext.Context, client *ssh.Client, bin string, args []string, stack *deferedStack) (Process, error) {
-	var stdin bytes.Buffer
-	return newSSHProcessWithStdin(ctx, client, bin, args, &stdin, stack)
-}
-
-func newSSHProcessWithStdin(
-	ctx xcontext.Context, client *ssh.Client,
-	bin string, args []string,
-	stdin io.Reader,
-	stack *deferedStack,
+func (st *SSHTransport) newSSHProcess(ctx xcontext.Context, client *ssh.Client,
+	bin string, args []string, workingDir string, stack *deferedStack,
 ) (Process, error) {
+	var stdin bytes.Buffer
+
 	session, err := client.NewSession()
 	if err != nil {
 		return nil, fmt.Errorf("cannot create SSH session to server: %v", err)
 	}
 
 	// set fds for the remote process
-	session.Stdin = stdin
+	session.Stdin = &stdin
 
-	cmd := shellquote.Join(append([]string{bin}, args...)...)
+	cmd := strings.Join(append([]string{bin}, args...), " ")
 	keepAliveDone := make(chan struct{})
 
-	return &sshProcess{session, cmd, keepAliveDone, stack}, nil
+	return &sshProcess{session, cmd, workingDir, keepAliveDone, stack}, nil
 }
 
 func (sp *sshProcess) Start(ctx xcontext.Context) error {
 	ctx.Debugf("starting remote binary: %s", sp.cmd)
 
-	if err := sp.session.Start(sp.cmd); err != nil {
+	var cmd string
+	if sp.workingDir != "" {
+		cmd = fmt.Sprintf("cd %s && %s", sp.workingDir, sp.cmd)
+	} else {
+		cmd = sp.cmd
+	}
+
+	if err := sp.session.Start(cmd); err != nil {
 		return fmt.Errorf("failed to start process: %v", err)
 	}
 

@@ -17,8 +17,8 @@ func NewLocalTransport() Transport {
 	return &LocalTransport{}
 }
 
-func (lt *LocalTransport) NewProcess(ctx xcontext.Context, bin string, args []string) (Process, error) {
-	return newLocalProcess(ctx, bin, args)
+func (lt *LocalTransport) NewProcess(ctx xcontext.Context, bin string, args []string, workingDir string) (Process, error) {
+	return newLocalProcess(ctx, bin, args, workingDir)
 }
 
 // localProcess is just a thin layer over exec.Command
@@ -26,12 +26,14 @@ type localProcess struct {
 	cmd *exec.Cmd
 }
 
-func newLocalProcess(ctx xcontext.Context, bin string, args []string) (Process, error) {
+func newLocalProcess(ctx xcontext.Context, bin string, args []string, workingDir string) (Process, error) {
 	if err := checkBinary(bin); err != nil {
 		return nil, err
 	}
 
 	cmd := exec.CommandContext(ctx, bin, args...)
+	cmd.Dir = workingDir
+
 	return &localProcess{cmd}, nil
 }
 
