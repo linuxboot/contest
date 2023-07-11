@@ -20,7 +20,7 @@ const (
 	defaultMachineID string        = "machine"
 	defaultDeviceID  string        = "device"
 	defaultHost      string        = "http://9e-hwaas-aux1.lab.9e.network"
-	defaultPort      int           = 8080
+	defaultPort      int           = 80
 	in                             = "input"
 )
 

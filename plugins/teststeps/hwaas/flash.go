@@ -12,8 +12,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/linuxboot/contest/pkg/event/testevent"
-	"github.com/linuxboot/contest/pkg/target"
 	"github.com/linuxboot/contest/pkg/xcontext"
 )
 
@@ -26,27 +24,27 @@ const (
 )
 
 // flashCmds is a helper function to call into the different flash commands
-func (r *TargetRunner) flashCmds(ctx xcontext.Context, stdoutMsg, stderrMsg *strings.Builder, target *target.Target, args []string) error {
-	if len(args) >= 2 {
+func (r *TargetRunner) flashCmds(ctx xcontext.Context, stdoutMsg, stderrMsg *strings.Builder) error {
+	if len(r.ts.Parameter.Args) >= 2 {
 
-		switch args[0] {
+		switch r.ts.Parameter.Args[0] {
 
 		case "write":
-			if err := r.ts.flashWrite(ctx, stdoutMsg, stderrMsg, args[1], target, r.ev); err != nil {
+			if err := r.ts.flashWrite(ctx, stdoutMsg, r.ts.Parameter.Args[1]); err != nil {
 				return err
 			}
 
 			return nil
 
 		case "read":
-			if err := r.ts.flashRead(ctx, stdoutMsg, stderrMsg, args[1], target, r.ev); err != nil {
+			if err := r.ts.flashRead(ctx, stdoutMsg, r.ts.Parameter.Args[1]); err != nil {
 				return err
 			}
 
 			return nil
 
 		default:
-			return fmt.Errorf("Failed to execute the flash command. The argument '%s' is not valid. Possible values are 'read /path/to/binary' and 'write /path/to/binary'.", args)
+			return fmt.Errorf("Failed to execute the flash command. The argument '%s' is not valid. Possible values are 'read /path/to/binary' and 'write /path/to/binary'.", r.ts.Parameter.Args)
 		}
 	} else {
 		return fmt.Errorf("Failed to execute the power command. Args is not valid. Possible values are 'read /path/to/binary' and 'write /path/to/binary'.")
@@ -54,8 +52,8 @@ func (r *TargetRunner) flashCmds(ctx xcontext.Context, stdoutMsg, stderrMsg *str
 }
 
 // flashWrite executes the flash write command.
-func (ts *TestStep) flashWrite(ctx xcontext.Context, stdoutMsg, stderrMsg *strings.Builder, arg string, target *target.Target, ev testevent.Emitter) error {
-	if arg == "" {
+func (ts *TestStep) flashWrite(ctx xcontext.Context, stdoutMsg *strings.Builder, sourceFile string) error {
+	if sourceFile == "" {
 		return fmt.Errorf("No file was set to flash target.")
 	}
 
@@ -71,15 +69,15 @@ func (ts *TestStep) flashWrite(ctx xcontext.Context, stdoutMsg, stderrMsg *strin
 		return err
 	}
 	if targetInfo.State == "busy" {
-		return fmt.Errorf("Flashing DUT with %s failed: DUT is currently busy.\n", arg)
+		return fmt.Errorf("Flashing DUT with %s failed: DUT is currently busy.\n", sourceFile)
 	}
 
-	if err := postImage(ctx, endpoint, arg); err != nil {
-		return fmt.Errorf("Flashing DUT with %s failed: %v\n", arg, err)
+	if err := postImage(ctx, endpoint, sourceFile); err != nil {
+		return fmt.Errorf("Flashing DUT with %s failed: %v\n", sourceFile, err)
 	}
 
 	if err := flashTarget(ctx, endpoint); err != nil {
-		return fmt.Errorf("Flashing DUT with %s failed: %v\n", arg, err)
+		return fmt.Errorf("Flashing DUT with %s failed: %v\n", sourceFile, err)
 	}
 
 	if err := waitTarget(ctx, endpoint); err != nil {
@@ -98,8 +96,8 @@ func (ts *TestStep) flashWrite(ctx xcontext.Context, stdoutMsg, stderrMsg *strin
 }
 
 // flashRead executes the flash read command.
-func (ts *TestStep) flashRead(ctx xcontext.Context, stdoutMsg, stderrMsg *strings.Builder, arg string, target *target.Target, ev testevent.Emitter) error {
-	if arg == "" {
+func (ts *TestStep) flashRead(ctx xcontext.Context, stdoutMsg *strings.Builder, destinationFile string) error {
+	if destinationFile == "" {
 		return fmt.Errorf("No file was set to read from target.")
 	}
 
@@ -115,19 +113,19 @@ func (ts *TestStep) flashRead(ctx xcontext.Context, stdoutMsg, stderrMsg *string
 		return err
 	}
 	if targetInfo.State == "busy" {
-		return fmt.Errorf("Reading image from DUT into %s failed: DUT is currently busy.\n", arg)
+		return fmt.Errorf("Reading image from DUT into %s failed: DUT is currently busy.\n", destinationFile)
 	}
 
 	err = readTarget(ctx, endpoint)
 	if err != nil {
-		return fmt.Errorf("Reading image from DUT into %s failed: %v\n", arg, err)
+		return fmt.Errorf("Reading image from DUT into %s failed: %v\n", destinationFile, err)
 	}
 
 	if err := waitTarget(ctx, endpoint); err != nil {
 		return err
 	}
 
-	if err := pullImage(ctx, endpoint, arg); err != nil {
+	if err := pullImage(ctx, endpoint, destinationFile); err != nil {
 		return err
 	}
 

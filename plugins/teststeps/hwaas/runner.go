@@ -25,7 +25,7 @@ func NewTargetRunner(ts *TestStep, ev testevent.Emitter) *TargetRunner {
 }
 
 func (r *TargetRunner) Run(ctx xcontext.Context, target *target.Target) error {
-	var stdoutMsg, stderrMsg strings.Builder
+	var outputMsg, errorMsg strings.Builder
 
 	ctx.Infof("Executing on target %s", target)
 
@@ -49,35 +49,32 @@ func (r *TargetRunner) Run(ctx xcontext.Context, target *target.Target) error {
 		return err
 	}
 
-	writeTestStep(r.ts, &stdoutMsg, &stderrMsg)
-	writeCommand(params.Parameter.Command, params.Parameter.Args, &stdoutMsg, &stderrMsg)
-
-	stdoutMsg.WriteString("Stdout:\n")
-	stderrMsg.WriteString("Stderr:\n")
+	writeTestStep(r.ts, &outputMsg, &errorMsg)
+	writeCommand(params.Parameter.Command, params.Parameter.Args, &outputMsg, &errorMsg)
 
 	switch params.Parameter.Command {
 	case "power":
-		if err := r.powerCmds(ctx, &stdoutMsg, &stderrMsg, target, params.Parameter.Args); err != nil {
-			stderrMsg.WriteString(fmt.Sprintf("%v\n", err))
+		if err := r.powerCmds(ctx, &outputMsg, &errorMsg); err != nil {
+			errorMsg.WriteString(fmt.Sprintf("%v\n", err))
 
-			return emitStderr(ctx, EventStderr, stderrMsg.String(), target, r.ev, err)
+			return emitStderr(ctx, EventStderr, errorMsg.String(), target, r.ev, err)
 		}
 
 	case "flash":
-		if err := r.flashCmds(ctx, &stdoutMsg, &stderrMsg, target, params.Parameter.Args); err != nil {
-			stderrMsg.WriteString(fmt.Sprintf("%v\n", err))
+		if err := r.flashCmds(ctx, &outputMsg, &errorMsg); err != nil {
+			errorMsg.WriteString(fmt.Sprintf("%v\n", err))
 
-			return emitStderr(ctx, EventStderr, stderrMsg.String(), target, r.ev, err)
+			return emitStderr(ctx, EventStderr, errorMsg.String(), target, r.ev, err)
 		}
 
 	default:
 		err := fmt.Errorf("Command '%s' is not valid. Possible values are 'power' and 'flash'.", params.Parameter.Args)
-		stderrMsg.WriteString(fmt.Sprintf("%v\n", err))
+		errorMsg.WriteString(fmt.Sprintf("%v\n", err))
 
-		return emitStderr(ctx, EventStderr, stderrMsg.String(), target, r.ev, err)
+		return emitStderr(ctx, EventStderr, errorMsg.String(), target, r.ev, err)
 	}
 
-	if err := emitEvent(ctx, EventStdout, eventPayload{Msg: stdoutMsg.String()}, target, r.ev); err != nil {
+	if err := emitEvent(ctx, EventStdout, eventPayload{Msg: outputMsg.String()}, target, r.ev); err != nil {
 		return fmt.Errorf("Failed to emit event: %v", err)
 	}
 
