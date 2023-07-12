@@ -87,8 +87,8 @@ func (r *TargetRunner) runCMD(ctx xcontext.Context, stdoutMsg, stderrMsg *string
 
 	writeCommand(proc.String(), stdoutMsg, stderrMsg)
 
-	stderrMsg.WriteString(fmt.Sprintf("Command Stderr:\n"))
-	stdoutMsg.WriteString(fmt.Sprintf("Command Stdout:\n"))
+	stderrMsg.WriteString("Command Stderr:\n")
+	stdoutMsg.WriteString("Command Stdout:\n")
 
 	stdoutPipe, err := proc.StdoutPipe()
 	if err != nil {
