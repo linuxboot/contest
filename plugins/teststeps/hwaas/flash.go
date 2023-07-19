@@ -26,7 +26,6 @@ const (
 // flashCmds is a helper function to call into the different flash commands
 func (r *TargetRunner) flashCmds(ctx xcontext.Context, stdoutMsg, stderrMsg *strings.Builder) error {
 	if len(r.ts.Parameter.Args) >= 2 {
-
 		switch r.ts.Parameter.Args[0] {
 
 		case "write":
@@ -61,8 +60,8 @@ func (ts *TestStep) flashWrite(ctx xcontext.Context, stdoutMsg *strings.Builder,
 		return err
 	}
 
-	endpoint := fmt.Sprintf("%s:%d/contexts/%s/machines/%s/auxiliaries/%s/api/flash",
-		ts.Parameter.Host, ts.Parameter.Port, ts.Parameter.ContextID, ts.Parameter.MachineID, ts.Parameter.DeviceID)
+	endpoint := fmt.Sprintf("%s:%d%s/contexts/%s/machines/%s/auxiliaries/%s/api/flash",
+		ts.Parameter.Host, ts.Parameter.Port, ts.Parameter.Version, ts.Parameter.ContextID, ts.Parameter.MachineID, ts.Parameter.DeviceID)
 
 	targetInfo, err := getTargetState(ctx, endpoint)
 	if err != nil {
@@ -105,8 +104,8 @@ func (ts *TestStep) flashRead(ctx xcontext.Context, stdoutMsg *strings.Builder, 
 		return err
 	}
 
-	endpoint := fmt.Sprintf("%s:%d/contexts/%s/machines/%s/auxiliaries/%s/api/flash",
-		ts.Parameter.Host, ts.Parameter.Port, ts.Parameter.ContextID, ts.Parameter.MachineID, ts.Parameter.DeviceID)
+	endpoint := fmt.Sprintf("%s:%d%s/contexts/%s/machines/%s/auxiliaries/%s/api/flash",
+		ts.Parameter.Host, ts.Parameter.Port, ts.Parameter.Version, ts.Parameter.ContextID, ts.Parameter.MachineID, ts.Parameter.DeviceID)
 
 	targetInfo, err := getTargetState(ctx, endpoint)
 	if err != nil {
