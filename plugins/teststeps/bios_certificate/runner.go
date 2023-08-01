@@ -81,29 +81,33 @@ func (r *TargetRunner) Run(ctx xcontext.Context, target *target.Target) error {
 
 	switch params.Command {
 	case "enable":
-		_, err = r.runEnable(ctx, &stdoutMsg, &stderrMsg, target, transportProto)
+		_, err = r.ts.runEnable(ctx, &stdoutMsg, &stderrMsg, transportProto)
 		if err != nil {
 			stderrMsg.WriteString(fmt.Sprintf("%v", err))
+
 			return emitStderr(ctx, EventStderr, stderrMsg.String(), target, r.ev, err)
 		}
 
 	case "update":
-		_, err = r.runUpdate(ctx, &stdoutMsg, &stderrMsg, target, transportProto)
+		_, err = r.ts.runUpdate(ctx, &stdoutMsg, &stderrMsg, transportProto)
 		if err != nil {
 			stderrMsg.WriteString(fmt.Sprintf("%v", err))
+
 			return emitStderr(ctx, EventStderr, stderrMsg.String(), target, r.ev, err)
 		}
 
 	case "disable":
-		_, err = r.runDisable(ctx, &stdoutMsg, &stderrMsg, target, transportProto)
+		_, err = r.ts.runDisable(ctx, &stdoutMsg, &stderrMsg, transportProto)
 		if err != nil {
 			stderrMsg.WriteString(fmt.Sprintf("%v", err))
+
 			return emitStderr(ctx, EventStderr, stderrMsg.String(), target, r.ev, err)
 		}
 
 	default:
 		err := fmt.Errorf("command not supported")
 		stderrMsg.WriteString(fmt.Sprintf("%v", err))
+
 		return err
 	}
 
@@ -114,20 +118,19 @@ func (r *TargetRunner) Run(ctx xcontext.Context, target *target.Target) error {
 	return nil
 }
 
-func (r *TargetRunner) runEnable(
-	ctx xcontext.Context, stdoutMsg, stderrMsg *strings.Builder, target *target.Target,
-	transport transport.Transport,
+func (ts *TestStep) runEnable(
+	ctx xcontext.Context, stdoutMsg, stderrMsg *strings.Builder, transport transport.Transport,
 ) (outcome, error) {
-	if r.ts.Parameter.Password == "" || r.ts.Parameter.CertPath == "" {
+	if ts.Parameter.Password == "" || ts.Parameter.CertPath == "" {
 		return nil, fmt.Errorf("password and certificate file must be set")
 	}
 
 	args := []string{
-		r.ts.Parameter.ToolPath,
+		ts.Parameter.ToolPath,
 		cmd,
 		"enable",
-		fmt.Sprintf("--password=%s", r.ts.Parameter.Password),
-		fmt.Sprintf("--cert=%s", r.ts.Parameter.CertPath),
+		fmt.Sprintf("--password=%s", ts.Parameter.Password),
+		fmt.Sprintf("--cert=%s", ts.Parameter.CertPath),
 		jsonFlag,
 	}
 
@@ -177,20 +180,19 @@ func (r *TargetRunner) runEnable(
 	return outcome, err
 }
 
-func (r *TargetRunner) runUpdate(
-	ctx xcontext.Context, stdoutMsg, stderrMsg *strings.Builder, target *target.Target,
-	transport transport.Transport,
+func (ts *TestStep) runUpdate(
+	ctx xcontext.Context, stdoutMsg, stderrMsg *strings.Builder, transport transport.Transport,
 ) (outcome, error) {
-	if r.ts.Parameter.CertPath == "" || r.ts.Parameter.KeyPath == "" {
+	if ts.Parameter.CertPath == "" || ts.Parameter.KeyPath == "" {
 		return nil, fmt.Errorf("new certificate and old private key file must be set")
 	}
 
 	args := []string{
-		r.ts.Parameter.ToolPath,
+		ts.Parameter.ToolPath,
 		cmd,
 		"update",
-		fmt.Sprintf("--private-key=%s", r.ts.Parameter.KeyPath),
-		fmt.Sprintf("--cert=%s", r.ts.Parameter.CertPath),
+		fmt.Sprintf("--private-key=%s", ts.Parameter.KeyPath),
+		fmt.Sprintf("--cert=%s", ts.Parameter.CertPath),
 		jsonFlag,
 	}
 
@@ -240,20 +242,19 @@ func (r *TargetRunner) runUpdate(
 	return outcome, err
 }
 
-func (r *TargetRunner) runDisable(
-	ctx xcontext.Context, stdoutMsg, stderrMsg *strings.Builder, target *target.Target,
-	transport transport.Transport,
+func (ts *TestStep) runDisable(
+	ctx xcontext.Context, stdoutMsg, stderrMsg *strings.Builder, transport transport.Transport,
 ) (outcome, error) {
-	if r.ts.Parameter.Password == "" || r.ts.Parameter.KeyPath == "" {
+	if ts.Parameter.Password == "" || ts.Parameter.KeyPath == "" {
 		return nil, fmt.Errorf("password and private key file must be set")
 	}
 
 	args := []string{
-		r.ts.Parameter.ToolPath,
+		ts.Parameter.ToolPath,
 		cmd,
 		"disable",
-		fmt.Sprintf("--password=%s", r.ts.Parameter.Password),
-		fmt.Sprintf("--private-key=%s", r.ts.Parameter.KeyPath),
+		fmt.Sprintf("--password=%s", ts.Parameter.Password),
+		fmt.Sprintf("--private-key=%s", ts.Parameter.KeyPath),
 		jsonFlag,
 	}
 
@@ -335,7 +336,7 @@ func parseOutput(stderrMsg *strings.Builder, stderr []byte) error {
 	err := Error{}
 	if len(stderr) != 0 {
 		if err := json.Unmarshal(stderr, &err); err != nil {
-			err := fmt.Errorf("failed to unmarshal stderr: %v", err)
+			err := fmt.Errorf("failed to unmarshal stderr '%s': %v", string(stderr), err)
 			stderrMsg.WriteString(fmt.Sprintf("%v\n", err))
 
 			return err

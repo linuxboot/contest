@@ -18,7 +18,7 @@ const (
 )
 
 type inputStepParams struct {
-	Command string
+	Command string `json:"command"`
 
 	Transport struct {
 		Proto   string          `json:"proto"`
@@ -37,29 +37,22 @@ type inputStepParams struct {
 	} `json:"parameter"`
 }
 
-type expectStepParams struct{}
-
 // Name is the name used to look this plugin up.
 var Name = "Bios Certificate Management"
 
 // TestStep implementation for the exec plugin
 type TestStep struct {
 	inputStepParams
-	expectStepParams
 }
 
 // Run executes the step.
 func (ts *TestStep) Run(ctx xcontext.Context, ch test.TestStepChannels, params test.TestStepParameters, ev testevent.Emitter, resumeState json.RawMessage) (json.RawMessage, error) {
-	if err := ts.populateParams(params); err != nil {
-		return nil, err
-	}
-
 	tr := NewTargetRunner(ts, ev)
 	return teststeps.ForEachTarget(Name, ctx, ch, tr.Run)
 }
 
 func (ts *TestStep) populateParams(stepParams test.TestStepParameters) error {
-	var expect, input *test.Param
+	var input *test.Param
 
 	if input = stepParams.GetOne(in); input.IsEmpty() {
 		return fmt.Errorf("input parameter cannot be empty")
@@ -67,14 +60,6 @@ func (ts *TestStep) populateParams(stepParams test.TestStepParameters) error {
 
 	if err := json.Unmarshal(input.JSON(), &ts.inputStepParams); err != nil {
 		return fmt.Errorf("failed to deserialize %q parameters: %v", in, err)
-	}
-
-	if expect := stepParams.GetOne(out); expect.IsEmpty() {
-		return nil
-	}
-
-	if err := json.Unmarshal(expect.JSON(), &ts.expectStepParams); err != nil {
-		return fmt.Errorf("failed to deserialize %q parameters: %v", out, err)
 	}
 
 	return nil
