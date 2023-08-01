@@ -65,18 +65,18 @@ func writeEnrollKeysTestStep(step *TestStep, builders ...*strings.Builder) {
 		builder.WriteString("\n")
 
 		builder.WriteString("  Parameter:\n")
-		builder.WriteString(fmt.Sprintf("        ToolPath: %s\n", step.Parameter.ToolPath))
-		builder.WriteString(fmt.Sprintf("       Hierarchy: %s\n", step.Parameter.Hierarchy))
-		builder.WriteString(fmt.Sprintf("     KeyFilePath: %s\n", step.Parameter.KeyFile))
+		builder.WriteString(fmt.Sprintf("    ToolPath: %s\n", step.Parameter.ToolPath))
+		builder.WriteString(fmt.Sprintf("    Hierarchy: %s\n", step.Parameter.Hierarchy))
+		builder.WriteString(fmt.Sprintf("    KeyFilePath: %s\n", step.Parameter.KeyFile))
 		builder.WriteString(fmt.Sprintf("    CertFilePath: %s\n", step.Parameter.CertFile))
 		builder.WriteString("\n")
 
 		builder.WriteString("  Expect:\n")
-		builder.WriteString(fmt.Sprintf("      ShouldFail: %t\n", step.inputStepParams.Parameter.ShouldFail))
+		builder.WriteString(fmt.Sprintf("    ShouldFail: %t\n", step.inputStepParams.Parameter.ShouldFail))
 		builder.WriteString("\n")
 
 		builder.WriteString("  Options:\n")
-		builder.WriteString(fmt.Sprintf("         Timeout: %s\n", time.Duration(step.Options.Timeout)))
+		builder.WriteString(fmt.Sprintf("    Timeout: %s\n", time.Duration(step.Options.Timeout)))
 		builder.WriteString("\n\n")
 	}
 }
@@ -166,10 +166,16 @@ func writeStatusTestStep(step *TestStep, builders ...*strings.Builder) {
 }
 
 // Function to format command information and append it to a string builder.
-func writeCommand(command string, args []string, builders ...*strings.Builder) {
+func writeCommand(privileged bool, command string, args []string, builders ...*strings.Builder) {
 	for _, builder := range builders {
 		builder.WriteString("Executing Command:\n")
-		builder.WriteString(fmt.Sprintf("%s %s", command, strings.Join(args, " ")))
+		switch privileged {
+		case false:
+			builder.WriteString(fmt.Sprintf("%s %s", command, strings.Join(args, " ")))
+		case true:
+			builder.WriteString(fmt.Sprintf("sudo %s %s", command, strings.Join(args, " ")))
+
+		}
 		builder.WriteString("\n\n")
 	}
 }

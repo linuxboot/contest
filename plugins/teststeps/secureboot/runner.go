@@ -17,7 +17,7 @@ import (
 
 const (
 	supportedProto = "ssh"
-	privileged     = "sudo"
+	sudo           = "sudo"
 	jsonFlag       = "--json"
 )
 
@@ -79,96 +79,20 @@ func (r *TargetRunner) Run(ctx xcontext.Context, target *target.Target) error {
 
 	switch r.ts.inputStepParams.Parameter.Command {
 	case "enroll-key":
-
-		if err := supportedHierarchy(r.ts.inputStepParams.Parameter.Hierarchy); err != nil {
-			stderrMsg.WriteString(fmt.Sprintf("%v\n", err))
-
-			return emitStderr(ctx, EventStderr, stderrMsg.String(), target, r.ev, err)
-		}
-
-		if r.ts.Parameter.KeyFile == "" {
-			err := fmt.Errorf("path to keyfile cannot be empty")
-			stderrMsg.WriteString(fmt.Sprintf("%v\n", err))
-
-			return emitStderr(ctx, EventStderr, stderrMsg.String(), target, r.ev, err)
-
-		}
-
-		if r.ts.Parameter.CertFile == "" {
-			err := fmt.Errorf("path to certificate file cannot be empty")
-			stderrMsg.WriteString(fmt.Sprintf("%v\n", err))
-
-			return emitStderr(ctx, EventStderr, stderrMsg.String(), target, r.ev, err)
-
-		}
-
-		writeEnrollKeysTestStep(r.ts, &stdoutMsg, &stderrMsg)
-
-		// for any ambiguity, outcome is an error interface, but it encodes whether the process
-		// was launched sucessfully and it resulted in a failure; err means the launch failed
-		_, err = r.ts.getStatus(ctx, &stdoutMsg, &stderrMsg, transportProto, true, false)
-		if err != nil {
-			stderrMsg.WriteString(fmt.Sprintf("%v\n", err))
-
-			_, err = r.ts.reset(ctx, &stdoutMsg, &stderrMsg, transportProto)
-			if err != nil {
-				stderrMsg.WriteString(fmt.Sprintf("%v\n", err))
-
-				return emitStderr(ctx, EventStderr, stderrMsg.String(), target, r.ev, err)
-			}
-
-			_, err = r.ts.getStatus(ctx, &stdoutMsg, &stderrMsg, transportProto, true, false)
-			if err != nil {
-				stderrMsg.WriteString(fmt.Sprintf("%v\n", err))
-
-				return emitStderr(ctx, EventStderr, stderrMsg.String(), target, r.ev, err)
-			}
-		}
-
-		_, err = r.ts.importKeys(ctx, &stdoutMsg, &stderrMsg, transportProto)
-		if err != nil {
-			stderrMsg.WriteString(fmt.Sprintf("%v\n", err))
-
-			return emitStderr(ctx, EventStderr, stderrMsg.String(), target, r.ev, err)
-		}
-
-		_, err = r.ts.enrollKeys(ctx, &stdoutMsg, &stderrMsg, transportProto)
-		if err != nil {
+		if _, err = r.ts.enrollKeys(ctx, &stdoutMsg, &stderrMsg, transportProto); err != nil {
 			stderrMsg.WriteString(fmt.Sprintf("%v\n", err))
 
 			return emitStderr(ctx, EventStderr, stderrMsg.String(), target, r.ev, err)
 		}
 	case "sign":
-
-		if len(r.ts.Parameter.Files) == 0 {
-			err := fmt.Errorf("no file(s) provided to be signed")
+		if _, err := r.ts.signFile(ctx, &stdoutMsg, &stderrMsg, transportProto); err != nil {
 			stderrMsg.WriteString(fmt.Sprintf("%v\n", err))
 
 			return emitStderr(ctx, EventStderr, stderrMsg.String(), target, r.ev, err)
-		}
-
-		writeSignTestStep(r.ts, &stdoutMsg, &stderrMsg)
-
-		for _, filePath := range r.ts.Parameter.Files {
-			_, err := r.ts.signFile(ctx, &stdoutMsg, &stderrMsg, transportProto, filePath)
-			if err != nil {
-				stderrMsg.WriteString(fmt.Sprintf("%v\n", err))
-
-				return emitStderr(ctx, EventStderr, stderrMsg.String(), target, r.ev, err)
-			}
 		}
 	case "reset":
-		writeResetTestStep(r.ts, &stdoutMsg, &stderrMsg)
 
-		_, err := r.ts.reset(ctx, &stdoutMsg, &stderrMsg, transportProto)
-		if err != nil {
-			stderrMsg.WriteString(fmt.Sprintf("%v\n", err))
-
-			return emitStderr(ctx, EventStderr, stderrMsg.String(), target, r.ev, err)
-		}
-
-		_, err = r.ts.getStatus(ctx, &stdoutMsg, &stderrMsg, transportProto, true, false)
-		if err != nil {
+		if _, err = r.ts.reset(ctx, &stdoutMsg, &stderrMsg, transportProto); err != nil {
 			stderrMsg.WriteString(fmt.Sprintf("%v\n", err))
 
 			return emitStderr(ctx, EventStderr, stderrMsg.String(), target, r.ev, err)
@@ -176,8 +100,7 @@ func (r *TargetRunner) Run(ctx xcontext.Context, target *target.Target) error {
 	case "status":
 		writeStatusTestStep(r.ts, &stdoutMsg, &stderrMsg)
 
-		_, err = r.ts.getStatus(ctx, &stdoutMsg, &stderrMsg, transportProto, r.ts.Parameter.SetupMode, r.ts.Parameter.SecureBoot)
-		if err != nil {
+		if _, err = r.ts.getStatus(ctx, &stdoutMsg, &stderrMsg, transportProto, r.ts.Parameter.SetupMode, r.ts.Parameter.SecureBoot); err != nil {
 			stderrMsg.WriteString(fmt.Sprintf("%v\n", err))
 
 			return emitStderr(ctx, EventStderr, stderrMsg.String(), target, r.ev, err)
@@ -223,10 +146,25 @@ func (ts *TestStep) checkInstalled(
 	return outcome, nil
 }
 
+func (ts *TestStep) setEfivarsMutable(ctx xcontext.Context, stdoutMsg, stderrMsg *strings.Builder, transport transport.Transport) (outcome, error) {
+	_, _, outcome, err := execCmdWithArgs(ctx, true, "chattr", []string{"-i", "/sys/firmware/efi/efivars/KEK-*"}, stdoutMsg, stderrMsg, transport)
+	if err != nil {
+		return outcome, err
+	}
+
+	_, _, outcome, err = execCmdWithArgs(ctx, true, "chattr", []string{"-i", "/sys/firmware/efi/efivars/db-*"}, stdoutMsg, stderrMsg, transport)
+	if err != nil {
+		return outcome, err
+	}
+	return outcome, nil
+}
+
 func (ts *TestStep) getStatus(
 	ctx xcontext.Context, stdoutMsg, stderrMsg *strings.Builder,
 	transport transport.Transport, expectSetupMode, expectSecureBoot bool,
 ) (outcome, error) {
+	writeStatusTestStep(ts, stdoutMsg, stderrMsg)
+
 	outcome, status, err := ts.status(ctx, stdoutMsg, stderrMsg, transport)
 	if err != nil {
 		return outcome, err
@@ -238,102 +176,17 @@ func (ts *TestStep) getStatus(
 }
 
 func (ts *TestStep) createKeys(ctx xcontext.Context, stdoutMsg, stderrMsg *strings.Builder, transport transport.Transport) (outcome, error) {
-	args := []string{
-		ts.inputStepParams.Parameter.ToolPath,
-		"create-keys",
-	}
+	_, _, outcome, err := execCmdWithArgs(ctx, true, ts.inputStepParams.Parameter.ToolPath, []string{"create-keys"}, stdoutMsg, stderrMsg, transport)
 
-	writeCommand(privileged, args, stdoutMsg, stderrMsg)
-
-	proc, err := transport.NewProcess(ctx, privileged, args, "")
-	if err != nil {
-		err := fmt.Errorf("failed to create process: %v", err)
-
-		return nil, err
-	}
-
-	stdoutPipe, err := proc.StdoutPipe()
-	if err != nil {
-		err := fmt.Errorf("failed to pipe stdout: %v", err)
-		stderrMsg.WriteString(fmt.Sprintf("%v\n", err))
-
-		return nil, err
-	}
-
-	stderrPipe, err := proc.StderrPipe()
-	if err != nil {
-		err := fmt.Errorf("failed to pipe stderr: %v", err)
-		stderrMsg.WriteString(fmt.Sprintf("%v\n", err))
-
-		return nil, err
-	}
-
-	// try to start the process, if that succeeds then the outcome is the result of
-	// waiting on the process for its result; this way there's a semantic difference
-	// between "an error occured while launching" and "this was the outcome of the execution"
-	outcome := proc.Start(ctx)
-	if outcome == nil {
-		outcome = proc.Wait(ctx)
-	}
-
-	stdout, stderr := getOutputFromReader(stdoutPipe, stderrPipe)
-
-	stdoutMsg.WriteString(fmt.Sprintf("Command Stdout:\n%s\n", string(stdout)))
-	stderrMsg.WriteString(fmt.Sprintf("Command Stderr: \n%s\n", string(stderr)))
-
-	stdoutMsg.WriteString("\n")
-	stderrMsg.WriteString("\n")
-
-	return outcome, nil
+	return outcome, err
 }
 
 func (ts *TestStep) status(ctx xcontext.Context, stdoutMsg, stderrMsg *strings.Builder, transport transport.Transport) (outcome, Status, error) {
-	args := []string{
-		ts.inputStepParams.Parameter.ToolPath,
-		"status",
-		jsonFlag,
-	}
-
-	writeCommand(privileged, args, stdoutMsg, stderrMsg)
-
-	proc, err := transport.NewProcess(ctx, privileged, args, "")
+	stdout, stderr, outcome, err := execCmdWithArgs(ctx, true, ts.inputStepParams.Parameter.ToolPath, []string{"status", jsonFlag}, stdoutMsg, stderrMsg, transport)
 	if err != nil {
-		err := fmt.Errorf("failed to create process: %v", err)
-
 		return nil, Status{}, err
 	}
 
-	stdoutPipe, err := proc.StdoutPipe()
-	if err != nil {
-		err := fmt.Errorf("failed to pipe stdout: %v", err)
-		stderrMsg.WriteString(fmt.Sprintf("%v\n", err))
-
-		return nil, Status{}, err
-	}
-
-	stderrPipe, err := proc.StderrPipe()
-	if err != nil {
-		err := fmt.Errorf("failed to pipe stderr: %v", err)
-		stderrMsg.WriteString(fmt.Sprintf("%v\n", err))
-
-		return nil, Status{}, err
-	}
-
-	// try to start the process, if that succeeds then the outcome is the result of
-	// waiting on the process for its result; this way there's a semantic difference
-	// between "an error occured while launching" and "this was the outcome of the execution"
-	outcome := proc.Start(ctx)
-	if outcome == nil {
-		outcome = proc.Wait(ctx)
-	}
-
-	stdout, stderr := getOutputFromReader(stdoutPipe, stderrPipe)
-
-	stdoutMsg.WriteString(fmt.Sprintf("Command Stdout:\n%s\n", string(stdout)))
-	stderrMsg.WriteString(fmt.Sprintf("Command Stderr: \n%s\n", string(stderr)))
-
-	stdoutMsg.WriteString("\n")
-	stderrMsg.WriteString("\n")
 	status, err := parseStatus(stdoutMsg, stderrMsg, stdout, stderr)
 	if err != nil {
 		return nil, Status{}, err
@@ -356,10 +209,10 @@ func checkStatus(stdoutMsg, stderrMsg *strings.Builder, status Status, expectSet
 	return nil
 }
 
-func parseStatus(stdoutMsg, stderrMsg *strings.Builder, stdout, stderr []byte) (Status, error) {
+func parseStatus(stdoutMsg, stderrMsg *strings.Builder, stdout, stderr string) (Status, error) {
 	status := Status{}
 	if len(stdout) != 0 {
-		if err := json.Unmarshal(stdout, &status); err != nil {
+		if err := json.Unmarshal([]byte(stdout), &status); err != nil {
 			return Status{}, fmt.Errorf("failed to unmarshal stdout: %v", err)
 		}
 	}
@@ -375,70 +228,25 @@ func (ts *TestStep) reset(
 	ctx xcontext.Context, stdoutMsg, stderrMsg *strings.Builder,
 	transport transport.Transport,
 ) (outcome, error) {
-	var outcome outcome
+	writeResetTestStep(ts, stdoutMsg, stderrMsg)
 
-	args := []string{
-		ts.inputStepParams.Parameter.ToolPath,
-		"reset",
-	}
-
-	writeCommand(privileged, args, stdoutMsg, stderrMsg)
-
-	proc, err := transport.NewProcess(ctx, privileged, args, "")
+	_, stderr, outcome, err := execCmdWithArgs(ctx, true, ts.inputStepParams.Parameter.ToolPath, []string{"reset"}, stdoutMsg, stderrMsg, transport)
 	if err != nil {
-		err := fmt.Errorf("failed to create process: %v", err)
-		stderrMsg.WriteString(fmt.Sprintf("%v\n", err))
-
-		return nil, err
+		return outcome, err
 	}
-
-	stdoutPipe, err := proc.StdoutPipe()
-	if err != nil {
-		err := fmt.Errorf("failed to pipe stdout: %v", err)
-		stderrMsg.WriteString(fmt.Sprintf("%v\n", err))
-
-		return nil, err
-	}
-
-	stderrPipe, err := proc.StderrPipe()
-	if err != nil {
-		err := fmt.Errorf("failed to pipe stderr: %v", err)
-		stderrMsg.WriteString(fmt.Sprintf("%v\n", err))
-
-		return nil, err
-	}
-
-	// try to start the process, if that succeeds then the outcome is the result of
-	// waiting on the process for its result; this way there's a semantic difference
-	// between "an error occured while launching" and "this was the outcome of the execution"
-	outcome = proc.Start(ctx)
-	if outcome == nil {
-		outcome = proc.Wait(ctx)
-	}
-
-	stdout, stderr := getOutputFromReader(stdoutPipe, stderrPipe)
-
-	stdoutMsg.WriteString(fmt.Sprintf("Command Stdout:\n%s\n", string(stdout)))
-	stderrMsg.WriteString(fmt.Sprintf("Command Stderr: \n%s\n", string(stderr)))
 
 	if len(stderr) != 0 {
 		return outcome, fmt.Errorf("failed to reset secure boot state %v", string(stderr))
 	}
 
-	stdoutMsg.WriteString("\n")
-	stderrMsg.WriteString("\n")
-
-	return outcome, err
+	return ts.getStatus(ctx, stdoutMsg, stderrMsg, transport, true, false)
 }
 
 func (ts *TestStep) importKeys(
 	ctx xcontext.Context, stdoutMsg, stderrMsg *strings.Builder,
 	transport transport.Transport,
 ) (outcome, error) {
-	var outcome outcome
-
 	args := []string{
-		ts.Parameter.ToolPath,
 		"import-keys",
 		"--force",
 	}
@@ -452,51 +260,11 @@ func (ts *TestStep) importKeys(
 		args = append(args, fmt.Sprintf("--pk-key=%v", ts.inputStepParams.Parameter.KeyFile), fmt.Sprintf("--pk-cert=%v", ts.inputStepParams.Parameter.CertFile))
 	}
 
-	writeCommand(privileged, args, stdoutMsg, stderrMsg)
-
-	proc, err := transport.NewProcess(ctx, privileged, args, "")
-	if err != nil {
-		err := fmt.Errorf("failed to create process: %v", err)
-		stderrMsg.WriteString(fmt.Sprintf("%v\n", err))
-
-		return nil, err
-	}
-
-	stdoutPipe, err := proc.StdoutPipe()
-	if err != nil {
-		err := fmt.Errorf("failed to pipe stdout: %v", err)
-		stderrMsg.WriteString(fmt.Sprintf("%v\n", err))
-
-		return nil, err
-	}
-
-	stderrPipe, err := proc.StderrPipe()
-	if err != nil {
-		err := fmt.Errorf("failed to pipe stderr: %v", err)
-		stderrMsg.WriteString(fmt.Sprintf("%v\n", err))
-
-		return nil, err
-	}
-
-	// try to start the process, if that succeeds then the outcome is the result of
-	// waiting on the process for its result; this way there's a semantic difference
-	// between "an error occured while launching" and "this was the outcome of the execution"
-	outcome = proc.Start(ctx)
-	if outcome == nil {
-		outcome = proc.Wait(ctx)
-	}
-
-	stdout, stderr := getOutputFromReader(stdoutPipe, stderrPipe)
-
-	stdoutMsg.WriteString(fmt.Sprintf("Command Stdout:\n%s\n", string(stdout)))
-	stderrMsg.WriteString(fmt.Sprintf("Command Stderr: \n%s\n", string(stderr)))
+	_, stderr, outcome, err := execCmdWithArgs(ctx, true, ts.Parameter.ToolPath, args, stdoutMsg, stderrMsg, transport)
 
 	if len(stderr) != 0 {
 		return outcome, fmt.Errorf("failed to import secure boot keys %v", string(stderr))
 	}
-
-	stdoutMsg.WriteString("\n")
-	stderrMsg.WriteString("\n")
 
 	return outcome, err
 }
@@ -505,10 +273,39 @@ func (ts *TestStep) enrollKeys(
 	ctx xcontext.Context, stdoutMsg, stderrMsg *strings.Builder,
 	transport transport.Transport,
 ) (outcome, error) {
-	var outcome outcome
+	if err := supportedHierarchy(ts.inputStepParams.Parameter.Hierarchy); err != nil {
+		return nil, err
+	}
+
+	if ts.Parameter.KeyFile == "" {
+		return nil, fmt.Errorf("path to keyfile cannot be empty")
+	}
+
+	if ts.Parameter.CertFile == "" {
+		return nil, fmt.Errorf("path to certificate file cannot be empty")
+	}
+
+	writeEnrollKeysTestStep(ts, stdoutMsg, stderrMsg)
+	if outcome, err := ts.setEfivarsMutable(ctx, stdoutMsg, stderrMsg, transport); err != nil {
+		return outcome, err
+	}
+
+	if _, err := ts.getStatus(ctx, stdoutMsg, stderrMsg, transport, true, false); err != nil {
+
+		if outcome, err := ts.reset(ctx, stdoutMsg, stderrMsg, transport); err != nil {
+			return outcome, err
+		}
+
+		if outcome, err := ts.getStatus(ctx, stdoutMsg, stderrMsg, transport, true, false); err != nil {
+			return outcome, err
+		}
+	}
+
+	if outcome, err := ts.importKeys(ctx, stdoutMsg, stderrMsg, transport); err != nil {
+		return outcome, err
+	}
 
 	args := []string{
-		ts.inputStepParams.Parameter.ToolPath,
 		"enroll-keys",
 		"--microsoft",
 	}
@@ -521,44 +318,8 @@ func (ts *TestStep) enrollKeys(
 	case "PK":
 		args = append(args, fmt.Sprintf("--partial=%v", ts.inputStepParams.Parameter.Hierarchy))
 	}
-	writeCommand(privileged, args, stdoutMsg, stderrMsg)
 
-	proc, err := transport.NewProcess(ctx, privileged, args, "")
-	if err != nil {
-		err := fmt.Errorf("failed to create process: %v", err)
-		stderrMsg.WriteString(fmt.Sprintf("%v\n", err))
-
-		return nil, err
-	}
-
-	stdoutPipe, err := proc.StdoutPipe()
-	if err != nil {
-		err := fmt.Errorf("failed to pipe stdout: %v", err)
-		stderrMsg.WriteString(fmt.Sprintf("%v\n", err))
-
-		return nil, err
-	}
-
-	stderrPipe, err := proc.StderrPipe()
-	if err != nil {
-		err := fmt.Errorf("failed to pipe stderr: %v", err)
-		stderrMsg.WriteString(fmt.Sprintf("%v\n", err))
-
-		return nil, err
-	}
-
-	// try to start the process, if that succeeds then the outcome is the result of
-	// waiting on the process for its result; this way there's a semantic difference
-	// between "an error occured while launching" and "this was the outcome of the execution"
-	outcome = proc.Start(ctx)
-	if outcome == nil {
-		outcome = proc.Wait(ctx)
-	}
-
-	stdout, stderr := getOutputFromReader(stdoutPipe, stderrPipe)
-
-	stdoutMsg.WriteString(fmt.Sprintf("Command Stdout:\n%s\n", string(stdout)))
-	stderrMsg.WriteString(fmt.Sprintf("Command Stderr: \n%s\n", string(stderr)))
+	_, stderr, outcome, err := execCmdWithArgs(ctx, true, ts.inputStepParams.Parameter.ToolPath, args, stdoutMsg, stderrMsg, transport)
 
 	switch ts.Parameter.ShouldFail {
 	case false:
@@ -571,32 +332,49 @@ func (ts *TestStep) enrollKeys(
 		}
 	}
 
-	stdoutMsg.WriteString("\n")
-	stderrMsg.WriteString("\n")
-
 	return outcome, err
 }
 
 func (ts *TestStep) signFile(
 	ctx xcontext.Context, stdoutMsg, stderrMsg *strings.Builder,
-	transport transport.Transport, filePath string,
+	transport transport.Transport,
 ) (outcome, error) {
-	var outcome outcome
-
-	args := []string{
-		ts.inputStepParams.Parameter.ToolPath,
-		"sign",
-		filePath,
+	if len(ts.Parameter.Files) == 0 {
+		return nil, fmt.Errorf("no  file(s) provided to be signed")
 	}
 
-	writeCommand(privileged, args, stdoutMsg, stderrMsg)
+	writeSignTestStep(ts, stdoutMsg, stderrMsg)
 
-	proc, err := transport.NewProcess(ctx, privileged, args, "")
+	for _, filePath := range ts.Parameter.Files {
+		if _, _, outcome, err := execCmdWithArgs(ctx, true, ts.inputStepParams.Parameter.Command, []string{"sign", filePath}, stdoutMsg, stderrMsg, transport); err != nil {
+			return outcome, err
+		}
+	}
+
+	return nil, nil
+}
+
+func execCmdWithArgs(ctx xcontext.Context, privileged bool, cmd string, args []string, stdoutMsg, stderrMsg *strings.Builder, transp transport.Transport) (string, string, error, error) {
+	writeCommand(privileged, cmd, args, stdoutMsg, stderrMsg)
+
+	var (
+		err  error
+		proc transport.Process
+	)
+
+	switch privileged {
+	case false:
+		proc, err = transp.NewProcess(ctx, cmd, args, "")
+	case true:
+		newArgs := []string{cmd}
+		newArgs = append(newArgs, args...)
+		proc, err = transp.NewProcess(ctx, sudo, newArgs, "")
+	}
+
 	if err != nil {
 		err := fmt.Errorf("failed to create process: %v", err)
-		stderrMsg.WriteString(fmt.Sprintf("%v\n", err))
 
-		return nil, err
+		return "", "", nil, err
 	}
 
 	stdoutPipe, err := proc.StdoutPipe()
@@ -604,7 +382,7 @@ func (ts *TestStep) signFile(
 		err := fmt.Errorf("failed to pipe stdout: %v", err)
 		stderrMsg.WriteString(fmt.Sprintf("%v\n", err))
 
-		return nil, err
+		return "", "", nil, err
 	}
 
 	stderrPipe, err := proc.StderrPipe()
@@ -612,13 +390,13 @@ func (ts *TestStep) signFile(
 		err := fmt.Errorf("failed to pipe stderr: %v", err)
 		stderrMsg.WriteString(fmt.Sprintf("%v\n", err))
 
-		return nil, err
+		return "", "", nil, err
 	}
 
 	// try to start the process, if that succeeds then the outcome is the result of
 	// waiting on the process for its result; this way there's a semantic difference
 	// between "an error occured while launching" and "this was the outcome of the execution"
-	outcome = proc.Start(ctx)
+	outcome := proc.Start(ctx)
 	if outcome == nil {
 		outcome = proc.Wait(ctx)
 	}
@@ -628,14 +406,10 @@ func (ts *TestStep) signFile(
 	stdoutMsg.WriteString(fmt.Sprintf("Command Stdout:\n%s\n", string(stdout)))
 	stderrMsg.WriteString(fmt.Sprintf("Command Stderr: \n%s\n", string(stderr)))
 
-	if len(stderr) != 0 {
-		return outcome, fmt.Errorf("failed to sign file %s: %v", filePath, string(stderr))
-	}
-
 	stdoutMsg.WriteString("\n")
 	stderrMsg.WriteString("\n")
 
-	return outcome, err
+	return string(stdout), string(stderr), outcome, nil
 }
 
 // getOutputFromReader reads data from the provided io.Reader instances
