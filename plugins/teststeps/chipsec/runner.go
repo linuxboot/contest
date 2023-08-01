@@ -22,6 +22,7 @@ const (
 	privileged     = "sudo"
 	cmd            = "python3"
 	bin            = "chipsec_main.py"
+	nixOSBin       = "chipsec_main"
 	jsonFlag       = "--json"
 	outputFile     = "output.json"
 )
@@ -102,10 +103,12 @@ func (r *TargetRunner) Run(ctx xcontext.Context, target *target.Target) error {
 }
 
 func (r *TargetRunner) runModule(ctx xcontext.Context, stdoutMsg, stderrMsg *strings.Builder, target *target.Target,
-	transport transport.Transport,
+	transp transport.Transport,
 ) (outcome, error) {
 	var (
 		outcome  outcome
+		err      error
+		proc     transport.Process
 		finalErr error
 	)
 
@@ -113,18 +116,33 @@ func (r *TargetRunner) runModule(ctx xcontext.Context, stdoutMsg, stderrMsg *str
 		stdoutMsg.WriteString("\n\n\n\n")
 		stdoutMsg.WriteString(fmt.Sprintf("Running tests for chipsec module '%s' now.\n", module))
 
-		args := []string{
-			cmd,
-			filepath.Join(r.ts.Parameter.ToolPath, bin),
-			"-m",
-			module,
-			jsonFlag,
-			filepath.Join(r.ts.Parameter.ToolPath, outputFile),
-		}
+		switch r.ts.Parameter.NixOS {
+		case false:
+			args := []string{
+				cmd,
+				filepath.Join(r.ts.Parameter.ToolPath, bin),
+				"-m",
+				module,
+				jsonFlag,
+				filepath.Join(r.ts.Parameter.ToolPath, outputFile),
+			}
 
-		proc, err := transport.NewProcess(ctx, privileged, args, "")
-		if err != nil {
-			return nil, fmt.Errorf("Failed to create proc: %w", err)
+			proc, err = transp.NewProcess(ctx, privileged, args, "")
+			if err != nil {
+				return nil, fmt.Errorf("Failed to create proc: %w", err)
+			}
+		case true:
+			args := []string{
+				"-m",
+				module,
+				jsonFlag,
+				filepath.Join(r.ts.Parameter.ToolPath, outputFile),
+			}
+
+			proc, err = transp.NewProcess(ctx, nixOSBin, args, "")
+			if err != nil {
+				return nil, fmt.Errorf("Failed to create proc: %w", err)
+			}
 		}
 
 		writeCommand(proc.String(), stdoutMsg, stderrMsg)
@@ -157,7 +175,7 @@ func (r *TargetRunner) runModule(ctx xcontext.Context, stdoutMsg, stderrMsg *str
 
 		stdoutMsg.WriteString(fmt.Sprintf("Stdout:\n%s\n", string(stdout)))
 
-		err = r.parseOutput(ctx, stdoutMsg, stderrMsg, transport, module)
+		err = r.parseOutput(ctx, stdoutMsg, stderrMsg, transp, module)
 		if err != nil {
 			finalErr = err
 

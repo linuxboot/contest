@@ -28,6 +28,7 @@ type inputStepParams struct {
 	Parameter struct {
 		Modules  []string `json:"modules"`
 		ToolPath string   `json:"tool_path"`
+		NixOS    bool     `json:"nix_os"`
 	} `json:"parameter"`
 
 	Options struct {
@@ -69,7 +70,7 @@ func (ts *TestStep) validateAndPopulate(stepParams test.TestStepParameters) erro
 		return fmt.Errorf("missing or empty 'module' parameter")
 	}
 
-	if ts.Parameter.ToolPath == "" {
+	if ts.Parameter.ToolPath == "" && !ts.Parameter.NixOS {
 		return fmt.Errorf("missing or empty 'tool_path' parameter")
 	}
 

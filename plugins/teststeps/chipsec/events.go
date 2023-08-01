@@ -66,6 +66,8 @@ func writeTestStep(step *TestStep, builders ...*strings.Builder) {
 
 		builder.WriteString("  Parameter:\n")
 		builder.WriteString(fmt.Sprintf("    ToolPath: %s\n", step.Parameter.ToolPath))
+		builder.WriteString(fmt.Sprintf("    NixOS: %t\n", step.Parameter.NixOS))
+
 		builder.WriteString("    Modules:\n")
 		for i, module := range step.Parameter.Modules {
 			builder.WriteString(fmt.Sprintf("      Module %d: %s\n", i+1, module))

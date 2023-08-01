@@ -40,8 +40,8 @@ The "BIOS Certificate" teststep allows you to enable, update or disable BIOS cer
           proto: ssh
           options:
             host: 192.168.1.100
-            user: secunettest
-            password: testsecunet
+            user: root
+            password: XXX
         options:
           timeout: 1m
         parameter:
@@ -89,8 +89,8 @@ The "BIOS Get" teststep allows you to get BIOS settings and expect values.
           proto: ssh
           options:
             host: 192.168.1.100
-            user: secunettest
-            password: testsecunet
+            user: root
+            password: XXX
         options:
           timeout: 1m
         parameter:
@@ -139,8 +139,8 @@ The "BIOS Set" teststep allows you to set BIOS settings with a specific value.
           proto: ssh
           options:
             host: 192.168.1.100
-            user: secunettest
-            password: testsecunet
+            user: root
+            password: XXX
         options:
           timeout: 1m
         parameter:
@@ -172,6 +172,7 @@ The "ChipSec" teststep allows you to run different chipsec modules on your DUT.
         parameter:
             tool_path: TOOL_PATH                # optional, type: string
             modules: [MODULE1, MODULE2]         # optional, type: array of strings
+            nix_os: NIXOS_FLAG                  # optional, type: boolean, default: false (tool_path is not required if set)
         options:
             timeout: TIMEOUT                    # optional, type: duration, default: 1m
 ```
@@ -189,7 +190,7 @@ The "ChipSec" teststep allows you to run different chipsec modules on your DUT.
           user: user
           password: password
       parameter:
-        tool_path: /home/secunettest/chipsec
+        tool_path: /tmp/chipsec
         modules: [
           common.bios_kbrd_buffer, 
           common.bios_smi, 
