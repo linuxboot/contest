@@ -70,13 +70,6 @@ func (r *TargetRunner) Run(ctx xcontext.Context, target *target.Target) error {
 		return emitStderr(ctx, EventStderr, stderrMsg.String(), target, r.ev, err)
 	}
 
-	_, err = r.ts.checkInstalled(ctx, &stdoutMsg, &stderrMsg, transportProto)
-	if err != nil {
-		stderrMsg.WriteString(fmt.Sprintf("%v\n", err))
-
-		return emitStderr(ctx, EventStderr, stderrMsg.String(), target, r.ev, err)
-	}
-
 	switch r.ts.inputStepParams.Parameter.Command {
 	case "enroll-key":
 		if _, err = r.ts.enrollKeys(ctx, &stdoutMsg, &stderrMsg, transportProto); err != nil {
@@ -126,7 +119,7 @@ func (ts *TestStep) checkInstalled(
 	}
 
 	if status.Installed {
-		return outcome, nil
+		return nil, nil
 	}
 
 	outcome, err = ts.createKeys(ctx, stdoutMsg, stderrMsg, transport)
@@ -147,7 +140,12 @@ func (ts *TestStep) checkInstalled(
 }
 
 func (ts *TestStep) setEfivarsMutable(ctx xcontext.Context, stdoutMsg, stderrMsg *strings.Builder, transport transport.Transport) (outcome, error) {
-	_, _, outcome, err := execCmdWithArgs(ctx, true, "chattr", []string{"-i", "/sys/firmware/efi/efivars/KEK-*"}, stdoutMsg, stderrMsg, transport)
+	_, _, outcome, err := execCmdWithArgs(ctx, true, "chattr", []string{"-i", "/sys/firmware/efi/efivars/PK-*"}, stdoutMsg, stderrMsg, transport)
+	if err != nil {
+		return outcome, err
+	}
+
+	_, _, outcome, err = execCmdWithArgs(ctx, true, "chattr", []string{"-i", "/sys/firmware/efi/efivars/KEK-*"}, stdoutMsg, stderrMsg, transport)
 	if err != nil {
 		return outcome, err
 	}
@@ -286,7 +284,8 @@ func (ts *TestStep) enrollKeys(
 	}
 
 	writeEnrollKeysTestStep(ts, stdoutMsg, stderrMsg)
-	if outcome, err := ts.setEfivarsMutable(ctx, stdoutMsg, stderrMsg, transport); err != nil {
+
+	if outcome, err := ts.checkInstalled(ctx, stdoutMsg, stderrMsg, transport); err != nil {
 		return outcome, err
 	}
 
@@ -299,6 +298,10 @@ func (ts *TestStep) enrollKeys(
 		if outcome, err := ts.getStatus(ctx, stdoutMsg, stderrMsg, transport, true, false); err != nil {
 			return outcome, err
 		}
+	}
+
+	if outcome, err := ts.setEfivarsMutable(ctx, stdoutMsg, stderrMsg, transport); err != nil {
+		return outcome, err
 	}
 
 	if outcome, err := ts.importKeys(ctx, stdoutMsg, stderrMsg, transport); err != nil {
@@ -332,6 +335,9 @@ func (ts *TestStep) enrollKeys(
 		}
 	}
 
+	// enrolled keys needs some time to be persistent
+	time.Sleep(1500 * time.Millisecond)
+
 	return outcome, err
 }
 
@@ -344,6 +350,10 @@ func (ts *TestStep) signFile(
 	}
 
 	writeSignTestStep(ts, stdoutMsg, stderrMsg)
+
+	if outcome, err := ts.checkInstalled(ctx, stdoutMsg, stderrMsg, transport); err != nil {
+		return outcome, err
+	}
 
 	for _, filePath := range ts.Parameter.Files {
 		if _, _, outcome, err := execCmdWithArgs(ctx, true, ts.inputStepParams.Parameter.Command, []string{"sign", filePath}, stdoutMsg, stderrMsg, transport); err != nil {
