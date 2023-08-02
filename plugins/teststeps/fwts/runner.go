@@ -188,7 +188,7 @@ func (r *TargetRunner) parseOutput(ctx xcontext.Context, stdoutMsg, stderrMsg *s
 	// try to start the process, if that succeeds then the outcome is the result of
 	// waiting on the process for its result; this way there's a semantic difference
 	// between "an error occured while launching" and "this was the outcome of the execution"
-	proc.Start(ctx)
+	_ = proc.Start(ctx)
 
 	stdout, stderr := getOutputFromReader(stdoutPipe, stderrPipe)
 
@@ -200,14 +200,14 @@ func (r *TargetRunner) parseOutput(ctx xcontext.Context, stdoutMsg, stderrMsg *s
 	stderrMsg.WriteString(fmt.Sprintf("\n\nTest logs:\n%s\n", string(stdout)))
 
 	if len(stdout) != 0 {
-		re, err := regexp.Compile("Total:\\s+\\|\\s+\\d+\\|\\s+\\d+\\|\\s+\\d+\\|\\s+\\d+\\|\\s+\\d+\\|\\s+\\d+\\|")
+		re, err := regexp.Compile(`Total:\s+\|\s+\d+\|\s+\d+\|\s+\d+\|\s+\d+\|\s+\d+\|\s+\d+\|`)
 		if err != nil {
 			return fmt.Errorf("Failed to create the regex: %v", err)
 		}
 
 		match := re.FindString(string(stdout))
 		if len(match) == 0 {
-			stderrMsg.WriteString(fmt.Sprintf("Failed to parse stdout. Could not find result.\n"))
+			stderrMsg.WriteString("Failed to parse stdout. Could not find result.\n")
 		} else {
 			data, err := parseLine(string(match))
 			if err != nil {
