@@ -34,7 +34,9 @@ import (
 	chipsec "github.com/linuxboot/contest/plugins/teststeps/chipsec"
 	ts_cmd "github.com/linuxboot/contest/plugins/teststeps/cmd"
 	copy "github.com/linuxboot/contest/plugins/teststeps/copy"
-	cpucmd "github.com/linuxboot/contest/plugins/teststeps/cpucmd"
+	cpuload "github.com/linuxboot/contest/plugins/teststeps/cpuload"
+	cpuset "github.com/linuxboot/contest/plugins/teststeps/cpuset"
+	cpustats "github.com/linuxboot/contest/plugins/teststeps/cpustats"
 	dutctl "github.com/linuxboot/contest/plugins/teststeps/dutctl"
 	echo "github.com/linuxboot/contest/plugins/teststeps/echo"
 	exec "github.com/linuxboot/contest/plugins/teststeps/exec"
@@ -59,7 +61,9 @@ func getPluginConfig() *server.PluginConfig {
 	pc.TestFetcherLoaders = append(pc.TestFetcherLoaders, literal.Load)
 	pc.TestFetcherLoaders = append(pc.TestFetcherLoaders, uri.Load)
 	pc.TestStepLoaders = append(pc.TestStepLoaders, ts_cmd.Load)
-	pc.TestStepLoaders = append(pc.TestStepLoaders, cpucmd.Load)
+	pc.TestStepLoaders = append(pc.TestStepLoaders, cpustats.Load)
+	pc.TestStepLoaders = append(pc.TestStepLoaders, cpuload.Load)
+	pc.TestStepLoaders = append(pc.TestStepLoaders, cpuset.Load)
 	pc.TestStepLoaders = append(pc.TestStepLoaders, chipsec.Load)
 	pc.TestStepLoaders = append(pc.TestStepLoaders, fwts.Load)
 	pc.TestStepLoaders = append(pc.TestStepLoaders, echo.Load)
