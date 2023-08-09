@@ -154,6 +154,11 @@ func (ts *TestStep) setEfivarsMutable(ctx xcontext.Context, stdoutMsg, stderrMsg
 	if err != nil {
 		return outcome, err
 	}
+
+	_, _, outcome, err = execCmdWithArgs(ctx, true, "chattr", []string{"-i", "/sys/firmware/efi/efivars/dbx-*"}, stdoutMsg, stderrMsg, transport)
+	if err != nil {
+		return outcome, err
+	}
 	return outcome, nil
 }
 
@@ -250,6 +255,8 @@ func (ts *TestStep) importKeys(
 	}
 
 	switch ts.Parameter.Hierarchy {
+	case "dbx":
+		args = append(args, fmt.Sprintf("--kek-key=%v", ts.inputStepParams.Parameter.KeyFile), fmt.Sprintf("--kek-cert=%v", ts.inputStepParams.Parameter.CertFile))
 	case "db":
 		args = append(args, fmt.Sprintf("--kek-key=%v", ts.inputStepParams.Parameter.KeyFile), fmt.Sprintf("--kek-cert=%v", ts.inputStepParams.Parameter.CertFile))
 	case "KEK":
@@ -311,15 +318,7 @@ func (ts *TestStep) enrollKeys(
 	args := []string{
 		"enroll-keys",
 		"--microsoft",
-	}
-
-	switch ts.inputStepParams.Parameter.Hierarchy {
-	case "db":
-		args = append(args, fmt.Sprintf("--partial=%v", ts.inputStepParams.Parameter.Hierarchy))
-	case "KEK":
-		args = append(args, fmt.Sprintf("--partial=%v", ts.inputStepParams.Parameter.Hierarchy))
-	case "PK":
-		args = append(args, fmt.Sprintf("--partial=%v", ts.inputStepParams.Parameter.Hierarchy))
+		fmt.Sprintf("--partial=%v", ts.inputStepParams.Parameter.Hierarchy),
 	}
 
 	_, stderr, outcome, err := execCmdWithArgs(ctx, true, ts.inputStepParams.Parameter.ToolPath, args, stdoutMsg, stderrMsg, transport)
@@ -453,6 +452,8 @@ func readBuffer(r io.Reader) ([]byte, error) {
 func supportedHierarchy(hierarchy string) error {
 	switch hierarchy {
 	case "db":
+		return nil
+	case "dbx":
 		return nil
 	case "KEK":
 		return nil
