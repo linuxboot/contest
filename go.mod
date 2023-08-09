@@ -9,6 +9,7 @@ require (
 	github.com/bufbuild/connect-go v1.5.1
 	github.com/bufbuild/connect-grpcreflect-go v1.0.0
 	github.com/chappjc/logrus-prefix v0.0.0-20180227015900-3a1d64819adb
+	github.com/firmwareci/system-suite v0.0.0-20230809065410-69922e74ec6b
 	github.com/go-sql-driver/mysql v1.6.0
 	github.com/google/go-safeweb v0.0.0-20211026121254-697f59a9d57f
 	github.com/google/goexpect v0.0.0-20200703111054-623d5ca06f56
@@ -23,7 +24,7 @@ require (
 	github.com/prometheus/common v0.37.1
 	github.com/sirupsen/logrus v1.8.1
 	github.com/spf13/pflag v1.0.6-0.20210604193023-d5e0c0615ace
-	github.com/stretchr/testify v1.8.1
+	github.com/stretchr/testify v1.8.3
 	github.com/u-root/cpu v0.0.0-20210922222005-0a371c3a086d
 	github.com/u-root/u-root v7.0.0+incompatible
 	github.com/xaionaro-go/metrics v0.0.0-20210425194006-68050b337673
@@ -52,6 +53,7 @@ require (
 	github.com/elazarl/go-bindata-assetfs v1.0.1 // indirect
 	github.com/fatih/structs v1.1.0 // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
+	github.com/google/go-cmp v0.5.9 // indirect
 	github.com/google/goterm v0.0.0-20200907032337-555d40f16ae2 // indirect
 	github.com/gorilla/websocket v1.5.0 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
@@ -88,7 +90,7 @@ require (
 	github.com/yudai/hcl v0.0.0-20151013225006-5fa2393b3552 // indirect
 	go.bug.st/serial.v1 v0.0.0-20191202182710-24a6610f0541 // indirect
 	go.uber.org/multierr v1.7.0 // indirect
-	golang.org/x/sys v0.4.0 // indirect
+	golang.org/x/sys v0.8.0 // indirect
 	golang.org/x/term v0.4.0 // indirect
 	golang.org/x/text v0.6.0 // indirect
 	google.golang.org/genproto v0.0.0-20230131230820-1c016267d619 // indirect
