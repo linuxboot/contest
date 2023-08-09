@@ -28,15 +28,17 @@ type inputStepParams struct {
 	} `json:"options,omitempty"`
 
 	Parameter struct {
-		Command    string   `json:"command"`
-		ToolPath   string   `json:"tool_path"`
-		Hierarchy  string   `json:"hierarchy,omitempty"`
-		KeyFile    string   `json:"key_file,omitempty"`
-		CertFile   string   `json:"cert_file,omitempty"`
-		Files      []string `json:"files,omitempty"`
-		SecureBoot bool     `json:"secure_boot,omitempty"`
-		SetupMode  bool     `json:"setup_mode,omitempty"`
-		ShouldFail bool     `json:"should_fail,omitempty"`
+		Command         string   `json:"command"`
+		ToolPath        string   `json:"tool_path"`
+		Hierarchy       string   `json:"hierarchy,omitempty"`
+		KeyFile         string   `json:"key_file,omitempty"`
+		CertFile        string   `json:"cert_file,omitempty"`
+		SigningKeyFile  string   `json:"signing_key_file,omitempty"`
+		SigningCertFile string   `json:"signing_cert_file,omitempty"`
+		Files           []string `json:"files,omitempty"`
+		SecureBoot      bool     `json:"secure_boot,omitempty"`
+		SetupMode       bool     `json:"setup_mode,omitempty"`
+		ShouldFail      bool     `json:"should_fail,omitempty"`
 	} `json:"parameter"`
 }
 
