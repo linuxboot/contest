@@ -199,6 +199,171 @@ The "ChipSec" teststep allows you to run different chipsec modules on your DUT.
       options:
         timeout: 1m
 ```
+## CPU Stats Teststep
+
+The "CpuStats" teststep allows you to run check on different cpu stats of the DUT.
+
+**YAML Description**
+```yaml
+- name: cpustats
+  label: Run cpustats test
+  parameters:
+    input:                                      
+      - transport:
+          proto: ssh                            # mandatory, type: string, options: local, ssh
+          options:                              # mandatory when using ssh protocol
+            host: TARGET_HOST                   # mandatory, type: string
+            port: SSH_PORT                      # optional, type: integer, default: 22
+            user: USERNAME                      # mandatory, type: string
+            password: PASSWORD                  # optional, type: string
+            identity_file: IDENTITY_FILE        # optional, type: string
+        parameter:
+            tool_path: TOOL_PATH                # mandatory, type: string
+            interval: INTERVAL                  # optional, type: string
+        options:
+            timeout: TIMEOUT                    # optional, type: duration, default: 1m | Must be higher than the interval
+    expect:                                     # mandatory
+      - general:                                # optional
+          - option: OPTION                      # mandatory, type: string, options: CoresLogical, CoresPhysical, Profile, CurPowerConsumption, MaxPowerConsumption, PowerLimit1, PowerLimit2
+          - value: VALUE                        # mandatory, type: string
+      - individual:                             # optional
+          - option: OPTION                      # mandatory, type: string, options: CStates, ScalingFrequency, CurrentFrequency, MinFrequency, MaxFrequency
+          - value: VALUE                        # mandatory, type: string
+```
+
+**Example Usage**
+```yaml
+- name: cpustats
+  label: Run CpuStats test
+  parameters:
+    input: 
+    - transport:
+        proto: ssh
+        options:
+          host: "[[.Host]]"
+          user: user
+          password: password
+      parameter:
+        tool_path: /tmp/system-suite
+      options:
+        timeout: 1m
+      expect:
+      - general:
+          - option: CoresLogical
+            value: "16"
+          - option: CoresPhysical
+            value: "12"
+          - option: Profile
+            value: balanced
+      - individual:
+          - core: 1
+            option: CStates
+            value: C1E,C6,C8,C10:<90;C1E<5,C8>10
+          - core: 2
+            option: CStates
+            value: C1E,C6,C8,C10:<90
+```
+
+## CPU Load Teststep
+
+The "CpuLoad" teststep allows you to put load on your DUT either the whole cpu or specific cores. You can also check CPU stats while the the cpu/cores working.
+
+**YAML Description**
+```yaml
+- name: cpuload
+  label: Run cpuload test
+  parameters:
+    input: 
+      - transport:
+          proto: ssh                            # mandatory, type: string, options: local, ssh
+          options:                              # mandatory when using ssh protocol
+            host: TARGET_HOST                   # mandatory, type: string
+            port: SSH_PORT                      # optional, type: integer, default: 22
+            user: USERNAME                      # mandatory, type: string
+            password: PASSWORD                  # optional, type: string
+            identity_file: IDENTITY_FILE        # optional, type: string
+        parameter:
+            tool_path: TOOL_PATH                # mandatory, type: string
+            cores: [0,1,2,3]                    # optional, type: string
+            duration: 30s                       # mandatory, type: string
+        options:
+            timeout: TIMEOUT                    # optional, type: duration, default: 1m | Must be higher than the duration
+    expect:
+      - general:
+          - option: OPTION                      # mandatory, type: string, options: CoresLogical, CoresPhysical, Profile, CurPowerConsumption, MaxPowerConsumption, PowerLimit1, PowerLimit2
+          - value: VALUE                        # mandatory, type: string
+      - individual:
+          - option: OPTION                      # mandatory, type: string, options: CStates, ScalingFrequency, CurrentFrequency, MinFrequency, MaxFrequency
+          - value: VALUE                        # mandatory, type: string
+```
+
+**Example Usage**
+```yaml
+- name: cpuload
+  label: Run CpuLoad test
+  parameters:
+    input: 
+    - transport:
+        proto: ssh
+        options:
+          host: "[[.Host]]"
+          user: user
+          password: password
+      parameter:
+        tool_path: /tmp/system-suite
+        cores: [0,1,2,3,4,5]
+        duration: 30m
+      options:
+        timeout: 1m
+```
+
+## CPU Set Teststep
+
+The "CpuSet" teststep allows you to set cpu cores on or off.
+
+**YAML Description**
+```yaml
+- name: cpuset
+  label: Run cpuset test
+  parameters:
+    input: 
+      - transport:
+          proto: ssh                            # mandatory, type: string, options: local, ssh
+          options:                              # mandatory when using ssh protocol
+            host: TARGET_HOST                   # mandatory, type: string
+            port: SSH_PORT                      # optional, type: integer, default: 22
+            user: USERNAME                      # mandatory, type: string
+            password: PASSWORD                  # optional, type: string
+            identity_file: IDENTITY_FILE        # optional, type: string
+        parameter:
+            tool_path: TOOL_PATH                # mandatory, type: string
+            command: COMMAND                    # mandatory, type: string, options: core
+            cores: [0,1,2,3]                    # mandatory, type: string
+            args: [activate]                    # mandatory, type: string, options: activate, deactivate
+        options:
+            timeout: TIMEOUT                    # optional, type: duration, default: 1m
+```
+
+**Example Usage**
+```yaml
+- name: cpuload
+  label: Run CpuLoad test
+  parameters:
+    input: 
+    - transport:
+        proto: ssh
+        options:
+          host: "[[.Host]]"
+          user: user
+          password: password
+      parameter:
+        command: core
+        tool_path: /tmp/system-suite
+        cores: [0,1,2,3,4,5]
+        args: [deactivate]
+      options:
+        timeout: 1m
+```
 
 
 ## Copy Teststep
