@@ -18,6 +18,10 @@ import (
 const (
 	supportedProto = "ssh"
 	core           = "core"
+	profile        = "profile"
+	privileged     = "sudo"
+	cmd            = "cpu"
+	jsonFlag       = "--json"
 )
 
 type TargetRunner struct {
@@ -69,7 +73,14 @@ func (r *TargetRunner) Run(ctx xcontext.Context, target *target.Target) error {
 
 	switch r.ts.Parameter.Command {
 	case core:
-		if err := r.ts.coreCmds(ctx, &stdoutMsg, &stderrMsg, transport); err != nil {
+		if err := r.ts.coreCmd(ctx, &stdoutMsg, &stderrMsg, transport); err != nil {
+			stderrMsg.WriteString(fmt.Sprintf("%v\n", err))
+
+			return emitStderr(ctx, EventStderr, stderrMsg.String(), target, r.ev, err)
+		}
+
+	case profile:
+		if err := r.ts.profileCmd(ctx, &stdoutMsg, &stderrMsg, transport); err != nil {
 			stderrMsg.WriteString(fmt.Sprintf("%v\n", err))
 
 			return emitStderr(ctx, EventStderr, stderrMsg.String(), target, r.ev, err)

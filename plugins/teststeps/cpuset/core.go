@@ -14,7 +14,7 @@ const (
 )
 
 // coreCmds is a helper function to call into the different core commands
-func (ts *TestStep) coreCmds(ctx xcontext.Context, stdoutMsg, stderrMsg *strings.Builder, transport transport.Transport) error {
+func (ts *TestStep) coreCmd(ctx xcontext.Context, stdoutMsg, stderrMsg *strings.Builder, transport transport.Transport) error {
 	if ts.Parameter.Args[0] != activate && ts.Parameter.Args[0] != deactivate {
 		return fmt.Errorf("Wrong argument for command '%s'. Your options for this command are: '%s' and '%s'.",
 			ts.Parameter.Command, activate, deactivate)
@@ -47,23 +47,23 @@ func (ts *TestStep) coreCmds(ctx xcontext.Context, stdoutMsg, stderrMsg *strings
 	}
 }
 
-const (
-	privileged = "sudo"
-	cmd        = "cpu"
-	argument   = "switch"
-	jsonFlag   = "--json"
-)
-
 func (ts *TestStep) setCore(ctx xcontext.Context, stdoutMsg, stderrMsg *strings.Builder,
 	transp transport.Transport, statusFlag string,
 ) error {
 	for _, core := range ts.Parameter.Cores {
+		if core == 0 {
+			stdoutMsg.WriteString("Stdout:\nCore '0' cannot be activated/deactivated.\n")
+			stderrMsg.WriteString("Stderr:\nCore '0' cannot be activated/deactivated.\n")
+
+			continue
+		}
+
 		args := []string{
 			ts.Parameter.ToolPath,
 			cmd,
-			argument,
-			statusFlag,
+			"switch",
 			fmt.Sprintf("--core=%d", core),
+			statusFlag,
 			jsonFlag,
 		}
 

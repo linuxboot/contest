@@ -67,7 +67,9 @@ func (ts *TestStep) validateAndPopulate(stepParams test.TestStepParameters) erro
 		return fmt.Errorf("failed to deserialize %q parameters: %v", in, err)
 	}
 
-	fmt.Printf("ts.inputStepParams: %v\n", ts.inputStepParams)
+	if len(ts.Parameter.Args) == 0 {
+		return fmt.Errorf("you have to provide at least one argument")
+	}
 
 	return nil
 }
