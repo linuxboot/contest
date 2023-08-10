@@ -88,9 +88,11 @@ func (ts *TestStep) validateAndPopulate(stepParams test.TestStepParameters) erro
 		return fmt.Errorf("missing or empty 'tool_path' parameter")
 	}
 
-	if expect = stepParams.Get(exp); len(expect) == 0 {
-		return fmt.Errorf("expect parameter cannot be empty")
+	if ts.Parameter.Duration == "" {
+		return fmt.Errorf("missing or empty 'duration' parameter")
 	}
+
+	expect = stepParams.Get(exp)
 
 	for _, expect := range expect {
 		if err := json.Unmarshal(expect.JSON(), &ts.expectStepParams); err != nil {

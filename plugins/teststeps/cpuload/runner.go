@@ -63,7 +63,7 @@ func (r *TargetRunner) Run(ctx xcontext.Context, target *target.Target) error {
 
 	if r.ts.Parameter.Duration != "" {
 		if _, err := time.ParseDuration(r.ts.Parameter.Duration); err != nil {
-			return fmt.Errorf("wrong interval statement, valid units are ns, us, ms, s, m and h")
+			return fmt.Errorf("wrong duration statement, valid units are ns, us, ms, s, m and h")
 		}
 	}
 

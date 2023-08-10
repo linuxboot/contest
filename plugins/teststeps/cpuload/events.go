@@ -87,7 +87,7 @@ func (ts *TestStep) writeTestStep(builders ...*strings.Builder) {
 
 		builder.WriteString("  Core specific expectations:\n")
 		for _, expect := range ts.expectStepParams.Individual {
-			builder.WriteString(fmt.Sprintf("  Core %d:\n", expect.Core))
+			builder.WriteString(fmt.Sprintf("  Cores %v:\n", expect.Cores))
 			builder.WriteString(fmt.Sprintf("    Option: %s\n", expect.Option))
 			builder.WriteString(fmt.Sprintf("    Value: %s\n", expect.Value))
 		}
