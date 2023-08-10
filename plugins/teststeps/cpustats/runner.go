@@ -215,7 +215,7 @@ func (ts *TestStep) parseOutput(ctx xcontext.Context, stdoutMsg *strings.Builder
 
 	for _, expect := range ts.expectStepParams.Individual {
 		if err := stats.CheckIndividualOption(expect, interval, stdoutMsg, stderrMsg); err != nil {
-			errorString += fmt.Sprintf("failed to check individual option '%s' for core '%d': %v\n", expect.Option, expect.Core, err)
+			errorString += fmt.Sprintf("failed to check individual option '%s': %v\n", expect.Option, err)
 			finalError = true
 		}
 	}
