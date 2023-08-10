@@ -12,6 +12,7 @@ import (
 const (
 	bigger    = ">"
 	smaller   = "<"
+	equal     = "="
 	between   = "-"
 	colon     = ":"
 	semicolon = ";"
@@ -24,7 +25,7 @@ type General struct {
 }
 
 type Individual struct {
-	Core   int    `json:"core"`
+	Cores  []int  `json:"cores"`
 	Option string `json:"option"`
 	Value  string `json:"value"`
 }
@@ -84,32 +85,32 @@ func (s *Stats) CheckGeneralOption(expect General, stdoutMsg *strings.Builder, s
 
 	case "CurPowerConsumption":
 		if err := parseValue(s.Data.Power.CurPowerConsumption, expect.Value); err != nil {
-			err := fmt.Errorf("data for option '%s' is as expected. '%s' is '%dμJ'. The expect value was '%sμJ'\n",
+			err := fmt.Errorf("data for option '%s' is not as expected. '%s' is '%dμW'. The expect value was '%sμW'\n",
 				expect.Option, expect.Option, s.Data.Power.CurPowerConsumption, expect.Value)
 			stderrMsg.WriteString(err.Error())
 
 			return err
 		}
 
-		stdoutMsg.WriteString(fmt.Sprintf("data for option '%s' is as expected. '%s' is '%dμJ'. The expect value was '%sμJ'\n",
+		stdoutMsg.WriteString(fmt.Sprintf("data for option '%s' is as expected. '%s' is '%dμW'. The expect value was '%sμW'\n",
 			expect.Option, expect.Option, s.Data.Power.CurPowerConsumption, expect.Value))
 
 	case "MaxPowerConsumption":
 		if err := parseValue(s.Data.Power.MaxPowerConsumption, expect.Value); err != nil {
-			err := fmt.Errorf("data for option '%s' is as expected. '%s' is '%dμJ'. The expect value was '%sμJ'\n",
+			err := fmt.Errorf("data for option '%s'. '%s' is '%dμW'. The expect value was '%sμW'\n",
 				expect.Option, expect.Option, s.Data.Power.MaxPowerConsumption, expect.Value)
 			stderrMsg.WriteString(err.Error())
 
 			return err
 		}
 
-		stdoutMsg.WriteString(fmt.Sprintf("data for option '%s' is as expected. '%s' is '%dμJ'. The expect value was '%sμJ'\n",
+		stdoutMsg.WriteString(fmt.Sprintf("data for option '%s' is as expected. '%s' is '%dμW'. The expect value was '%sμW'\n",
 			expect.Option, expect.Option, s.Data.Power.MaxPowerConsumption, expect.Value))
 
 	case "PowerLimit1":
 		if err := parseValue(s.Data.Power.PowerLimit1, expect.Value); err != nil {
-			err := fmt.Errorf("data for option '%s' is as expected. '%s' is '%dμW'. The expect value was '%sμW'\n",
-				expect.Option, expect.Option, s.Data.Power.PowerLimit1, expect.Value)
+			err := fmt.Errorf("error for option '%s': %v\n",
+				expect.Option, err)
 			stderrMsg.WriteString(err.Error())
 
 			return err
@@ -120,7 +121,7 @@ func (s *Stats) CheckGeneralOption(expect General, stdoutMsg *strings.Builder, s
 
 	case "PowerLimit2":
 		if err := parseValue(s.Data.Power.PowerLimit2, expect.Value); err != nil {
-			err := fmt.Errorf("data for option '%s' is as expected. '%s' is '%dμW'. The expect value was '%sμW'\n",
+			err := fmt.Errorf("data for option '%s' is not as expected. '%s' is '%dμW'. The expect value was '%sμW'\n",
 				expect.Option, expect.Option, s.Data.Power.PowerLimit2, expect.Value)
 			stderrMsg.WriteString(err.Error())
 
@@ -141,66 +142,86 @@ func (s *Stats) CheckGeneralOption(expect General, stdoutMsg *strings.Builder, s
 }
 
 func (s *Stats) CheckIndividualOption(expect Individual, interval bool, stdoutMsg *strings.Builder, stderrMsg *strings.Builder) error {
-	switch expect.Option {
-	case "CStates":
-		if err := s.checkCStatesFromString(expect, interval); err != nil {
+	var finalErr bool
+
+	for _, core := range expect.Cores {
+		switch expect.Option {
+		case "CStates":
+			if err := s.checkCStatesFromString(core, expect, interval); err != nil {
+				stderrMsg.WriteString(fmt.Sprintf("Core '%d':\n%s\n", core, err.Error()))
+
+				finalErr = true
+
+				continue
+			}
+
+			stdoutMsg.WriteString(fmt.Sprintf("'%s' for core '%d' is as expected: '%s'\n",
+				expect.Option, core, expect.Value))
+
+		case "ScalingFrequency":
+			if err := parseValue(s.Data.Cores[core].Frequency.ScalingFrequency, expect.Value); err != nil {
+				err := fmt.Errorf("Core '%d': data is not as expected, have '%dKHz', want '%sKHz'\n", core, s.Data.Cores[core].Frequency.ScalingFrequency, expect.Value)
+				stderrMsg.WriteString(err.Error())
+
+				finalErr = true
+
+				continue
+			}
+
+			stdoutMsg.WriteString(fmt.Sprintf("'%s' for core '%d' is as expected. '%s' is '%dKHz'. The expect value was '%sKHz'\n",
+				expect.Option, core, expect.Option, s.Data.Cores[core].Frequency.ScalingFrequency, expect.Value))
+
+		case "CurrentFrequency":
+			if err := parseValue(s.Data.Cores[core].Frequency.CurrentFrequency, expect.Value); err != nil {
+				err := fmt.Errorf("Core '%d': data is not as expected, have '%dKHz', want '%sKHz'\n", core, s.Data.Cores[core].Frequency.CurrentFrequency, expect.Value)
+				stderrMsg.WriteString(err.Error())
+
+				finalErr = true
+
+				continue
+			}
+
+			stdoutMsg.WriteString(fmt.Sprintf("'%s' for core '%d' is as expected. '%s' is '%dKHz'. The expect value was '%sKHz'\n",
+				expect.Option, core, expect.Option, s.Data.Cores[core].Frequency.CurrentFrequency, expect.Value))
+
+		case "MinFrequency":
+			if err := parseValue(s.Data.Cores[core].Frequency.MinFrequency, expect.Value); err != nil {
+				err := fmt.Errorf("Core '%d': data is not as expected, have '%dKHz', want '%sKHz'\n", core, s.Data.Cores[core].Frequency.MinFrequency, expect.Value)
+				stderrMsg.WriteString(err.Error())
+
+				finalErr = true
+
+				continue
+			}
+
+			stdoutMsg.WriteString(fmt.Sprintf("'%s' for core '%d' is as expected. '%s' is '%dKHz'. The expect value was '%sKHz'\n",
+				expect.Option, core, expect.Option, s.Data.Cores[core].Frequency.MinFrequency, expect.Value))
+
+		case "MaxFrequency":
+			if err := parseValue(s.Data.Cores[core].Frequency.MaxFrequency, expect.Value); err != nil {
+				err := fmt.Errorf("Core '%d': data is not as expected, have '%dKHz', want '%sKHz'\n", core, s.Data.Cores[core].Frequency.MaxFrequency, expect.Value)
+				stderrMsg.WriteString(err.Error())
+
+				finalErr = true
+
+				continue
+			}
+
+			stdoutMsg.WriteString(fmt.Sprintf("'%s' for core '%d' is as expected. '%s' is '%dKHz'. The expect value was '%sKHz'\n",
+				expect.Option, core, expect.Option, s.Data.Cores[core].Frequency.MaxFrequency, expect.Value))
+
+		default:
+			err := fmt.Errorf("failed to find option '%s' for core '%d'. Supported options are: '%s'\n", expect.Option, core, s.IndividualOptions())
 			stderrMsg.WriteString(err.Error())
 
-			return err
+			finalErr = true
+
+			continue
 		}
+	}
 
-		stdoutMsg.WriteString(fmt.Sprintf("'%s' for core '%d' is as expected: '%s'\n",
-			expect.Option, expect.Core, expect.Value))
-
-	case "ScalingFrequency":
-		if err := parseValue(s.Data.Cores[expect.Core].Frequency.ScalingFrequency, expect.Value); err != nil {
-			err := fmt.Errorf("data is not as expected, have '%d', want '%s'", s.Data.Cores[expect.Core].Frequency.ScalingFrequency, expect.Value)
-			stderrMsg.WriteString(err.Error())
-
-			return err
-		}
-
-		stdoutMsg.WriteString(fmt.Sprintf("data for option '%s' is as expected. '%s' is '%dHz'. The expect value was '%sHz'\n",
-			expect.Option, expect.Option, s.Data.Power.PowerLimit1, expect.Value))
-
-	case "CurrentFrequency":
-		if err := parseValue(s.Data.Cores[expect.Core].Frequency.ScalingFrequency, expect.Value); err != nil {
-			err := fmt.Errorf("data is not as expected, have '%d', want '%s'", s.Data.Cores[expect.Core].Frequency.ScalingFrequency, expect.Value)
-			stderrMsg.WriteString(err.Error())
-
-			return err
-		}
-
-		stdoutMsg.WriteString(fmt.Sprintf("data for option '%s' is as expected. '%s' is '%dHz'. The expect value was '%sHz'\n",
-			expect.Option, expect.Option, s.Data.Power.PowerLimit1, expect.Value))
-
-	case "MinFrequency":
-		if err := parseValue(s.Data.Cores[expect.Core].Frequency.ScalingFrequency, expect.Value); err != nil {
-			err := fmt.Errorf("data is not as expected, have '%d', want '%s'", s.Data.Cores[expect.Core].Frequency.ScalingFrequency, expect.Value)
-			stderrMsg.WriteString(err.Error())
-
-			return err
-		}
-
-		stdoutMsg.WriteString(fmt.Sprintf("data for option '%s' is as expected. '%s' is '%dHz'. The expect value was '%sHz'\n",
-			expect.Option, expect.Option, s.Data.Power.PowerLimit1, expect.Value))
-
-	case "MaxFrequency":
-		if err := parseValue(s.Data.Cores[expect.Core].Frequency.ScalingFrequency, expect.Value); err != nil {
-			err := fmt.Errorf("data is not as expected, have '%d', want '%s'", s.Data.Cores[expect.Core].Frequency.ScalingFrequency, expect.Value)
-			stderrMsg.WriteString(err.Error())
-
-			return err
-		}
-
-		stdoutMsg.WriteString(fmt.Sprintf("data for option '%s' is as expected. '%s' is '%dHz'. The expect value was '%sHz'\n",
-			expect.Option, expect.Option, s.Data.Power.PowerLimit1, expect.Value))
-
-	default:
-		err := fmt.Errorf("failed to find option '%s'. Supported options are: '%s'", expect.Option, s.IndividualOptions())
-		stderrMsg.WriteString(err.Error())
-
-		return err
+	if finalErr {
+		return fmt.Errorf("error while checking individual option: %s", stderrMsg.String())
 	}
 
 	return nil
@@ -216,7 +237,7 @@ func (s Stats) IndividualOptions() string {
 }
 
 // parseCStatesFromString parses CState information from the expect value and compares the data regarding the real CState data.
-func (s *Stats) checkCStatesFromString(expect Individual, interval bool) error {
+func (s *Stats) checkCStatesFromString(core int, expect Individual, interval bool) error {
 	const (
 		individualRegex string = `^C\d+[A-Z]*:(<\d+|>\d+|\d+-\d+)(,C\d+[A-Z]*:(<\d+|>\d+|\d+-\d+))*$`
 		groupRegex      string = `^C\d+[A-Z]*(,C\d+[A-Z]*)*:[<>]?\d*$`
@@ -236,12 +257,12 @@ func (s *Stats) checkCStatesFromString(expect Individual, interval bool) error {
 		updatedExpect.Value = cmp
 
 		if regexp.MustCompile(individualRegex).MatchString(cmp) {
-			if err := s.checkIndividualCStates(updatedExpect, interval); err != nil {
+			if err := s.checkIndividualCStates(core, updatedExpect, interval); err != nil {
 				errorString += fmt.Sprintf("%v", err)
 			}
 			continue
 		} else if regexp.MustCompile(groupRegex).MatchString(cmp) {
-			if err := s.checkGroupCStates(updatedExpect, interval); err != nil {
+			if err := s.checkGroupCStates(core, updatedExpect, interval); err != nil {
 				errorString += fmt.Sprintf("%v", err)
 			}
 			continue
@@ -262,7 +283,7 @@ func (s *Stats) checkCStatesFromString(expect Individual, interval bool) error {
 }
 
 // checkIndividualCStates parses individual CState information from the given expect value and calculates if the real data matches the expected one.
-func (s *Stats) checkIndividualCStates(expect Individual, interval bool) error {
+func (s *Stats) checkIndividualCStates(core int, expect Individual, interval bool) error {
 	var errorString string
 
 	// Split the expect.Value by comma to get individual CState comparisons
@@ -283,7 +304,7 @@ func (s *Stats) checkIndividualCStates(expect Individual, interval bool) error {
 		found := false
 
 		// Iterate through each CState in the data to find the one with the matching name
-		for _, cstate := range s.Data.Cores[expect.Core].CStates {
+		for _, cstate := range s.Data.Cores[core].CStates {
 			if cstate.Name == cstateName {
 				found = true
 				// Check the expected value for comparison operators (<, >, or range)
@@ -381,7 +402,7 @@ func (s *Stats) checkIndividualCStates(expect Individual, interval bool) error {
 }
 
 // parseIndividualCStates parses group CState information from the given expect value and calculates if the real data matches the expected one.
-func (s *Stats) checkGroupCStates(expect Individual, interval bool) error {
+func (s *Stats) checkGroupCStates(core int, expect Individual, interval bool) error {
 	// Split the expect.Value by colon to get CState names and the expected value
 	cmpParts := strings.Split(expect.Value, colon)
 	if len(cmpParts) != 2 {
@@ -405,7 +426,7 @@ func (s *Stats) checkGroupCStates(expect Individual, interval bool) error {
 		found := false
 
 		// Find the corresponding CState in the data
-		for _, cstate := range s.Data.Cores[expect.Core].CStates {
+		for _, cstate := range s.Data.Cores[core].CStates {
 			if cstate.Name == cstateName {
 				found = true
 
@@ -503,27 +524,36 @@ func parseValue(have int, expect string) error {
 		}
 	} else {
 		// Cases for below and above.
-		regex := regexp.MustCompile(`^([<>])(\d+)$`)
+		regex := regexp.MustCompile(`^([<>=])(\d+)$`)
 		match := regex.FindStringSubmatch(expect)
 
-		operator := match[1]
-		value, err := strconv.Atoi(match[2])
-		if err != nil {
-			return fmt.Errorf("failed to convert '%s' into a number: %v", expect, err)
+		if len(match) > 1 {
+			operator := match[1]
+			value, err := strconv.Atoi(match[2])
+			if err != nil {
+				return fmt.Errorf("failed to convert '%s' into a number: %v", expect, err)
+			}
+
+			switch operator {
+			case smaller:
+				if have > value {
+					return fmt.Errorf("value is not as expected, have: '%d', want: %s '%d'", have, operator, value)
+				}
+			case bigger:
+				if have < value {
+					return fmt.Errorf("value is not as expected, have: '%d', want: %s '%d'", have, operator, value)
+				}
+			case equal:
+				if have != value {
+					return fmt.Errorf("value is not as expected, have: '%d', want: %s '%d'", have, operator, value)
+				}
+			default:
+				return fmt.Errorf("wrong operator, valid operators are '%s', '%s' and '%s'", smaller, bigger, equal)
+			}
+		} else {
+			return fmt.Errorf("Value seems to be malformed.")
 		}
 
-		switch operator {
-		case smaller:
-			if have > value {
-				return fmt.Errorf("value is not as expected, have: '%d', want: '%s%d'", have, operator, value)
-			}
-		case bigger:
-			if have < value {
-				return fmt.Errorf("value is not as expected, have: '%d', want: '%s%d'", have, operator, value)
-			}
-		default:
-			return fmt.Errorf("wrong operator, valid operators are '%s' and '%s'", smaller, bigger)
-		}
 	}
 
 	return nil
