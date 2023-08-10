@@ -61,7 +61,6 @@ func (r *TargetRunner) Run(ctx xcontext.Context, target *target.Target) error {
 	}
 
 	r.ts.writeTestStep(&stdoutMsg, &stderrMsg)
-	writeCommand(r.ts.Parameter.Command, r.ts.Parameter.Args, &stdoutMsg, &stderrMsg)
 
 	transport, err := transport.NewTransport(r.ts.Transport.Proto, r.ts.Transport.Options, pe)
 	if err != nil {
@@ -102,19 +101,13 @@ func (r *TargetRunner) Run(ctx xcontext.Context, target *target.Target) error {
 
 // getOutputFromReader reads data from the provided io.Reader instances
 // representing stdout and stderr, and returns the collected output as byte slices.
-func getOutputFromReader(stdout, stderr io.Reader) ([]byte, []byte) {
-	// Read from the stdout and stderr pipe readers
-	outBuffer, err := readBuffer(stdout)
-	if err != nil {
-		fmt.Printf("Failed to read from Stdout buffer: %v\n", err)
-	}
-
+func getOutputFromReader(stderr io.Reader) []byte {
 	errBuffer, err := readBuffer(stderr)
 	if err != nil {
 		fmt.Printf("Failed to read from Stderr buffer: %v\n", err)
 	}
 
-	return outBuffer, errBuffer
+	return errBuffer
 }
 
 // readBuffer reads data from the provided io.Reader and returns it as a byte slice.

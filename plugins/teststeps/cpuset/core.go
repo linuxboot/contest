@@ -72,10 +72,7 @@ func (ts *TestStep) setCore(ctx xcontext.Context, stdoutMsg, stderrMsg *strings.
 			return fmt.Errorf("Failed to create proc: %w", err)
 		}
 
-		stdoutPipe, err := proc.StdoutPipe()
-		if err != nil {
-			return fmt.Errorf("Failed to pipe stdout: %v", err)
-		}
+		writeCommand(proc.String(), stdoutMsg, stderrMsg)
 
 		stderrPipe, err := proc.StderrPipe()
 		if err != nil {
@@ -90,14 +87,13 @@ func (ts *TestStep) setCore(ctx xcontext.Context, stdoutMsg, stderrMsg *strings.
 			outcome = proc.Wait(ctx)
 		}
 
-		stdout, stderr := getOutputFromReader(stdoutPipe, stderrPipe)
+		stderr := getOutputFromReader(stderrPipe)
 
 		if outcome != nil {
 			stderrMsg.WriteString(fmt.Sprintf("Stderr:\n%s\n", string(stderr)))
 			return fmt.Errorf("Failed to '%s' core '%d': %v.", ts.Parameter.Args[0], core, outcome)
 		}
 
-		stdoutMsg.WriteString(fmt.Sprintf("Stdout:\n%s\n", string(stdout)))
 		stderrMsg.WriteString(fmt.Sprintf("Stderr:\n%s\n", string(stderr)))
 	}
 

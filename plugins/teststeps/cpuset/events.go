@@ -81,10 +81,10 @@ func (ts *TestStep) writeTestStep(builders ...*strings.Builder) {
 }
 
 // Function to format command information and append it to a string builder.
-func writeCommand(command string, args []string, builders ...*strings.Builder) {
+func writeCommand(args string, builders ...*strings.Builder) {
 	for _, builder := range builders {
 		builder.WriteString("Operation on DUT:\n")
-		builder.WriteString(fmt.Sprintf("%s %s", command, strings.Join(args, " ")))
+		builder.WriteString(args)
 		builder.WriteString("\n\n")
 
 		builder.WriteString("Output:\n")

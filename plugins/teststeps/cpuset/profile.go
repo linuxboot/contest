@@ -23,10 +23,7 @@ func (ts *TestStep) profileCmd(ctx xcontext.Context, stdoutMsg, stderrMsg *strin
 		return fmt.Errorf("Failed to create proc: %w", err)
 	}
 
-	stdoutPipe, err := proc.StdoutPipe()
-	if err != nil {
-		return fmt.Errorf("Failed to pipe stdout: %v", err)
-	}
+	writeCommand(proc.String(), stdoutMsg, stderrMsg)
 
 	stderrPipe, err := proc.StderrPipe()
 	if err != nil {
@@ -41,14 +38,13 @@ func (ts *TestStep) profileCmd(ctx xcontext.Context, stdoutMsg, stderrMsg *strin
 		outcome = proc.Wait(ctx)
 	}
 
-	stdout, stderr := getOutputFromReader(stdoutPipe, stderrPipe)
+	stderr := getOutputFromReader(stderrPipe)
 
 	if outcome != nil {
 		stderrMsg.WriteString(fmt.Sprintf("Stderr:\n%s\n", string(stderr)))
 		return fmt.Errorf("Failed to set acpi platform profile to '%s': %v.", ts.Parameter.Args[0], outcome)
 	}
 
-	stdoutMsg.WriteString(fmt.Sprintf("Stdout:\n%s\n", string(stdout)))
 	stderrMsg.WriteString(fmt.Sprintf("Stderr:\n%s\n", string(stderr)))
 
 	return nil
