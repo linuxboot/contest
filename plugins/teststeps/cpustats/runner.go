@@ -25,8 +25,6 @@ const (
 	jsonFlag       = "--json"
 )
 
-type outcome error
-
 type Output struct {
 	Result string `json:"result"`
 }
@@ -83,10 +81,7 @@ func (r *TargetRunner) Run(ctx xcontext.Context, target *target.Target) error {
 		return emitStderr(ctx, EventStderr, stderrMsg.String(), target, r.ev, err)
 	}
 
-	_, err = r.ts.runStats(ctx, &stdoutMsg, &stderrMsg, transport)
-	if err != nil {
-		stderrMsg.WriteString(fmt.Sprintf("%v", err))
-
+	if err = r.ts.runStats(ctx, &stdoutMsg, &stderrMsg, transport); err != nil {
 		return emitStderr(ctx, EventStderr, stderrMsg.String(), target, r.ev, err)
 	}
 
@@ -98,7 +93,7 @@ func (r *TargetRunner) Run(ctx xcontext.Context, target *target.Target) error {
 }
 
 func (ts *TestStep) runStats(ctx xcontext.Context, stdoutMsg, stderrMsg *strings.Builder, transport transport.Transport,
-) (outcome, error) {
+) error {
 	var args []string
 
 	if ts.Parameter.Interval != "" {
@@ -120,19 +115,19 @@ func (ts *TestStep) runStats(ctx xcontext.Context, stdoutMsg, stderrMsg *strings
 
 	proc, err := transport.NewProcess(ctx, privileged, args, "")
 	if err != nil {
-		return nil, fmt.Errorf("Failed to create proc: %w", err)
+		return fmt.Errorf("Failed to create proc: %w", err)
 	}
 
 	writeCommand(proc.String(), stdoutMsg, stderrMsg)
 
 	stdoutPipe, err := proc.StdoutPipe()
 	if err != nil {
-		return nil, fmt.Errorf("Failed to pipe stdout: %v", err)
+		return fmt.Errorf("Failed to pipe stdout: %v", err)
 	}
 
 	stderrPipe, err := proc.StderrPipe()
 	if err != nil {
-		return nil, fmt.Errorf("Failed to pipe stderr: %v", err)
+		return fmt.Errorf("Failed to pipe stderr: %v", err)
 	}
 
 	// try to start the process, if that succeeds then the outcome is the result of
@@ -143,7 +138,7 @@ func (ts *TestStep) runStats(ctx xcontext.Context, stdoutMsg, stderrMsg *strings
 		outcome = proc.Wait(ctx)
 	}
 	if outcome != nil {
-		return outcome, fmt.Errorf("Failed to get CPU stats: %v.", outcome)
+		return fmt.Errorf("Failed to get CPU stats: %v.", outcome)
 	}
 
 	stdout, stderr := getOutputFromReader(stdoutPipe, stderrPipe)
@@ -152,10 +147,10 @@ func (ts *TestStep) runStats(ctx xcontext.Context, stdoutMsg, stderrMsg *strings
 	stderrMsg.WriteString(fmt.Sprintf("Stderr:\n%s\n", string(stderr)))
 
 	if err = ts.parseOutput(ctx, stdoutMsg, stderrMsg, stdout); err != nil {
-		return nil, err
+		return err
 	}
 
-	return outcome, err
+	return err
 }
 
 // getOutputFromReader reads data from the provided io.Reader instances
