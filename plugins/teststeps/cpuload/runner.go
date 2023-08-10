@@ -63,7 +63,7 @@ func (r *TargetRunner) Run(ctx xcontext.Context, target *target.Target) error {
 
 	if r.ts.Parameter.Duration != "" {
 		if _, err := time.ParseDuration(r.ts.Parameter.Duration); err != nil {
-			return fmt.Errorf("wrong duration statement, valid units are ns, us, ms, s, m and h")
+			return fmt.Errorf("wrong interval statement, valid units are ns, us, ms, s, m and h")
 		}
 	}
 
@@ -134,7 +134,6 @@ func (ts *TestStep) runLoad(ctx xcontext.Context, stdoutMsg, stderrMsg *strings.
 
 	if len(ts.Individual) > 0 || len(ts.General) > 0 {
 		if err := ts.parseStats(ctx, stdoutMsg, stderrMsg, transport); err != nil {
-			stderrMsg.WriteString(fmt.Sprintf("Stderr:\n%s\n", err.Error()))
 			return fmt.Errorf("Failed to parse cpu stats: %v.", err)
 		}
 	}
@@ -201,14 +200,13 @@ func (ts *TestStep) parseStats(ctx xcontext.Context, stdoutMsg, stderrMsg *strin
 	if outcome == nil {
 		outcome = proc.Wait(ctx)
 	}
-	if outcome != nil {
-		return fmt.Errorf("Failed to get CPU stats: %v.", outcome)
-	}
-
 	stdout, stderr := getOutputFromReader(stdoutPipe, stderrPipe)
 
+	if outcome != nil {
+		return fmt.Errorf("Failed to get CPU stats: %v.\nStats Stderr:\n%s\n", outcome, string(stderr))
+	}
+
 	stdoutMsg.WriteString(fmt.Sprintf("Stats Stdout:\n%s\n", string(stdout)))
-	stderrMsg.WriteString(fmt.Sprintf("Stats Stderr:\n%s\n", string(stderr)))
 
 	if err = ts.parseOutput(ctx, stdoutMsg, stderrMsg, stdout); err != nil {
 		return err
@@ -249,8 +247,9 @@ func (ts *TestStep) parseOutput(ctx xcontext.Context, stdoutMsg *strings.Builder
 	stdout []byte,
 ) error {
 	var (
-		stats      cpu.Stats
-		finalError bool
+		stats       cpu.Stats
+		finalError  bool
+		errorString string
 	)
 
 	if len(stdout) != 0 {
@@ -261,18 +260,20 @@ func (ts *TestStep) parseOutput(ctx xcontext.Context, stdoutMsg *strings.Builder
 
 	for _, expect := range ts.expectStepParams.General {
 		if err := stats.CheckGeneralOption(expect, stdoutMsg, stderrMsg); err != nil {
+			errorString += fmt.Sprintf("failed to check general option '%s': %v\n", expect.Option, err)
 			finalError = true
 		}
 	}
 
 	for _, expect := range ts.expectStepParams.Individual {
 		if err := stats.CheckIndividualOption(expect, true, stdoutMsg, stderrMsg); err != nil {
+			errorString += fmt.Sprintf("failed to check individual option '%s': %v\n", expect.Option, err)
 			finalError = true
 		}
 	}
 
 	if finalError {
-		return fmt.Errorf("Some expect options are not as expected.")
+		return fmt.Errorf("Some expect options are not as expected:\n%s", errorString)
 	}
 
 	return nil
