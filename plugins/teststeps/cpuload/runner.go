@@ -78,8 +78,6 @@ func (r *TargetRunner) Run(ctx xcontext.Context, target *target.Target) error {
 	}
 
 	if err := r.ts.runLoad(ctx, &stdoutMsg, &stderrMsg, transport); err != nil {
-		stderrMsg.WriteString(fmt.Sprintf("%v", err))
-
 		return emitStderr(ctx, EventStderr, stderrMsg.String(), target, r.ev, err)
 	}
 
