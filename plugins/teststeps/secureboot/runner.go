@@ -143,27 +143,52 @@ func (ts *TestStep) checkInstalled(
 	return outcome, nil
 }
 
-func (ts *TestStep) setEfivarsMutable(ctx xcontext.Context, stdoutMsg, stderrMsg *strings.Builder, transport transport.Transport) (outcome, error) {
-	_, _, outcome, err := execCmdWithArgs(ctx, true, "chattr", []string{"-i", "/sys/firmware/efi/efivars/PK-*"}, stdoutMsg, stderrMsg, transport)
+func (ts *TestStep) setEfivarsMutable(ctx xcontext.Context, stdoutMsg, stderrMsg *strings.Builder, transport transport.Transport) (error, error) {
+	stdout, _, outcome, err := execCmdWithArgs(ctx, true, "find", []string{"/sys/firmware/efi/efivars", "-name", `"PK-*"`}, stdoutMsg, stderrMsg, transport)
 	if err != nil {
 		return outcome, err
 	}
 
-	_, _, outcome, err = execCmdWithArgs(ctx, true, "chattr", []string{"-i", "/sys/firmware/efi/efivars/KEK-*"}, stdoutMsg, stderrMsg, transport)
+	if len(stdout) != 0 {
+		if _, _, outcome, err = execCmdWithArgs(ctx, true, "chattr", []string{"-i", "/sys/firmware/efi/efivars/PK-*"}, stdoutMsg, stderrMsg, transport); err != nil {
+			return outcome, err
+		}
+	}
+
+	stdout, _, outcome, err = execCmdWithArgs(ctx, true, "find", []string{"/sys/firmware/efi/efivars", "-name", `"KEK-*"`}, stdoutMsg, stderrMsg, transport)
 	if err != nil {
 		return outcome, err
 	}
 
-	_, _, outcome, err = execCmdWithArgs(ctx, true, "chattr", []string{"-i", "/sys/firmware/efi/efivars/db-*"}, stdoutMsg, stderrMsg, transport)
+	if len(stdout) != 0 {
+		if _, _, outcome, err = execCmdWithArgs(ctx, true, "chattr", []string{"-i", "/sys/firmware/efi/efivars/KEK-*"}, stdoutMsg, stderrMsg, transport); err != nil {
+			return outcome, err
+		}
+	}
+
+	stdout, _, outcome, err = execCmdWithArgs(ctx, true, "find", []string{"/sys/firmware/efi/efivars", "-name", `"db-*"`}, stdoutMsg, stderrMsg, transport)
 	if err != nil {
 		return outcome, err
 	}
 
-	_, _, outcome, err = execCmdWithArgs(ctx, true, "chattr", []string{"-i", "/sys/firmware/efi/efivars/dbx-*"}, stdoutMsg, stderrMsg, transport)
+	if len(stdout) != 0 {
+		if _, _, outcome, err = execCmdWithArgs(ctx, true, "chattr", []string{"-i", "/sys/firmware/efi/efivars/db-*"}, stdoutMsg, stderrMsg, transport); err != nil {
+			return outcome, err
+		}
+	}
+
+	stdout, _, outcome, err = execCmdWithArgs(ctx, true, "find", []string{"/sys/firmware/efi/efivars", "-name", `"dbx-*"`}, stdoutMsg, stderrMsg, transport)
 	if err != nil {
 		return outcome, err
 	}
-	return outcome, nil
+
+	if len(stdout) != 0 {
+		if _, _, outcome, err = execCmdWithArgs(ctx, true, "chattr", []string{"-i", "/sys/firmware/efi/efivars/dbx-*"}, stdoutMsg, stderrMsg, transport); err != nil {
+			return outcome, err
+		}
+	}
+
+	return nil, nil
 }
 
 func (ts *TestStep) getStatus(
@@ -377,7 +402,6 @@ func (ts *TestStep) enrollKeys(
 	if outcome, err := ts.setEfivarsMutable(ctx, stdoutMsg, stderrMsg, transport); err != nil {
 		return outcome, err
 	}
-
 	if outcome, err := ts.importKeys(ctx, stdoutMsg, stderrMsg, transport, true, true); err != nil {
 		return outcome, err
 	}
