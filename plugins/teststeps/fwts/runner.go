@@ -78,7 +78,7 @@ func (r *TargetRunner) Run(ctx xcontext.Context, target *target.Target) error {
 		return emitStderr(ctx, EventStderr, stderrMsg.String(), target, r.ev, err)
 	}
 
-	_, err = r.runFWTS(ctx, &stdoutMsg, &stderrMsg, target, transport)
+	_, err = r.ts.runFWTS(ctx, &stdoutMsg, &stderrMsg, target, transport)
 	if err != nil {
 		stderrMsg.WriteString(fmt.Sprintf("%v", err))
 
@@ -92,12 +92,12 @@ func (r *TargetRunner) Run(ctx xcontext.Context, target *target.Target) error {
 	return err
 }
 
-func (r *TargetRunner) runFWTS(ctx xcontext.Context, stdoutMsg, stderrMsg *strings.Builder, target *target.Target,
+func (ts *TestStep) runFWTS(ctx xcontext.Context, stdoutMsg, stderrMsg *strings.Builder, target *target.Target,
 	transport transport.Transport,
 ) (outcome, error) {
 	args := []string{
 		cmd,
-		strings.Join(r.ts.Parameter.Flags, " "),
+		strings.Join(ts.Parameter.Flags, " "),
 		outputFlag,
 	}
 
@@ -131,7 +131,7 @@ func (r *TargetRunner) runFWTS(ctx xcontext.Context, stdoutMsg, stderrMsg *strin
 	stdoutMsg.WriteString(fmt.Sprintf("Stdout:\n%s\n", string(stdout)))
 	stderrMsg.WriteString(fmt.Sprintf("Stderr:\n%s\n", string(stderr)))
 
-	err = r.parseOutput(ctx, stdoutMsg, stderrMsg, transport, outputPath)
+	err = ts.parseOutput(ctx, stdoutMsg, stderrMsg, transport, outputPath)
 	if err != nil {
 		return outcome, err
 	}
@@ -167,7 +167,7 @@ func readBuffer(r io.Reader) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func (r *TargetRunner) parseOutput(ctx xcontext.Context, stdoutMsg, stderrMsg *strings.Builder,
+func (ts *TestStep) parseOutput(ctx xcontext.Context, stdoutMsg, stderrMsg *strings.Builder,
 	transport transport.Transport, path string,
 ) error {
 	proc, err := transport.NewProcess(ctx, "cat", []string{path}, "")
@@ -212,6 +212,11 @@ func (r *TargetRunner) parseOutput(ctx xcontext.Context, stdoutMsg, stderrMsg *s
 			data, err := parseLine(string(match))
 			if err != nil {
 				return err
+			}
+
+			if ts.Parameter.ReportOnly {
+				stdoutMsg.WriteString(fmt.Sprintf("Test result:\n%s", printData(data)))
+				return nil
 			}
 
 			if data.Failed > 0 {

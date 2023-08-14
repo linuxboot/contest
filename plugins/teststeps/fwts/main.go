@@ -26,7 +26,8 @@ type inputStepParams struct {
 	} `json:"transport,omitempty"`
 
 	Parameter struct {
-		Flags []string `json:"flags"`
+		Flags      []string `json:"flags"`
+		ReportOnly bool     `json:"report_only"`
 	} `json:"parameter"`
 
 	Options struct {
