@@ -171,7 +171,7 @@ The "ChipSec" teststep allows you to run different chipsec modules on your DUT.
             identity_file: IDENTITY_FILE        # optional, type: string
         parameter:
             tool_path: TOOL_PATH                # optional, type: string
-            modules: [MODULE1, MODULE2]         # optional, type: array of strings
+            modules: [MODULE1, MODULE2]         # optional, type: []string
             nix_os: NIXOS_FLAG                  # optional, type: boolean, default: false (tool_path is not required if set)
         options:
             timeout: TIMEOUT                    # optional, type: duration, default: 1m
@@ -225,10 +225,10 @@ The "CpuStats" teststep allows you to run check on different cpu stats of the DU
     expect:                                     # mandatory
       - general:                                # optional
           - option: OPTION                      # mandatory, type: string, options: CoresLogical, CoresPhysical, Profile, CurPowerConsumption, MaxPowerConsumption, PowerLimit1, PowerLimit2
-          - value: VALUE                        # mandatory, type: string
-      - individual:                             # optional
-          - option: OPTION                      # mandatory, type: string, options: CStates, ScalingFrequency, CurrentFrequency, MinFrequency, MaxFrequency
-          - value: VALUE                        # mandatory, type: string
+            value: VALUE                        # mandatory, type: string
+          - cores: [CORE1, CORE2, CORE3]        # mandatory, type: []int, atleast one core has to be set to check against an option
+            option: OPTION                      # mandatory, type: string, options: CStates, ScalingFrequency, CurrentFrequency, MinFrequency, MaxFrequency
+            value: VALUE                        # mandatory, type: string
 ```
 
 **Example Usage**
@@ -256,10 +256,10 @@ The "CpuStats" teststep allows you to run check on different cpu stats of the DU
           - option: Profile
             value: balanced
       - individual:
-          - core: 1
+          - cores: [1,2,3,4]
             option: CStates
             value: C1E,C6,C8,C10:<90;C1E<5,C8>10
-          - core: 2
+          - cores: [5,6,7,8]
             option: CStates
             value: C1E,C6,C8,C10:<90
 ```
@@ -284,17 +284,19 @@ The "CpuLoad" teststep allows you to put load on your DUT either the whole cpu o
             identity_file: IDENTITY_FILE        # optional, type: string
         parameter:
             tool_path: TOOL_PATH                # mandatory, type: string
-            cores: [0,1,2,3]                    # optional, type: string
+            args: [ARG1, ARG2]                  # optional, type: []string
+            cores: [CORE1, CORE2, CORE3]        # optional, type: []int
             duration: 30s                       # mandatory, type: string
         options:
             timeout: TIMEOUT                    # optional, type: duration, default: 1m | Must be higher than the duration
     expect:
       - general:
           - option: OPTION                      # mandatory, type: string, options: CoresLogical, CoresPhysical, Profile, CurPowerConsumption, MaxPowerConsumption, PowerLimit1, PowerLimit2
-          - value: VALUE                        # mandatory, type: string
+            value: VALUE                        # mandatory, type: string
       - individual:
-          - option: OPTION                      # mandatory, type: string, options: CStates, ScalingFrequency, CurrentFrequency, MinFrequency, MaxFrequency
-          - value: VALUE                        # mandatory, type: string
+          - cores: [CORE1, CORE2, CORE3]        # mandatory, type: []int, atleast one core has to be set to check against an option
+            option: OPTION                      # mandatory, type: string, options: CStates, ScalingFrequency, CurrentFrequency, MinFrequency, MaxFrequency
+            value: VALUE                        # mandatory, type: string
 ```
 
 **Example Usage**
@@ -338,8 +340,8 @@ The "CpuSet" teststep allows you to set cpu cores on or off.
         parameter:
             tool_path: TOOL_PATH                # mandatory, type: string
             command: COMMAND                    # mandatory, type: string, options: core
-            cores: [0,1,2,3]                    # mandatory, type: string
-            args: [activate]                    # mandatory, type: string, options: activate, deactivate
+            cores: [CORE1, CORE2, CORE3]        # mandatory, type: []int
+            args: [ARG1, ARG2]                  # mandatory, type: []string, options: activate, deactivate
         options:
             timeout: TIMEOUT                    # optional, type: duration, default: 1m
 ```
@@ -425,7 +427,7 @@ The "dutctl" teststep allows you to control a device of your choide. Power, Flas
       - parameter:
             host: TARGET_HOST               # mandatory, type: string
             command: COMMAND_NAME           # mandatory, type: string
-            args: [ARG1, ARG2, ARG3]        # optional, type: array of strings
+            args: [ARG1, ARG2, ARG3]        # optional, type: []string
             input: INPUT_STRING             # opitonal, type: string
         options:
             timeout: TIMEOUT                # optional, type: duration, default: 1m
@@ -471,7 +473,8 @@ The "FWTS" teststep allows you to run the Firmware Testsuite on your DUT.
             password: PASSWORD                  # optional, type: string
             identity_file: IDENTITY_FILE        # optional, type: string
         parameter:
-            flags: [FLAG1, FLAG2]               # optional, type: array of strings
+            flags: [FLAG1, FLAG2]               # optional, type: []string
+            report_only: BOOLEAN                # optional, type: boolean, Use if only interested in the Report without result interpreting
         options:
             timeout: TIMEOUT                    # optional, type: duration, default: 1m
 ```
@@ -513,7 +516,7 @@ The "hwaas" teststep allows you to control a DUT via the HWaaS API.
             machine_id: MACHINEID           # optional, type: string, default machine
             device_id: DEVICEID             # optional, type: string, default device
             command: EXEUTABLE              # optional, type: string, options: power, flash
-            args: [ARG1, ARG2, ARG3]        # optional, type: array of strings
+            args: [ARG1, ARG2, ARG3]        # optional, type: []string
         options:
             timeout: TIMEOUT                # optional, type: duration, default: 1m
 ```
@@ -591,7 +594,7 @@ The "sshcmd" teststep allows you to execute binaries locally or on a target devi
             identity_file: IDENTITY_FILE    # optional, type: string
         binary:
             executable: EXECUTABLE_PATH     # mandatory, type: string
-            args: [ARG1, ARG2, ARG3]        # optional, type: array of strings
+            args: [ARG1, ARG2, ARG3]        # optional, type: []string
         options:
             timeout: TIMEOUT                # optional, type: duration, default: 1m
 ```
