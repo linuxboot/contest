@@ -270,7 +270,7 @@ func (ts *TestStep) reset(
 		return outcome, err
 	}
 
-	if outcome, err := ts.importKeys(ctx, stdoutMsg, stderrMsg, transport, true, false); err != nil {
+	if outcome, err := ts.importKeys(ctx, stdoutMsg, stderrMsg, transport, false, true); err != nil {
 		return outcome, err
 	}
 
