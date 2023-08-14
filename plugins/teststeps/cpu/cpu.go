@@ -34,106 +34,106 @@ type Stats struct {
 	Data cpu.Stats `json:"data"`
 }
 
-func (s *Stats) CheckGeneralOption(expect General, stdoutMsg *strings.Builder, stderrMsg *strings.Builder) error {
+func (s *Stats) CheckGeneralOption(expect General, outputBuf *strings.Builder) error {
 	switch expect.Option {
 	case "CoresLogical":
 		coresLogical, err := strconv.Atoi(expect.Value)
 		if err != nil {
 			err := fmt.Errorf("failed to convert input value for '%s' option: %v", expect.Option, err)
-			stderrMsg.WriteString(err.Error())
+			outputBuf.WriteString(err.Error())
 
 			return err
 		}
 		if s.Data.CoresLogical != coresLogical {
 			err := fmt.Errorf("data for option '%s' is not as expected, have '%d', want '%d'", expect.Option, s.Data.CoresLogical, coresLogical)
-			stderrMsg.WriteString(err.Error())
+			outputBuf.WriteString(err.Error())
 
 			return err
 		}
 
-		stdoutMsg.WriteString(fmt.Sprintf("data for option '%s' is as expected. System has '%d' logical Cores.\n",
+		outputBuf.WriteString(fmt.Sprintf("data for option '%s' is as expected. System has '%d' logical Cores.\n",
 			expect.Option, s.Data.CoresLogical))
 
 	case "CoresPhysical":
 		coresPhysical, err := strconv.Atoi(expect.Value)
 		if err != nil {
 			err := fmt.Errorf("failed to convert input value for '%s' option: %v", expect.Option, err)
-			stderrMsg.WriteString(err.Error())
+			outputBuf.WriteString(err.Error())
 
 			return err
 		}
 		if s.Data.CoresPhysical != coresPhysical {
 			err := fmt.Errorf("data for option '%s' is not as expected, have '%d', want '%d'", expect.Option, s.Data.CoresPhysical, coresPhysical)
-			stderrMsg.WriteString(err.Error())
+			outputBuf.WriteString(err.Error())
 
 			return err
 		}
 
-		stdoutMsg.WriteString(fmt.Sprintf("data for option '%s' is as expected. System has '%d' physical Cores.\n",
+		outputBuf.WriteString(fmt.Sprintf("data for option '%s' is as expected. System has '%d' physical Cores.\n",
 			expect.Option, s.Data.CoresPhysical))
 
 	case "Profile":
 		if s.Data.Profile != expect.Value {
 			err := fmt.Errorf("data for option '%s' is not as expected, have '%s', want '%s'", expect.Option, s.Data.Profile, expect.Value)
-			stderrMsg.WriteString(err.Error())
+			outputBuf.WriteString(err.Error())
 
 			return err
 		}
 
-		stdoutMsg.WriteString(fmt.Sprintf("data for option '%s' is as expected. System has has ACPI Platform Profile '%s'.\n",
+		outputBuf.WriteString(fmt.Sprintf("data for option '%s' is as expected. System has has ACPI Platform Profile '%s'.\n",
 			expect.Option, s.Data.Profile))
 
 	case "CurPowerConsumption":
 		if err := parseValue(s.Data.Power.CurPowerConsumption, expect.Value); err != nil {
 			err := fmt.Errorf("data for option '%s' is not as expected. '%s' is '%dμW'. The expect value was '%sμW'\n",
 				expect.Option, expect.Option, s.Data.Power.CurPowerConsumption, expect.Value)
-			stderrMsg.WriteString(err.Error())
+			outputBuf.WriteString(err.Error())
 
 			return err
 		}
 
-		stdoutMsg.WriteString(fmt.Sprintf("data for option '%s' is as expected. '%s' is '%dμW'. The expect value was '%sμW'\n",
+		outputBuf.WriteString(fmt.Sprintf("data for option '%s' is as expected. '%s' is '%dμW'. The expect value was '%sμW'\n",
 			expect.Option, expect.Option, s.Data.Power.CurPowerConsumption, expect.Value))
 
 	case "MaxPowerConsumption":
 		if err := parseValue(s.Data.Power.MaxPowerConsumption, expect.Value); err != nil {
 			err := fmt.Errorf("data for option '%s'. '%s' is '%dμW'. The expect value was '%sμW'\n",
 				expect.Option, expect.Option, s.Data.Power.MaxPowerConsumption, expect.Value)
-			stderrMsg.WriteString(err.Error())
+			outputBuf.WriteString(err.Error())
 
 			return err
 		}
 
-		stdoutMsg.WriteString(fmt.Sprintf("data for option '%s' is as expected. '%s' is '%dμW'. The expect value was '%sμW'\n",
+		outputBuf.WriteString(fmt.Sprintf("data for option '%s' is as expected. '%s' is '%dμW'. The expect value was '%sμW'\n",
 			expect.Option, expect.Option, s.Data.Power.MaxPowerConsumption, expect.Value))
 
 	case "PowerLimit1":
 		if err := parseValue(s.Data.Power.PowerLimit1, expect.Value); err != nil {
 			err := fmt.Errorf("error for option '%s': %v\n",
 				expect.Option, err)
-			stderrMsg.WriteString(err.Error())
+			outputBuf.WriteString(err.Error())
 
 			return err
 		}
 
-		stdoutMsg.WriteString(fmt.Sprintf("data for option '%s' is as expected. '%s' is '%dμW'. The expect value was '%sμW'\n",
+		outputBuf.WriteString(fmt.Sprintf("data for option '%s' is as expected. '%s' is '%dμW'. The expect value was '%sμW'\n",
 			expect.Option, expect.Option, s.Data.Power.PowerLimit1, expect.Value))
 
 	case "PowerLimit2":
 		if err := parseValue(s.Data.Power.PowerLimit2, expect.Value); err != nil {
 			err := fmt.Errorf("data for option '%s' is not as expected. '%s' is '%dμW'. The expect value was '%sμW'\n",
 				expect.Option, expect.Option, s.Data.Power.PowerLimit2, expect.Value)
-			stderrMsg.WriteString(err.Error())
+			outputBuf.WriteString(err.Error())
 
 			return err
 		}
 
-		stdoutMsg.WriteString(fmt.Sprintf("data for option '%s' is as expected. '%s' is '%dμW'. The expect value was '%sμW'\n",
+		outputBuf.WriteString(fmt.Sprintf("data for option '%s' is as expected. '%s' is '%dμW'. The expect value was '%sμW'\n",
 			expect.Option, expect.Option, s.Data.Power.PowerLimit2, expect.Value))
 
 	default:
 		err := fmt.Errorf("failed to find option '%s'. Supported options are: '%s'", expect.Option, s.GeneralOptions())
-		stderrMsg.WriteString(err.Error())
+		outputBuf.WriteString(err.Error())
 
 		return err
 	}
@@ -141,78 +141,78 @@ func (s *Stats) CheckGeneralOption(expect General, stdoutMsg *strings.Builder, s
 	return nil
 }
 
-func (s *Stats) CheckIndividualOption(expect Individual, interval bool, stdoutMsg *strings.Builder, stderrMsg *strings.Builder) error {
+func (s *Stats) CheckIndividualOption(expect Individual, interval bool, outputBuf *strings.Builder) error {
 	var finalErr bool
 
 	for _, core := range expect.Cores {
 		switch expect.Option {
 		case "CStates":
 			if err := s.checkCStatesFromString(core, expect, interval); err != nil {
-				stderrMsg.WriteString(fmt.Sprintf("Core '%d':\n%s\n", core, err.Error()))
+				outputBuf.WriteString(fmt.Sprintf("Core '%d':\n%s\n", core, err.Error()))
 
 				finalErr = true
 
 				continue
 			}
 
-			stdoutMsg.WriteString(fmt.Sprintf("'%s' for core '%d' is as expected: '%s'\n",
+			outputBuf.WriteString(fmt.Sprintf("'%s' for core '%d' is as expected: '%s'\n",
 				expect.Option, core, expect.Value))
 
 		case "ScalingFrequency":
 			if err := parseValue(s.Data.Cores[core].Frequency.ScalingFrequency, expect.Value); err != nil {
 				err := fmt.Errorf("Core '%d': data is not as expected, have '%dKHz', want '%sKHz'\n", core, s.Data.Cores[core].Frequency.ScalingFrequency, expect.Value)
-				stderrMsg.WriteString(err.Error())
+				outputBuf.WriteString(err.Error())
 
 				finalErr = true
 
 				continue
 			}
 
-			stdoutMsg.WriteString(fmt.Sprintf("'%s' for core '%d' is as expected. '%s' is '%dKHz'. The expect value was '%sKHz'\n",
+			outputBuf.WriteString(fmt.Sprintf("'%s' for core '%d' is as expected. '%s' is '%dKHz'. The expect value was '%sKHz'\n",
 				expect.Option, core, expect.Option, s.Data.Cores[core].Frequency.ScalingFrequency, expect.Value))
 
 		case "CurrentFrequency":
 			if err := parseValue(s.Data.Cores[core].Frequency.CurrentFrequency, expect.Value); err != nil {
 				err := fmt.Errorf("Core '%d': data is not as expected, have '%dKHz', want '%sKHz'\n", core, s.Data.Cores[core].Frequency.CurrentFrequency, expect.Value)
-				stderrMsg.WriteString(err.Error())
+				outputBuf.WriteString(err.Error())
 
 				finalErr = true
 
 				continue
 			}
 
-			stdoutMsg.WriteString(fmt.Sprintf("'%s' for core '%d' is as expected. '%s' is '%dKHz'. The expect value was '%sKHz'\n",
+			outputBuf.WriteString(fmt.Sprintf("'%s' for core '%d' is as expected. '%s' is '%dKHz'. The expect value was '%sKHz'\n",
 				expect.Option, core, expect.Option, s.Data.Cores[core].Frequency.CurrentFrequency, expect.Value))
 
 		case "MinFrequency":
 			if err := parseValue(s.Data.Cores[core].Frequency.MinFrequency, expect.Value); err != nil {
 				err := fmt.Errorf("Core '%d': data is not as expected, have '%dKHz', want '%sKHz'\n", core, s.Data.Cores[core].Frequency.MinFrequency, expect.Value)
-				stderrMsg.WriteString(err.Error())
+				outputBuf.WriteString(err.Error())
 
 				finalErr = true
 
 				continue
 			}
 
-			stdoutMsg.WriteString(fmt.Sprintf("'%s' for core '%d' is as expected. '%s' is '%dKHz'. The expect value was '%sKHz'\n",
+			outputBuf.WriteString(fmt.Sprintf("'%s' for core '%d' is as expected. '%s' is '%dKHz'. The expect value was '%sKHz'\n",
 				expect.Option, core, expect.Option, s.Data.Cores[core].Frequency.MinFrequency, expect.Value))
 
 		case "MaxFrequency":
 			if err := parseValue(s.Data.Cores[core].Frequency.MaxFrequency, expect.Value); err != nil {
 				err := fmt.Errorf("Core '%d': data is not as expected, have '%dKHz', want '%sKHz'\n", core, s.Data.Cores[core].Frequency.MaxFrequency, expect.Value)
-				stderrMsg.WriteString(err.Error())
+				outputBuf.WriteString(err.Error())
 
 				finalErr = true
 
 				continue
 			}
 
-			stdoutMsg.WriteString(fmt.Sprintf("'%s' for core '%d' is as expected. '%s' is '%dKHz'. The expect value was '%sKHz'\n",
+			outputBuf.WriteString(fmt.Sprintf("'%s' for core '%d' is as expected. '%s' is '%dKHz'. The expect value was '%sKHz'\n",
 				expect.Option, core, expect.Option, s.Data.Cores[core].Frequency.MaxFrequency, expect.Value))
 
 		default:
 			err := fmt.Errorf("failed to find option '%s' for core '%d'. Supported options are: '%s'\n", expect.Option, core, s.IndividualOptions())
-			stderrMsg.WriteString(err.Error())
+			outputBuf.WriteString(err.Error())
 
 			finalErr = true
 
@@ -221,7 +221,7 @@ func (s *Stats) CheckIndividualOption(expect Individual, interval bool, stdoutMs
 	}
 
 	if finalErr {
-		return fmt.Errorf("error while checking individual option: %s", stderrMsg.String())
+		return fmt.Errorf("error while checking individual option: %s", outputBuf.String())
 	}
 
 	return nil

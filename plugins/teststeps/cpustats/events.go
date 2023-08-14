@@ -102,11 +102,20 @@ func writeCommand(command string, builders ...*strings.Builder) {
 	}
 }
 
-// emitStderr emits the whole error message an returns the error
-func emitStderr(ctx xcontext.Context, name event.Name, stderrMsg string, tgt *target.Target, ev testevent.Emitter, err error) error {
-	if err := emitEvent(ctx, EventStderr, eventPayload{Msg: stderrMsg}, tgt, ev); err != nil {
+// emitStderr emits the whole error message to Stderr and returns the error
+func emitStderr(ctx xcontext.Context, message string, tgt *target.Target, ev testevent.Emitter, err error) error {
+	if err := emitEvent(ctx, EventStderr, eventPayload{Msg: message}, tgt, ev); err != nil {
 		return fmt.Errorf("cannot emit event: %v", err)
 	}
 
 	return err
+}
+
+// emitStdout emits the whole message to Stdout
+func emitStdout(ctx xcontext.Context, message string, tgt *target.Target, ev testevent.Emitter) error {
+	if err := emitEvent(ctx, EventStdout, eventPayload{Msg: message}, tgt, ev); err != nil {
+		return fmt.Errorf("cannot emit event: %v", err)
+	}
+
+	return nil
 }

@@ -38,7 +38,7 @@ func NewTargetRunner(ts *TestStep, ev testevent.Emitter) *TargetRunner {
 }
 
 func (r *TargetRunner) Run(ctx xcontext.Context, target *target.Target) error {
-	var stdoutMsg, stderrMsg strings.Builder
+	var outputBuf *strings.Builder
 
 	// limit the execution time if specified
 	var cancel xcontext.CancelFunc
@@ -56,9 +56,9 @@ func (r *TargetRunner) Run(ctx xcontext.Context, target *target.Target) error {
 
 	if r.ts.Transport.Proto != supportedProto {
 		err := fmt.Errorf("only '%s' is supported as protocol in this teststep", supportedProto)
-		stderrMsg.WriteString(fmt.Sprintf("%v", err))
+		outputBuf.WriteString(fmt.Sprintf("%v", err))
 
-		return emitStderr(ctx, EventStderr, stderrMsg.String(), target, r.ev, err)
+		return emitStderr(ctx, outputBuf.String(), target, r.ev, err)
 	}
 
 	if r.ts.Parameter.Duration != "" {
@@ -67,28 +67,24 @@ func (r *TargetRunner) Run(ctx xcontext.Context, target *target.Target) error {
 		}
 	}
 
-	r.ts.writeTestStep(&stdoutMsg, &stderrMsg)
+	r.ts.writeTestStep(outputBuf)
 
 	transport, err := transport.NewTransport(r.ts.Transport.Proto, r.ts.Transport.Options, pe)
 	if err != nil {
 		err := fmt.Errorf("failed to create transport: %w", err)
-		stderrMsg.WriteString(fmt.Sprintf("%v", err))
+		outputBuf.WriteString(fmt.Sprintf("%v", err))
 
-		return emitStderr(ctx, EventStderr, stderrMsg.String(), target, r.ev, err)
+		return emitStderr(ctx, outputBuf.String(), target, r.ev, err)
 	}
 
-	if err := r.ts.runLoad(ctx, &stdoutMsg, &stderrMsg, transport); err != nil {
-		return emitStderr(ctx, EventStderr, stderrMsg.String(), target, r.ev, err)
+	if err := r.ts.runLoad(ctx, outputBuf, transport); err != nil {
+		return emitStderr(ctx, outputBuf.String(), target, r.ev, err)
 	}
 
-	if err := emitEvent(ctx, EventStdout, eventPayload{Msg: stdoutMsg.String()}, target, r.ev); err != nil {
-		return fmt.Errorf("cannot emit event: %v", err)
-	}
-
-	return err
+	return emitStdout(ctx, outputBuf.String(), target, r.ev)
 }
 
-func (ts *TestStep) runLoad(ctx xcontext.Context, stdoutMsg, stderrMsg *strings.Builder, transport transport.Transport,
+func (ts *TestStep) runLoad(ctx xcontext.Context, outputBuf *strings.Builder, transport transport.Transport,
 ) error {
 	var (
 		args []string
@@ -108,7 +104,7 @@ func (ts *TestStep) runLoad(ctx xcontext.Context, stdoutMsg, stderrMsg *strings.
 		return fmt.Errorf("Failed to create proc: %w", err)
 	}
 
-	writeCommand(proc.String(), stdoutMsg, stderrMsg)
+	writeCommand(proc.String(), outputBuf)
 
 	stdoutPipe, err := proc.StdoutPipe()
 	if err != nil {
@@ -125,13 +121,13 @@ func (ts *TestStep) runLoad(ctx xcontext.Context, stdoutMsg, stderrMsg *strings.
 	// between "an error occured while launching" and "this was the outcome of the execution"
 	outcome := proc.Start(ctx)
 	if outcome != nil {
-		stderrMsg.WriteString(fmt.Sprintf("Stderr:\n%s\n", outcome.Error()))
+		outputBuf.WriteString(fmt.Sprintf("Stderr:\n%s\n", outcome.Error()))
 
 		return fmt.Errorf("Failed to run load test: %v.", outcome)
 	}
 
 	if len(ts.Individual) > 0 || len(ts.General) > 0 {
-		if err := ts.parseStats(ctx, stdoutMsg, stderrMsg, transport); err != nil {
+		if err := ts.parseStats(ctx, outputBuf, transport); err != nil {
 			return fmt.Errorf("Failed to parse cpu stats: %v.", err)
 		}
 	}
@@ -143,17 +139,21 @@ func (ts *TestStep) runLoad(ctx xcontext.Context, stdoutMsg, stderrMsg *strings.
 	stdout, stderr := getOutputFromReader(stdoutPipe, stderrPipe)
 
 	if outcome != nil {
-		stderrMsg.WriteString(fmt.Sprintf("Stderr:\n%s\n", string(stderr)))
+		if len(stderr) > 0 {
+			outputBuf.WriteString(fmt.Sprintf("Stderr:\n%s\n", string(stderr)))
+		}
 
 		return fmt.Errorf("Failed to run load test: %v.", outcome)
 	}
 
-	stdoutMsg.WriteString(fmt.Sprintf("Stdout:\n%s\n", string(stdout)))
+	if len(stdout) > 0 {
+		outputBuf.WriteString(fmt.Sprintf("Stdout:\n%s\n", string(stdout)))
+	}
 
 	return err
 }
 
-func (ts *TestStep) parseStats(ctx xcontext.Context, stdoutMsg, stderrMsg *strings.Builder, transport transport.Transport) error {
+func (ts *TestStep) parseStats(ctx xcontext.Context, outputBuf *strings.Builder, transport transport.Transport) error {
 	duration, err := time.ParseDuration(ts.Parameter.Duration)
 	if err != nil {
 		return fmt.Errorf("wrong interval statement, valid units are ns, us, ms, s, m and h")
@@ -179,7 +179,7 @@ func (ts *TestStep) parseStats(ctx xcontext.Context, stdoutMsg, stderrMsg *strin
 		return fmt.Errorf("Failed to create proc: %w", err)
 	}
 
-	writeCommand(proc.String(), stdoutMsg, stderrMsg)
+	writeCommand(proc.String(), outputBuf)
 
 	stdoutPipe, err := proc.StdoutPipe()
 	if err != nil {
@@ -198,15 +198,16 @@ func (ts *TestStep) parseStats(ctx xcontext.Context, stdoutMsg, stderrMsg *strin
 	if outcome == nil {
 		outcome = proc.Wait(ctx)
 	}
+
 	stdout, stderr := getOutputFromReader(stdoutPipe, stderrPipe)
 
 	if outcome != nil {
 		return fmt.Errorf("Failed to get CPU stats: %v.\nStats Stderr:\n%s\n", outcome, string(stderr))
 	}
 
-	stdoutMsg.WriteString(fmt.Sprintf("Stats Stdout:\n%s\n", string(stdout)))
+	outputBuf.WriteString(fmt.Sprintf("Stats Stdout:\n%s\n", string(stdout)))
 
-	if err = ts.parseOutput(ctx, stdoutMsg, stderrMsg, stdout); err != nil {
+	if err = ts.parseOutput(ctx, outputBuf, stdout); err != nil {
 		return err
 	}
 
@@ -241,7 +242,7 @@ func readBuffer(r io.Reader) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func (ts *TestStep) parseOutput(ctx xcontext.Context, stdoutMsg *strings.Builder, stderrMsg *strings.Builder,
+func (ts *TestStep) parseOutput(ctx xcontext.Context, outputBuf *strings.Builder,
 	stdout []byte,
 ) error {
 	var (
@@ -257,14 +258,14 @@ func (ts *TestStep) parseOutput(ctx xcontext.Context, stdoutMsg *strings.Builder
 	}
 
 	for _, expect := range ts.expectStepParams.General {
-		if err := stats.CheckGeneralOption(expect, stdoutMsg, stderrMsg); err != nil {
+		if err := stats.CheckGeneralOption(expect, outputBuf); err != nil {
 			errorString += fmt.Sprintf("failed to check general option '%s': %v\n", expect.Option, err)
 			finalError = true
 		}
 	}
 
 	for _, expect := range ts.expectStepParams.Individual {
-		if err := stats.CheckIndividualOption(expect, true, stdoutMsg, stderrMsg); err != nil {
+		if err := stats.CheckIndividualOption(expect, true, outputBuf); err != nil {
 			errorString += fmt.Sprintf("failed to check individual option '%s': %v\n", expect.Option, err)
 			finalError = true
 		}
