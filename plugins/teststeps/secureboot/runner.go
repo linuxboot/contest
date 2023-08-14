@@ -285,6 +285,8 @@ func (ts *TestStep) reset(
 			return outcome, fmt.Errorf("failed unexpectedly to enroll secure boot keys for hierarchy %s: %v", ts.inputStepParams.Parameter.Hierarchy, string(stderr))
 		}
 	case true:
+		stdoutMsg.WriteString(fmt.Sprintf("Command Stderr:\n%s\n\n\n", string(stderr)))
+
 		if len(stderr) == 0 {
 			return outcome, fmt.Errorf("reset secure boot keys for hierarchy %s, but expected to fail", ts.inputStepParams.Parameter.Hierarchy)
 		}
@@ -422,6 +424,8 @@ func (ts *TestStep) enrollKeys(
 			return outcome, fmt.Errorf("failed unexpectedly to enroll secure boot keys for hierarchy %s: %v", ts.inputStepParams.Parameter.Hierarchy, string(stderr))
 		}
 	case true:
+		stdoutMsg.WriteString(fmt.Sprintf("Command Stderr:\n%s\n\n\n", string(stderr)))
+
 		if len(stderr) == 0 {
 			return outcome, fmt.Errorf("enrolled secure boot keys for hierarchy %s, but expected to fail", ts.inputStepParams.Parameter.Hierarchy)
 		}
@@ -488,6 +492,8 @@ func (ts *TestStep) rotateKeys(
 			return outcome, fmt.Errorf("failed unexpectedly to rotate secure boot keys for hierarchy %s: %v", ts.inputStepParams.Parameter.Hierarchy, string(stderr))
 		}
 	case true:
+		stdoutMsg.WriteString(fmt.Sprintf("Command Stderr:\n%s\n\n\n", string(stderr)))
+
 		if len(stderr) == 0 {
 			return outcome, fmt.Errorf("rotated secure boot keys for hierarchy %s, but expected to fail", ts.inputStepParams.Parameter.Hierarchy)
 		}
