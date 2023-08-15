@@ -45,6 +45,7 @@ import (
 	ping "github.com/linuxboot/contest/plugins/teststeps/ping"
 	qemu "github.com/linuxboot/contest/plugins/teststeps/qemu"
 	randecho "github.com/linuxboot/contest/plugins/teststeps/randecho"
+	robot "github.com/linuxboot/contest/plugins/teststeps/robot"
 	secureboot "github.com/linuxboot/contest/plugins/teststeps/secureboot"
 	sleep "github.com/linuxboot/contest/plugins/teststeps/sleep"
 	sshcmd "github.com/linuxboot/contest/plugins/teststeps/sshcmd"
@@ -69,6 +70,7 @@ func getPluginConfig() *server.PluginConfig {
 	pc.TestStepLoaders = append(pc.TestStepLoaders, echo.Load)
 	pc.TestStepLoaders = append(pc.TestStepLoaders, exec.Load)
 	pc.TestStepLoaders = append(pc.TestStepLoaders, randecho.Load)
+	pc.TestStepLoaders = append(pc.TestStepLoaders, robot.Load)
 	pc.TestStepLoaders = append(pc.TestStepLoaders, secureboot.Load)
 	pc.TestStepLoaders = append(pc.TestStepLoaders, sleep.Load)
 	pc.TestStepLoaders = append(pc.TestStepLoaders, sshcmd.Load)
