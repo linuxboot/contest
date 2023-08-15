@@ -18,81 +18,13 @@ import (
 	"syscall"
 
 	"github.com/linuxboot/contest/cmds/contest/server"
-
-	// the targetmanager plugins
-	csvtargetmanager "github.com/linuxboot/contest/plugins/targetmanagers/csvtargetmanager"
-	targetlist "github.com/linuxboot/contest/plugins/targetmanagers/targetlist"
-
-	// the testfetcher plugins
-	literal "github.com/linuxboot/contest/plugins/testfetchers/literal"
-	uri "github.com/linuxboot/contest/plugins/testfetchers/uri"
-
-	// the teststep plugins
-	bios_certificate "github.com/linuxboot/contest/plugins/teststeps/bios_certificate"
-	bios_setting_get "github.com/linuxboot/contest/plugins/teststeps/bios_settings_get"
-	bios_setting_set "github.com/linuxboot/contest/plugins/teststeps/bios_settings_set"
-	chipsec "github.com/linuxboot/contest/plugins/teststeps/chipsec"
-	ts_cmd "github.com/linuxboot/contest/plugins/teststeps/cmd"
-	copy "github.com/linuxboot/contest/plugins/teststeps/copy"
-	cpuload "github.com/linuxboot/contest/plugins/teststeps/cpuload"
-	cpuset "github.com/linuxboot/contest/plugins/teststeps/cpuset"
-	cpustats "github.com/linuxboot/contest/plugins/teststeps/cpustats"
-	dutctl "github.com/linuxboot/contest/plugins/teststeps/dutctl"
-	echo "github.com/linuxboot/contest/plugins/teststeps/echo"
-	exec "github.com/linuxboot/contest/plugins/teststeps/exec"
-	fwts "github.com/linuxboot/contest/plugins/teststeps/fwts"
-	hwaas "github.com/linuxboot/contest/plugins/teststeps/hwaas"
-	ping "github.com/linuxboot/contest/plugins/teststeps/ping"
-	qemu "github.com/linuxboot/contest/plugins/teststeps/qemu"
-	randecho "github.com/linuxboot/contest/plugins/teststeps/randecho"
-	robot "github.com/linuxboot/contest/plugins/teststeps/robot"
-	secureboot "github.com/linuxboot/contest/plugins/teststeps/secureboot"
-	sleep "github.com/linuxboot/contest/plugins/teststeps/sleep"
-	sshcmd "github.com/linuxboot/contest/plugins/teststeps/sshcmd"
-
-	// the reporter plugins
-	noop "github.com/linuxboot/contest/plugins/reporters/noop"
-	targetsuccess "github.com/linuxboot/contest/plugins/reporters/targetsuccess"
 )
-
-func getPluginConfig() *server.PluginConfig {
-	var pc server.PluginConfig
-	pc.TargetManagerLoaders = append(pc.TargetManagerLoaders, csvtargetmanager.Load)
-	pc.TargetManagerLoaders = append(pc.TargetManagerLoaders, targetlist.Load)
-	pc.TestFetcherLoaders = append(pc.TestFetcherLoaders, literal.Load)
-	pc.TestFetcherLoaders = append(pc.TestFetcherLoaders, uri.Load)
-	pc.TestStepLoaders = append(pc.TestStepLoaders, ts_cmd.Load)
-	pc.TestStepLoaders = append(pc.TestStepLoaders, cpustats.Load)
-	pc.TestStepLoaders = append(pc.TestStepLoaders, cpuload.Load)
-	pc.TestStepLoaders = append(pc.TestStepLoaders, cpuset.Load)
-	pc.TestStepLoaders = append(pc.TestStepLoaders, chipsec.Load)
-	pc.TestStepLoaders = append(pc.TestStepLoaders, fwts.Load)
-	pc.TestStepLoaders = append(pc.TestStepLoaders, echo.Load)
-	pc.TestStepLoaders = append(pc.TestStepLoaders, exec.Load)
-	pc.TestStepLoaders = append(pc.TestStepLoaders, randecho.Load)
-	pc.TestStepLoaders = append(pc.TestStepLoaders, robot.Load)
-	pc.TestStepLoaders = append(pc.TestStepLoaders, secureboot.Load)
-	pc.TestStepLoaders = append(pc.TestStepLoaders, sleep.Load)
-	pc.TestStepLoaders = append(pc.TestStepLoaders, sshcmd.Load)
-	pc.TestStepLoaders = append(pc.TestStepLoaders, copy.Load)
-	pc.TestStepLoaders = append(pc.TestStepLoaders, bios_setting_set.Load)
-	pc.TestStepLoaders = append(pc.TestStepLoaders, bios_setting_get.Load)
-	pc.TestStepLoaders = append(pc.TestStepLoaders, bios_certificate.Load)
-	pc.TestStepLoaders = append(pc.TestStepLoaders, ping.Load)
-	pc.TestStepLoaders = append(pc.TestStepLoaders, dutctl.Load)
-	pc.TestStepLoaders = append(pc.TestStepLoaders, hwaas.Load)
-	pc.TestStepLoaders = append(pc.TestStepLoaders, qemu.Load)
-	pc.ReporterLoaders = append(pc.ReporterLoaders, noop.Load)
-	pc.ReporterLoaders = append(pc.ReporterLoaders, targetsuccess.Load)
-
-	return &pc
-}
 
 func main() {
 	sigs := make(chan os.Signal, 1)
 	defer close(sigs)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM, syscall.SIGUSR1)
-	if err := server.Main(getPluginConfig(), os.Args[0], os.Args[1:], sigs); err != nil {
+	if err := server.Main(os.Args[0], os.Args[1:], sigs); err != nil {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
 		os.Exit(1)
 	}
