@@ -107,6 +107,7 @@ func (ts *TestStep) runRobot(ctx xcontext.Context, outputBuf *strings.Builder, t
 	// try to start the process, if that succeeds then the outcome is the result of
 	// waiting on the process for its result; this way there's a semantic difference
 	// between "an error occured while launching" and "this was the outcome of the execution"
+	outputBuf.WriteString(fmt.Sprintf("Stderr:\n%s\n", "start process"))
 	outcome := proc.Start(ctx)
 	if outcome != nil {
 		outputBuf.WriteString(fmt.Sprintf("Stderr:\n%s\n", outcome.Error()))
@@ -114,10 +115,14 @@ func (ts *TestStep) runRobot(ctx xcontext.Context, outputBuf *strings.Builder, t
 		return fmt.Errorf("Failed to run robot test: %v.", outcome)
 	}
 
+	outputBuf.WriteString(fmt.Sprintf("\n%s\n", "wait on process"))
 	if outcome == nil {
+		outputBuf.WriteString(fmt.Sprintf("\n%s\n", "waiting on process"))
+
 		outcome = proc.Wait(ctx)
 	}
 
+	outputBuf.WriteString(fmt.Sprintf("\n%s\n", "get output of process"))
 	stdout, stderr := getOutputFromReader(stdoutPipe, stderrPipe)
 
 	if outcome != nil {
@@ -127,6 +132,7 @@ func (ts *TestStep) runRobot(ctx xcontext.Context, outputBuf *strings.Builder, t
 	}
 
 	outputBuf.WriteString(fmt.Sprintf("Stdout:\n%s\n", string(stdout)))
+	outputBuf.WriteString(fmt.Sprintf("Stderr:\n%s\n", string(stderr)))
 
 	if ts.Parameter.ReportOnly {
 		return nil
