@@ -53,7 +53,7 @@ func (r *TargetRunner) Run(ctx xcontext.Context, target *target.Target) error {
 		err := fmt.Errorf("only '%s' is supported as protocol in this teststep", supportedProto)
 		outputBuf.WriteString(fmt.Sprintf("%v", err))
 
-		return emitStderr(ctx, EventStderr, outputBuf.String(), target, r.ev, err)
+		return emitStderr(ctx, outputBuf.String(), target, r.ev, err)
 	}
 
 	r.ts.writeTestStep(&outputBuf)
@@ -63,18 +63,14 @@ func (r *TargetRunner) Run(ctx xcontext.Context, target *target.Target) error {
 		err := fmt.Errorf("failed to create transport: %w", err)
 		outputBuf.WriteString(fmt.Sprintf("%v", err))
 
-		return emitStderr(ctx, EventStderr, outputBuf.String(), target, r.ev, err)
+		return emitStderr(ctx, outputBuf.String(), target, r.ev, err)
 	}
 
 	if err := r.ts.runRobot(ctx, &outputBuf, transport); err != nil {
-		return emitStderr(ctx, EventStderr, outputBuf.String(), target, r.ev, err)
+		return emitStderr(ctx, outputBuf.String(), target, r.ev, err)
 	}
 
-	if err := emitEvent(ctx, EventStdout, eventPayload{Msg: outputBuf.String()}, target, r.ev); err != nil {
-		return fmt.Errorf("cannot emit event: %v", err)
-	}
-
-	return err
+	return emitStdout(ctx, outputBuf.String(), target, r.ev)
 }
 
 func (ts *TestStep) runRobot(ctx xcontext.Context, outputBuf *strings.Builder, transport transport.Transport,

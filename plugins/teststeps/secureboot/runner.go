@@ -43,7 +43,7 @@ func NewTargetRunner(ts *TestStep, ev testevent.Emitter) *TargetRunner {
 }
 
 func (r *TargetRunner) Run(ctx xcontext.Context, target *target.Target) error {
-	var stdoutMsg, stderrMsg strings.Builder
+	var outputBuf strings.Builder
 
 	// limit the execution time if specified
 	timeout := r.ts.Options.Timeout
@@ -57,67 +57,63 @@ func (r *TargetRunner) Run(ctx xcontext.Context, target *target.Target) error {
 
 	if r.ts.inputStepParams.Transport.Proto != supportedProto {
 		err := fmt.Errorf("only %q is supported as protocol in this teststep", supportedProto)
-		stderrMsg.WriteString(fmt.Sprintf("%v", err))
+		outputBuf.WriteString(fmt.Sprintf("%v", err))
 
-		return emitStderr(ctx, EventStderr, stderrMsg.String(), target, r.ev, err)
+		return emitStderr(ctx, outputBuf.String(), target, r.ev, err)
 	}
 
 	transportProto, err := transport.NewTransport(r.ts.inputStepParams.Transport.Proto, r.ts.inputStepParams.Transport.Options, pe)
 	if err != nil {
 		err := fmt.Errorf("failed to create transport: %w", err)
-		stderrMsg.WriteString(fmt.Sprintf("%v", err))
+		outputBuf.WriteString(fmt.Sprintf("%v", err))
 
-		return emitStderr(ctx, EventStderr, stderrMsg.String(), target, r.ev, err)
+		return emitStderr(ctx, outputBuf.String(), target, r.ev, err)
 	}
 
 	switch r.ts.inputStepParams.Parameter.Command {
 	case "enroll-key":
-		if _, err = r.ts.enrollKeys(ctx, &stdoutMsg, &stderrMsg, transportProto); err != nil {
-			stderrMsg.WriteString(fmt.Sprintf("%v\n", err))
+		if _, err = r.ts.enrollKeys(ctx, &outputBuf, transportProto); err != nil {
+			outputBuf.WriteString(fmt.Sprintf("%v\n", err))
 
-			return emitStderr(ctx, EventStderr, stderrMsg.String(), target, r.ev, err)
+			return emitStderr(ctx, outputBuf.String(), target, r.ev, err)
 		}
 	case "rotate-key":
-		if _, err = r.ts.rotateKeys(ctx, &stdoutMsg, &stderrMsg, transportProto); err != nil {
-			stderrMsg.WriteString(fmt.Sprintf("%v\n", err))
+		if _, err = r.ts.rotateKeys(ctx, &outputBuf, transportProto); err != nil {
+			outputBuf.WriteString(fmt.Sprintf("%v\n", err))
 
-			return emitStderr(ctx, EventStderr, stderrMsg.String(), target, r.ev, err)
+			return emitStderr(ctx, outputBuf.String(), target, r.ev, err)
 		}
-	case "sign":
-		if _, err := r.ts.signFile(ctx, &stdoutMsg, &stderrMsg, transportProto); err != nil {
-			stderrMsg.WriteString(fmt.Sprintf("%v\n", err))
+	case "custom":
+		if _, err = r.ts.customKey(ctx, &outputBuf, transportProto); err != nil {
+			outputBuf.WriteString(fmt.Sprintf("%v\n", err))
 
-			return emitStderr(ctx, EventStderr, stderrMsg.String(), target, r.ev, err)
+			return emitStderr(ctx, outputBuf.String(), target, r.ev, err)
 		}
 	case "reset":
 
-		if _, err = r.ts.reset(ctx, &stdoutMsg, &stderrMsg, transportProto); err != nil {
-			stderrMsg.WriteString(fmt.Sprintf("%v\n", err))
+		if _, err = r.ts.reset(ctx, &outputBuf, transportProto); err != nil {
+			outputBuf.WriteString(fmt.Sprintf("%v\n", err))
 
-			return emitStderr(ctx, EventStderr, stderrMsg.String(), target, r.ev, err)
+			return emitStderr(ctx, outputBuf.String(), target, r.ev, err)
 		}
 	case "status":
-		if _, err = r.ts.getStatus(ctx, &stdoutMsg, &stderrMsg, transportProto, r.ts.Parameter.SetupMode, r.ts.Parameter.SecureBoot); err != nil {
-			stderrMsg.WriteString(fmt.Sprintf("%v\n", err))
+		if _, err = r.ts.getStatus(ctx, &outputBuf, transportProto, r.ts.Parameter.SetupMode, r.ts.Parameter.SecureBoot); err != nil {
+			outputBuf.WriteString(fmt.Sprintf("%v\n", err))
 
-			return emitStderr(ctx, EventStderr, stderrMsg.String(), target, r.ev, err)
+			return emitStderr(ctx, outputBuf.String(), target, r.ev, err)
 		}
 	default:
 		return fmt.Errorf("Command '%s' is not valid. Possible values are 'status', 'enroll-key', 'rotate-key', 'reset' and 'sign'.", r.ts.Parameter.Command)
 	}
 
-	if err := emitEvent(ctx, EventStdout, eventPayload{Msg: stdoutMsg.String()}, target, r.ev); err != nil {
-		return fmt.Errorf("cannot emit event: %v", err)
-	}
-
-	return nil
+	return emitStdout(ctx, outputBuf.String(), target, r.ev)
 }
 
 func (ts *TestStep) checkInstalled(
-	ctx xcontext.Context, stdoutMsg, stderrMsg *strings.Builder,
+	ctx xcontext.Context, outputBuf *strings.Builder,
 	transport transport.Transport,
 ) (outcome, error) {
-	outcome, status, err := ts.status(ctx, stdoutMsg, stderrMsg, transport)
+	outcome, status, err := ts.status(ctx, outputBuf, transport)
 	if err != nil {
 		return outcome, err
 	}
@@ -126,12 +122,12 @@ func (ts *TestStep) checkInstalled(
 		return nil, nil
 	}
 
-	outcome, err = ts.createKeys(ctx, stdoutMsg, stderrMsg, transport)
+	outcome, err = ts.createKeys(ctx, outputBuf, transport)
 	if err != nil {
 		return outcome, err
 	}
 
-	outcome, status, err = ts.status(ctx, stdoutMsg, stderrMsg, transport)
+	outcome, status, err = ts.status(ctx, outputBuf, transport)
 	if err != nil {
 		return outcome, err
 	}
@@ -143,47 +139,47 @@ func (ts *TestStep) checkInstalled(
 	return outcome, nil
 }
 
-func (ts *TestStep) setEfivarsMutable(ctx xcontext.Context, stdoutMsg, stderrMsg *strings.Builder, transport transport.Transport) (error, error) {
-	stdout, _, outcome, err := execCmdWithArgs(ctx, true, "find", []string{"/sys/firmware/efi/efivars", "-name", `"PK-*"`}, stdoutMsg, stderrMsg, transport)
+func (ts *TestStep) setEfivarsMutable(ctx xcontext.Context, outputBuf *strings.Builder, transport transport.Transport) (error, error) {
+	stdout, _, outcome, err := execCmdWithArgs(ctx, true, "find", []string{"/sys/firmware/efi/efivars", "-name", `"PK-*"`}, outputBuf, transport)
 	if err != nil {
 		return outcome, err
 	}
 
 	if len(stdout) != 0 {
-		if _, _, outcome, err = execCmdWithArgs(ctx, true, "chattr", []string{"-i", "/sys/firmware/efi/efivars/PK-*"}, stdoutMsg, stderrMsg, transport); err != nil {
+		if _, _, outcome, err = execCmdWithArgs(ctx, true, "chattr", []string{"-i", "/sys/firmware/efi/efivars/PK-*"}, outputBuf, transport); err != nil {
 			return outcome, err
 		}
 	}
 
-	stdout, _, outcome, err = execCmdWithArgs(ctx, true, "find", []string{"/sys/firmware/efi/efivars", "-name", `"KEK-*"`}, stdoutMsg, stderrMsg, transport)
+	stdout, _, outcome, err = execCmdWithArgs(ctx, true, "find", []string{"/sys/firmware/efi/efivars", "-name", `"KEK-*"`}, outputBuf, transport)
 	if err != nil {
 		return outcome, err
 	}
 
 	if len(stdout) != 0 {
-		if _, _, outcome, err = execCmdWithArgs(ctx, true, "chattr", []string{"-i", "/sys/firmware/efi/efivars/KEK-*"}, stdoutMsg, stderrMsg, transport); err != nil {
+		if _, _, outcome, err = execCmdWithArgs(ctx, true, "chattr", []string{"-i", "/sys/firmware/efi/efivars/KEK-*"}, outputBuf, transport); err != nil {
 			return outcome, err
 		}
 	}
 
-	stdout, _, outcome, err = execCmdWithArgs(ctx, true, "find", []string{"/sys/firmware/efi/efivars", "-name", `"db-*"`}, stdoutMsg, stderrMsg, transport)
+	stdout, _, outcome, err = execCmdWithArgs(ctx, true, "find", []string{"/sys/firmware/efi/efivars", "-name", `"db-*"`}, outputBuf, transport)
 	if err != nil {
 		return outcome, err
 	}
 
 	if len(stdout) != 0 {
-		if _, _, outcome, err = execCmdWithArgs(ctx, true, "chattr", []string{"-i", "/sys/firmware/efi/efivars/db-*"}, stdoutMsg, stderrMsg, transport); err != nil {
+		if _, _, outcome, err = execCmdWithArgs(ctx, true, "chattr", []string{"-i", "/sys/firmware/efi/efivars/db-*"}, outputBuf, transport); err != nil {
 			return outcome, err
 		}
 	}
 
-	stdout, _, outcome, err = execCmdWithArgs(ctx, true, "find", []string{"/sys/firmware/efi/efivars", "-name", `"dbx-*"`}, stdoutMsg, stderrMsg, transport)
+	stdout, _, outcome, err = execCmdWithArgs(ctx, true, "find", []string{"/sys/firmware/efi/efivars", "-name", `"dbx-*"`}, outputBuf, transport)
 	if err != nil {
 		return outcome, err
 	}
 
 	if len(stdout) != 0 {
-		if _, _, outcome, err = execCmdWithArgs(ctx, true, "chattr", []string{"-i", "/sys/firmware/efi/efivars/dbx-*"}, stdoutMsg, stderrMsg, transport); err != nil {
+		if _, _, outcome, err = execCmdWithArgs(ctx, true, "chattr", []string{"-i", "/sys/firmware/efi/efivars/dbx-*"}, outputBuf, transport); err != nil {
 			return outcome, err
 		}
 	}
@@ -192,34 +188,34 @@ func (ts *TestStep) setEfivarsMutable(ctx xcontext.Context, stdoutMsg, stderrMsg
 }
 
 func (ts *TestStep) getStatus(
-	ctx xcontext.Context, stdoutMsg, stderrMsg *strings.Builder,
+	ctx xcontext.Context, outputBuf *strings.Builder,
 	transport transport.Transport, expectSetupMode, expectSecureBoot bool,
 ) (outcome, error) {
-	writeStatusTestStep(ts, stdoutMsg, stderrMsg)
+	writeStatusTestStep(ts, outputBuf)
 
-	outcome, status, err := ts.status(ctx, stdoutMsg, stderrMsg, transport)
+	outcome, status, err := ts.status(ctx, outputBuf, transport)
 	if err != nil {
 		return outcome, err
 	}
 
-	err = checkStatus(stdoutMsg, stderrMsg, status, expectSetupMode, expectSecureBoot)
+	err = checkStatus(outputBuf, status, expectSetupMode, expectSecureBoot)
 
 	return outcome, err
 }
 
-func (ts *TestStep) createKeys(ctx xcontext.Context, stdoutMsg, stderrMsg *strings.Builder, transport transport.Transport) (outcome, error) {
-	_, _, outcome, err := execCmdWithArgs(ctx, true, ts.inputStepParams.Parameter.ToolPath, []string{"create-keys"}, stdoutMsg, stderrMsg, transport)
+func (ts *TestStep) createKeys(ctx xcontext.Context, outputBuf *strings.Builder, transport transport.Transport) (outcome, error) {
+	_, _, outcome, err := execCmdWithArgs(ctx, true, ts.inputStepParams.Parameter.ToolPath, []string{"create-keys"}, outputBuf, transport)
 
 	return outcome, err
 }
 
-func (ts *TestStep) status(ctx xcontext.Context, stdoutMsg, stderrMsg *strings.Builder, transport transport.Transport) (outcome, Status, error) {
-	stdout, stderr, outcome, err := execCmdWithArgs(ctx, true, ts.inputStepParams.Parameter.ToolPath, []string{"status", jsonFlag}, stdoutMsg, stderrMsg, transport)
+func (ts *TestStep) status(ctx xcontext.Context, outputBuf *strings.Builder, transport transport.Transport) (outcome, Status, error) {
+	stdout, stderr, outcome, err := execCmdWithArgs(ctx, true, ts.inputStepParams.Parameter.ToolPath, []string{"status", jsonFlag}, outputBuf, transport)
 	if err != nil {
 		return nil, Status{}, err
 	}
 
-	status, err := parseStatus(stdoutMsg, stderrMsg, stdout, stderr)
+	status, err := parseStatus(outputBuf, stdout, stderr)
 	if err != nil {
 		return nil, Status{}, err
 	}
@@ -227,7 +223,7 @@ func (ts *TestStep) status(ctx xcontext.Context, stdoutMsg, stderrMsg *strings.B
 	return outcome, status, nil
 }
 
-func checkStatus(stdoutMsg, stderrMsg *strings.Builder, status Status, expectSetupMode, expectSecureBoot bool) error {
+func checkStatus(outputBuf *strings.Builder, status Status, expectSetupMode, expectSecureBoot bool) error {
 	if expectSetupMode != status.SetupMode {
 		return fmt.Errorf("SetupMode is expected to be %v, but is %v instead.\n", expectSetupMode, status.SetupMode)
 	}
@@ -236,12 +232,12 @@ func checkStatus(stdoutMsg, stderrMsg *strings.Builder, status Status, expectSet
 		return fmt.Errorf("SecureBoot is expected to be %v, but is %v instead.\n", expectSecureBoot, status.SecureBoot)
 	}
 
-	stdoutMsg.WriteString("Secure Boot is in expected state\n")
+	outputBuf.WriteString("Secure Boot is in expected state\n")
 
 	return nil
 }
 
-func parseStatus(stdoutMsg, stderrMsg *strings.Builder, stdout, stderr string) (Status, error) {
+func parseStatus(outputBuf *strings.Builder, stdout, stderr string) (Status, error) {
 	status := Status{}
 	if len(stdout) != 0 {
 		if err := json.Unmarshal([]byte(stdout), &status); err != nil {
@@ -257,24 +253,24 @@ func parseStatus(stdoutMsg, stderrMsg *strings.Builder, stdout, stderr string) (
 }
 
 func (ts *TestStep) reset(
-	ctx xcontext.Context, stdoutMsg, stderrMsg *strings.Builder,
+	ctx xcontext.Context, outputBuf *strings.Builder,
 	transport transport.Transport,
 ) (outcome, error) {
-	writeResetTestStep(ts, stdoutMsg, stderrMsg)
+	writeResetTestStep(ts, outputBuf)
 
 	if err := supportedHierarchy(ts.inputStepParams.Parameter.Hierarchy); err != nil {
 		return nil, err
 	}
 
-	if outcome, err := ts.setEfivarsMutable(ctx, stdoutMsg, stderrMsg, transport); err != nil {
+	if outcome, err := ts.setEfivarsMutable(ctx, outputBuf, transport); err != nil {
 		return outcome, err
 	}
 
-	if outcome, err := ts.importKeys(ctx, stdoutMsg, stderrMsg, transport, false, true); err != nil {
+	if outcome, err := ts.importKeys(ctx, outputBuf, transport, false, true); err != nil {
 		return outcome, err
 	}
 
-	_, stderr, outcome, err := execCmdWithArgs(ctx, true, ts.inputStepParams.Parameter.ToolPath, []string{"reset", fmt.Sprintf("--partial=%v", ts.inputStepParams.Parameter.Hierarchy)}, stdoutMsg, stderrMsg, transport)
+	_, stderr, outcome, err := execCmdWithArgs(ctx, true, ts.inputStepParams.Parameter.ToolPath, []string{"reset", fmt.Sprintf("--partial=%v", ts.inputStepParams.Parameter.Hierarchy)}, outputBuf, transport)
 	if err != nil {
 		return outcome, err
 	}
@@ -285,13 +281,9 @@ func (ts *TestStep) reset(
 			return outcome, fmt.Errorf("failed unexpectedly to enroll secure boot keys for hierarchy %s: %v", ts.inputStepParams.Parameter.Hierarchy, string(stderr))
 		}
 	case true:
-		stdoutMsg.WriteString(fmt.Sprintf("Command Stderr:\n%s\n\n\n", string(stderr)))
-
 		if len(stderr) == 0 {
 			return outcome, fmt.Errorf("reset secure boot keys for hierarchy %s, but expected to fail", ts.inputStepParams.Parameter.Hierarchy)
 		}
-
-		stdoutMsg.WriteString(fmt.Sprintf("Command Stderr:\n%s\n\n\n", string(stderr)))
 	}
 
 	return outcome, nil
@@ -303,7 +295,7 @@ var importArgs = []string{
 }
 
 func (ts *TestStep) importKeys(
-	ctx xcontext.Context, stdoutMsg, stderrMsg *strings.Builder,
+	ctx xcontext.Context, outputBuf *strings.Builder,
 	transport transport.Transport, pair, signingPair bool,
 ) (outcome, error) {
 	var (
@@ -329,7 +321,7 @@ func (ts *TestStep) importKeys(
 			args = append(args, fmt.Sprintf("--pk-key=%v", ts.inputStepParams.Parameter.KeyFile), fmt.Sprintf("--pk-cert=%v", ts.inputStepParams.Parameter.CertFile))
 		}
 
-		_, stderr, outcome, err = execCmdWithArgs(ctx, true, ts.Parameter.ToolPath, args, stdoutMsg, stderrMsg, transport)
+		_, stderr, outcome, err = execCmdWithArgs(ctx, true, ts.Parameter.ToolPath, args, outputBuf, transport)
 		if err != nil {
 			return outcome, err
 		}
@@ -358,7 +350,7 @@ func (ts *TestStep) importKeys(
 			args = append(args, fmt.Sprintf("--pk-key=%v", ts.inputStepParams.Parameter.SigningKeyFile), fmt.Sprintf("--pk-cert=%v", ts.inputStepParams.Parameter.SigningCertFile))
 		}
 
-		_, stderr, outcome, err := execCmdWithArgs(ctx, true, ts.Parameter.ToolPath, args, stdoutMsg, stderrMsg, transport)
+		_, stderr, outcome, err := execCmdWithArgs(ctx, true, ts.Parameter.ToolPath, args, outputBuf, transport)
 		if err != nil {
 			return outcome, err
 		}
@@ -372,7 +364,7 @@ func (ts *TestStep) importKeys(
 }
 
 func (ts *TestStep) enrollKeys(
-	ctx xcontext.Context, stdoutMsg, stderrMsg *strings.Builder,
+	ctx xcontext.Context, outputBuf *strings.Builder,
 	transport transport.Transport,
 ) (outcome, error) {
 	if err := supportedHierarchy(ts.inputStepParams.Parameter.Hierarchy); err != nil {
@@ -397,16 +389,16 @@ func (ts *TestStep) enrollKeys(
 		}
 	}
 
-	writeEnrollKeysTestStep(ts, stdoutMsg, stderrMsg)
+	writeEnrollKeysTestStep(ts, outputBuf)
 
-	if outcome, err := ts.checkInstalled(ctx, stdoutMsg, stderrMsg, transport); err != nil {
+	if outcome, err := ts.checkInstalled(ctx, outputBuf, transport); err != nil {
 		return outcome, err
 	}
 
-	if outcome, err := ts.setEfivarsMutable(ctx, stdoutMsg, stderrMsg, transport); err != nil {
+	if outcome, err := ts.setEfivarsMutable(ctx, outputBuf, transport); err != nil {
 		return outcome, err
 	}
-	if outcome, err := ts.importKeys(ctx, stdoutMsg, stderrMsg, transport, true, true); err != nil {
+	if outcome, err := ts.importKeys(ctx, outputBuf, transport, true, true); err != nil {
 		return outcome, err
 	}
 
@@ -416,7 +408,7 @@ func (ts *TestStep) enrollKeys(
 		fmt.Sprintf("--partial=%v", ts.inputStepParams.Parameter.Hierarchy),
 	}
 
-	_, stderr, outcome, err := execCmdWithArgs(ctx, true, ts.inputStepParams.Parameter.ToolPath, args, stdoutMsg, stderrMsg, transport)
+	_, stderr, outcome, err := execCmdWithArgs(ctx, true, ts.inputStepParams.Parameter.ToolPath, args, outputBuf, transport)
 
 	switch ts.Parameter.ShouldFail {
 	case false:
@@ -424,13 +416,9 @@ func (ts *TestStep) enrollKeys(
 			return outcome, fmt.Errorf("failed unexpectedly to enroll secure boot keys for hierarchy %s: %v", ts.inputStepParams.Parameter.Hierarchy, string(stderr))
 		}
 	case true:
-		stdoutMsg.WriteString(fmt.Sprintf("Command Stderr:\n%s\n\n\n", string(stderr)))
-
 		if len(stderr) == 0 {
 			return outcome, fmt.Errorf("enrolled secure boot keys for hierarchy %s, but expected to fail", ts.inputStepParams.Parameter.Hierarchy)
 		}
-
-		stdoutMsg.WriteString(fmt.Sprintf("Command Stderr:\n%s\n\n\n", string(stderr)))
 	}
 
 	// enrolled keys needs some time to be persistent
@@ -440,10 +428,10 @@ func (ts *TestStep) enrollKeys(
 }
 
 func (ts *TestStep) rotateKeys(
-	ctx xcontext.Context, stdoutMsg, stderrMsg *strings.Builder,
+	ctx xcontext.Context, outputBuf *strings.Builder,
 	transport transport.Transport,
 ) (outcome, error) {
-	writeRotateKeysTestStep(ts, stdoutMsg, stderrMsg)
+	writeRotateKeysTestStep(ts, outputBuf)
 
 	if err := supportedHierarchy(ts.inputStepParams.Parameter.Hierarchy); err != nil {
 		return nil, err
@@ -465,15 +453,15 @@ func (ts *TestStep) rotateKeys(
 		return nil, fmt.Errorf("path to signing certificate file cannot be empty")
 	}
 
-	if outcome, err := ts.importKeys(ctx, stdoutMsg, stderrMsg, transport, false, true); err != nil {
+	if outcome, err := ts.importKeys(ctx, outputBuf, transport, false, true); err != nil {
 		return outcome, err
 	}
 
-	if outcome, err := ts.checkInstalled(ctx, stdoutMsg, stderrMsg, transport); err != nil {
+	if outcome, err := ts.checkInstalled(ctx, outputBuf, transport); err != nil {
 		return outcome, err
 	}
 
-	if outcome, err := ts.setEfivarsMutable(ctx, stdoutMsg, stderrMsg, transport); err != nil {
+	if outcome, err := ts.setEfivarsMutable(ctx, outputBuf, transport); err != nil {
 		return outcome, err
 	}
 
@@ -484,7 +472,7 @@ func (ts *TestStep) rotateKeys(
 		fmt.Sprintf("--cert-file=%v", ts.inputStepParams.Parameter.CertFile),
 	}
 
-	_, stderr, outcome, err := execCmdWithArgs(ctx, true, ts.inputStepParams.Parameter.ToolPath, args, stdoutMsg, stderrMsg, transport)
+	_, stderr, outcome, err := execCmdWithArgs(ctx, true, ts.inputStepParams.Parameter.ToolPath, args, outputBuf, transport)
 
 	switch ts.Parameter.ShouldFail {
 	case false:
@@ -492,13 +480,9 @@ func (ts *TestStep) rotateKeys(
 			return outcome, fmt.Errorf("failed unexpectedly to rotate secure boot keys for hierarchy %s: %v", ts.inputStepParams.Parameter.Hierarchy, string(stderr))
 		}
 	case true:
-		stdoutMsg.WriteString(fmt.Sprintf("Command Stderr:\n%s\n\n\n", string(stderr)))
-
 		if len(stderr) == 0 {
 			return outcome, fmt.Errorf("rotated secure boot keys for hierarchy %s, but expected to fail", ts.inputStepParams.Parameter.Hierarchy)
 		}
-
-		stdoutMsg.WriteString(fmt.Sprintf("Command Stderr:\n%s\n\n\n", string(stderr)))
 	}
 
 	// rotated keys needs some time to be persistent
@@ -507,31 +491,55 @@ func (ts *TestStep) rotateKeys(
 	return outcome, err
 }
 
-func (ts *TestStep) signFile(
-	ctx xcontext.Context, stdoutMsg, stderrMsg *strings.Builder,
+func (ts *TestStep) customKey(
+	ctx xcontext.Context, outputBuf *strings.Builder,
 	transport transport.Transport,
 ) (outcome, error) {
-	if len(ts.Parameter.Files) == 0 {
-		return nil, fmt.Errorf("no  file(s) provided to be signed")
+	writeCustomKeyTestStep(ts, outputBuf)
+
+	if err := supportedHierarchy(ts.inputStepParams.Parameter.Hierarchy); err != nil {
+		return nil, err
 	}
 
-	writeSignTestStep(ts, stdoutMsg, stderrMsg)
+	if ts.Parameter.CustomKeyFile == "" {
+		return nil, fmt.Errorf("path to custom keyfile cannot be empty")
+	}
 
-	if outcome, err := ts.checkInstalled(ctx, stdoutMsg, stderrMsg, transport); err != nil {
+	if outcome, err := ts.checkInstalled(ctx, outputBuf, transport); err != nil {
 		return outcome, err
 	}
 
-	for _, filePath := range ts.Parameter.Files {
-		if _, _, outcome, err := execCmdWithArgs(ctx, true, ts.inputStepParams.Parameter.Command, []string{"sign", filePath}, stdoutMsg, stderrMsg, transport); err != nil {
-			return outcome, err
+	if outcome, err := ts.setEfivarsMutable(ctx, outputBuf, transport); err != nil {
+		return outcome, err
+	}
+
+	args := []string{
+		"custom-key",
+		fmt.Sprintf("--partial=%v", ts.inputStepParams.Parameter.Hierarchy),
+		fmt.Sprintf("--custom-bytes=%v", ts.inputStepParams.Parameter.CustomKeyFile),
+	}
+
+	_, stderr, outcome, err := execCmdWithArgs(ctx, true, ts.inputStepParams.Parameter.ToolPath, args, outputBuf, transport)
+
+	switch ts.Parameter.ShouldFail {
+	case false:
+		if len(stderr) != 0 {
+			return outcome, fmt.Errorf("failed unexpectedly to rotate secure boot keys for hierarchy %s: %v", ts.inputStepParams.Parameter.Hierarchy, string(stderr))
+		}
+	case true:
+		if len(stderr) == 0 {
+			return outcome, fmt.Errorf("rotated secure boot keys for hierarchy %s, but expected to fail", ts.inputStepParams.Parameter.Hierarchy)
 		}
 	}
 
-	return nil, nil
+	// rotated keys needs some time to be persistent
+	time.Sleep(1500 * time.Millisecond)
+
+	return outcome, err
 }
 
-func execCmdWithArgs(ctx xcontext.Context, privileged bool, cmd string, args []string, stdoutMsg, stderrMsg *strings.Builder, transp transport.Transport) (string, string, error, error) {
-	writeCommand(privileged, cmd, args, stdoutMsg, stderrMsg)
+func execCmdWithArgs(ctx xcontext.Context, privileged bool, cmd string, args []string, outputBuf *strings.Builder, transp transport.Transport) (string, string, error, error) {
+	writeCommand(privileged, cmd, args, outputBuf)
 
 	var (
 		err  error
@@ -556,7 +564,7 @@ func execCmdWithArgs(ctx xcontext.Context, privileged bool, cmd string, args []s
 	stdoutPipe, err := proc.StdoutPipe()
 	if err != nil {
 		err := fmt.Errorf("failed to pipe stdout: %v", err)
-		stderrMsg.WriteString(fmt.Sprintf("%v\n", err))
+		outputBuf.WriteString(fmt.Sprintf("%v\n", err))
 
 		return "", "", nil, err
 	}
@@ -564,7 +572,7 @@ func execCmdWithArgs(ctx xcontext.Context, privileged bool, cmd string, args []s
 	stderrPipe, err := proc.StderrPipe()
 	if err != nil {
 		err := fmt.Errorf("failed to pipe stderr: %v", err)
-		stderrMsg.WriteString(fmt.Sprintf("%v\n", err))
+		outputBuf.WriteString(fmt.Sprintf("%v\n", err))
 
 		return "", "", nil, err
 	}
@@ -579,8 +587,8 @@ func execCmdWithArgs(ctx xcontext.Context, privileged bool, cmd string, args []s
 
 	stdout, stderr := getOutputFromReader(stdoutPipe, stderrPipe)
 
-	stdoutMsg.WriteString(fmt.Sprintf("Command Stdout:\n%s\n\n\n", string(stdout)))
-	stderrMsg.WriteString(fmt.Sprintf("Command Stderr: \n%s\n\n\n", string(stderr)))
+	outputBuf.WriteString(fmt.Sprintf("Command Stdout:\n%s\n\n\n", string(stdout)))
+	outputBuf.WriteString(fmt.Sprintf("Command Stderr: \n%s\n\n\n", string(stderr)))
 
 	return string(stdout), string(stderr), outcome, nil
 }
