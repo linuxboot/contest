@@ -36,7 +36,7 @@ func NewTargetRunner(ts *TestStep, ev testevent.Emitter) *TargetRunner {
 }
 
 func (r *TargetRunner) Run(ctx xcontext.Context, target *target.Target) error {
-	var outputBuf *strings.Builder
+	var outputBuf strings.Builder
 
 	// limit the execution time if specified
 	var cancel xcontext.CancelFunc
@@ -59,7 +59,7 @@ func (r *TargetRunner) Run(ctx xcontext.Context, target *target.Target) error {
 		return emitStderr(ctx, EventStderr, outputBuf.String(), target, r.ev, err)
 	}
 
-	r.ts.writeTestStep(outputBuf)
+	r.ts.writeTestStep(&outputBuf)
 
 	transport, err := transport.NewTransport(r.ts.Transport.Proto, r.ts.Transport.Options, pe)
 	if err != nil {
@@ -69,7 +69,7 @@ func (r *TargetRunner) Run(ctx xcontext.Context, target *target.Target) error {
 		return emitStderr(ctx, EventStderr, outputBuf.String(), target, r.ev, err)
 	}
 
-	if err := r.ts.runRobot(ctx, outputBuf, transport); err != nil {
+	if err := r.ts.runRobot(ctx, &outputBuf, transport); err != nil {
 		return emitStderr(ctx, EventStderr, outputBuf.String(), target, r.ev, err)
 	}
 
