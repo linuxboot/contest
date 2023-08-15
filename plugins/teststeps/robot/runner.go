@@ -18,9 +18,6 @@ import (
 const (
 	supportedProto = "local"
 	privileged     = "sudo"
-	cmd            = "cpu"
-	argument       = "stats"
-	jsonFlag       = "--json"
 )
 
 type TargetRunner struct {
@@ -82,7 +79,7 @@ func (r *TargetRunner) Run(ctx xcontext.Context, target *target.Target) error {
 
 func (ts *TestStep) runRobot(ctx xcontext.Context, outputBuf *strings.Builder, transport transport.Transport,
 ) error {
-	args := []string{"robot"}
+	args := []string{ts.Parameter.ToolPath}
 
 	for _, arg := range ts.Parameter.Args {
 		args = append(args, "-v", arg)
