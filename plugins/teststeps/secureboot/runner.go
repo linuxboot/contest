@@ -83,7 +83,7 @@ func (r *TargetRunner) Run(ctx xcontext.Context, target *target.Target) error {
 
 			return emitStderr(ctx, outputBuf.String(), target, r.ev, err)
 		}
-	case "custom":
+	case "custom-key":
 		if _, err = r.ts.customKey(ctx, &outputBuf, transportProto); err != nil {
 			outputBuf.WriteString(fmt.Sprintf("%v\n", err))
 
@@ -103,7 +103,10 @@ func (r *TargetRunner) Run(ctx xcontext.Context, target *target.Target) error {
 			return emitStderr(ctx, outputBuf.String(), target, r.ev, err)
 		}
 	default:
-		return fmt.Errorf("Command '%s' is not valid. Possible values are 'status', 'enroll-key', 'rotate-key', 'reset' and 'sign'.", r.ts.Parameter.Command)
+		err := fmt.Errorf("Command '%s' is not valid. Possible values are 'status', 'enroll-key', 'rotate-key', 'reset' and 'custom-key'.", r.ts.Parameter.Command)
+		outputBuf.WriteString(fmt.Sprintf("%v\n", err))
+
+		return err
 	}
 
 	return emitStdout(ctx, outputBuf.String(), target, r.ev)
