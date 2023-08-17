@@ -517,7 +517,7 @@ func (ts *TestStep) customKey(
 	}
 
 	args := []string{
-		"custom-key",
+		"enroll-keys",
 		fmt.Sprintf("--partial=%v", ts.inputStepParams.Parameter.Hierarchy),
 		fmt.Sprintf("--custom-bytes=%v", ts.inputStepParams.Parameter.CustomKeyFile),
 	}
