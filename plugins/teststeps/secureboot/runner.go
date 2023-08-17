@@ -412,6 +412,9 @@ func (ts *TestStep) enrollKeys(
 	}
 
 	_, stderr, outcome, err := execCmdWithArgs(ctx, true, ts.inputStepParams.Parameter.ToolPath, args, outputBuf, transport)
+	if err != nil {
+		return outcome, err
+	}
 
 	switch ts.Parameter.ShouldFail {
 	case false:
@@ -476,6 +479,9 @@ func (ts *TestStep) rotateKeys(
 	}
 
 	_, stderr, outcome, err := execCmdWithArgs(ctx, true, ts.inputStepParams.Parameter.ToolPath, args, outputBuf, transport)
+	if err != nil {
+		return outcome, err
+	}
 
 	switch ts.Parameter.ShouldFail {
 	case false:
@@ -523,6 +529,9 @@ func (ts *TestStep) customKey(
 	}
 
 	_, stderr, outcome, err := execCmdWithArgs(ctx, true, ts.inputStepParams.Parameter.ToolPath, args, outputBuf, transport)
+	if err != nil {
+		return outcome, err
+	}
 
 	switch ts.Parameter.ShouldFail {
 	case false:
@@ -590,8 +599,10 @@ func execCmdWithArgs(ctx xcontext.Context, privileged bool, cmd string, args []s
 
 	stdout, stderr := getOutputFromReader(stdoutPipe, stderrPipe)
 
+	stderrString := trimStderr(string(stderr))
+
 	outputBuf.WriteString(fmt.Sprintf("Command Stdout:\n%s\n\n\n", string(stdout)))
-	outputBuf.WriteString(fmt.Sprintf("Command Stderr: \n%s\n\n\n", string(stderr)))
+	outputBuf.WriteString(fmt.Sprintf("Command Stderr: \n%s\n\n\n", stderrString))
 
 	return string(stdout), string(stderr), outcome, nil
 }
@@ -637,4 +648,13 @@ func supportedHierarchy(hierarchy string) error {
 	default:
 		return fmt.Errorf("unknown hierarchy %s, only [db,KEK,PK] are supported!", hierarchy)
 	}
+}
+
+// sbctl prefixes any permission error with this string (even if the privilege of the user is not the problem), remove it
+func trimStderr(stderr string) string {
+	if !strings.Contains(stderr, "sbctl requires root to run: ") {
+		return stderr
+	}
+
+	return strings.Replace(stderr, "sbctl requires root to run: ", "", -1)
 }
