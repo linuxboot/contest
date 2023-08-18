@@ -54,16 +54,18 @@ func writeTestStep(step *TestStep, builders ...*strings.Builder) {
 	for _, builder := range builders {
 		builder.WriteString("Input Parameter:\n")
 		builder.WriteString("  Parameter:\n")
-		builder.WriteString(fmt.Sprintf("    Host: %s\n", step.Parameter.Host))
-		builder.WriteString(fmt.Sprintf("    Port: %d\n", step.Parameter.Port))
 		builder.WriteString(fmt.Sprintf("    Command: %s\n", step.Parameter.Command))
 		builder.WriteString(fmt.Sprintf("    Arguments: %s\n", step.Parameter.Args))
+		builder.WriteString(fmt.Sprintf("    Host: %s\n", step.Parameter.Host))
+		builder.WriteString(fmt.Sprintf("    ContextID: %s\n", step.Parameter.ContextID))
+		builder.WriteString(fmt.Sprintf("    MachineID: %s\n", step.Parameter.MachineID))
+		builder.WriteString(fmt.Sprintf("    DeviceID: %s\n", step.Parameter.DeviceID))
+		builder.WriteString(fmt.Sprintf("    Version: %s\n", step.Parameter.Version))
 		builder.WriteString("  Options:\n")
 		builder.WriteString(fmt.Sprintf("    Timeout: %s\n", time.Duration(step.Options.Timeout)))
 		builder.WriteString("\n")
 
 		builder.WriteString("Default Values:\n")
-		builder.WriteString(fmt.Sprintf("  Port: %d\n", defaultPort))
 		builder.WriteString(fmt.Sprintf("  Timeout: %s\n", defaultTimeout))
 
 		builder.WriteString("\n\n")
@@ -81,11 +83,20 @@ func writeCommand(command string, args []string, builders ...*strings.Builder) {
 	}
 }
 
-// emitStderr emits the whole error message an returns the error
-func emitStderr(ctx xcontext.Context, name event.Name, stderrMsg string, tgt *target.Target, ev testevent.Emitter, err error) error {
-	if err := emitEvent(ctx, EventStderr, eventPayload{Msg: stderrMsg}, tgt, ev); err != nil {
+// emitStderr emits the whole error message to Stderr and returns the error
+func emitStderr(ctx xcontext.Context, message string, tgt *target.Target, ev testevent.Emitter, err error) error {
+	if err := emitEvent(ctx, EventStderr, eventPayload{Msg: message}, tgt, ev); err != nil {
 		return fmt.Errorf("cannot emit event: %v", err)
 	}
 
 	return err
+}
+
+// emitStdout emits the whole message to Stdout
+func emitStdout(ctx xcontext.Context, message string, tgt *target.Target, ev testevent.Emitter) error {
+	if err := emitEvent(ctx, EventStdout, eventPayload{Msg: message}, tgt, ev); err != nil {
+		return fmt.Errorf("cannot emit event: %v", err)
+	}
+
+	return nil
 }

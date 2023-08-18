@@ -24,26 +24,26 @@ const (
 )
 
 // flashCmds is a helper function to call into the different flash commands
-func (r *TargetRunner) flashCmds(ctx xcontext.Context, stdoutMsg, stderrMsg *strings.Builder) error {
-	if len(r.ts.Parameter.Args) >= 2 {
-		switch r.ts.Parameter.Args[0] {
+func (ts *TestStep) flashCmds(ctx xcontext.Context, outputBuf *strings.Builder) error {
+	if len(ts.Parameter.Args) >= 2 {
+		switch ts.Parameter.Args[0] {
 
 		case "write":
-			if err := r.ts.flashWrite(ctx, stdoutMsg, r.ts.Parameter.Args[1]); err != nil {
+			if err := ts.flashWrite(ctx, outputBuf, ts.Parameter.Args[1]); err != nil {
 				return err
 			}
 
 			return nil
 
 		case "read":
-			if err := r.ts.flashRead(ctx, stdoutMsg, r.ts.Parameter.Args[1]); err != nil {
+			if err := ts.flashRead(ctx, outputBuf, ts.Parameter.Args[1]); err != nil {
 				return err
 			}
 
 			return nil
 
 		default:
-			return fmt.Errorf("Failed to execute the flash command. The argument '%s' is not valid. Possible values are 'read /path/to/binary' and 'write /path/to/binary'.", r.ts.Parameter.Args)
+			return fmt.Errorf("Failed to execute the flash command. The argument '%s' is not valid. Possible values are 'read /path/to/binary' and 'write /path/to/binary'.", ts.Parameter.Args)
 		}
 	} else {
 		return fmt.Errorf("Failed to execute the power command. Args is not valid. Possible values are 'read /path/to/binary' and 'write /path/to/binary'.")
@@ -51,7 +51,7 @@ func (r *TargetRunner) flashCmds(ctx xcontext.Context, stdoutMsg, stderrMsg *str
 }
 
 // flashWrite executes the flash write command.
-func (ts *TestStep) flashWrite(ctx xcontext.Context, stdoutMsg *strings.Builder, sourceFile string) error {
+func (ts *TestStep) flashWrite(ctx xcontext.Context, outputBuf *strings.Builder, sourceFile string) error {
 	if sourceFile == "" {
 		return fmt.Errorf("No file was set to flash target.")
 	}
@@ -60,8 +60,8 @@ func (ts *TestStep) flashWrite(ctx xcontext.Context, stdoutMsg *strings.Builder,
 		return err
 	}
 
-	endpoint := fmt.Sprintf("%s:%d%s/contexts/%s/machines/%s/auxiliaries/%s/api/flash",
-		ts.Parameter.Host, ts.Parameter.Port, ts.Parameter.Version, ts.Parameter.ContextID, ts.Parameter.MachineID, ts.Parameter.DeviceID)
+	endpoint := fmt.Sprintf("%s%s/contexts/%s/machines/%s/auxiliaries/%s/api/flash",
+		ts.Parameter.Host, ts.Parameter.Version, ts.Parameter.ContextID, ts.Parameter.MachineID, ts.Parameter.DeviceID)
 
 	targetInfo, err := getTargetState(ctx, endpoint)
 	if err != nil {
@@ -89,13 +89,13 @@ func (ts *TestStep) flashWrite(ctx xcontext.Context, stdoutMsg *strings.Builder,
 
 	time.Sleep(time.Second)
 
-	stdoutMsg.WriteString("DUT is flashed successfully.\n")
+	outputBuf.WriteString("DUT is flashed successfully.\n")
 
 	return nil
 }
 
 // flashRead executes the flash read command.
-func (ts *TestStep) flashRead(ctx xcontext.Context, stdoutMsg *strings.Builder, destinationFile string) error {
+func (ts *TestStep) flashRead(ctx xcontext.Context, outputBuf *strings.Builder, destinationFile string) error {
 	if destinationFile == "" {
 		return fmt.Errorf("No file was set to read from target.")
 	}
@@ -104,8 +104,8 @@ func (ts *TestStep) flashRead(ctx xcontext.Context, stdoutMsg *strings.Builder, 
 		return err
 	}
 
-	endpoint := fmt.Sprintf("%s:%d%s/contexts/%s/machines/%s/auxiliaries/%s/api/flash",
-		ts.Parameter.Host, ts.Parameter.Port, ts.Parameter.Version, ts.Parameter.ContextID, ts.Parameter.MachineID, ts.Parameter.DeviceID)
+	endpoint := fmt.Sprintf("%s%s/contexts/%s/machines/%s/auxiliaries/%s/api/flash",
+		ts.Parameter.Host, ts.Parameter.Version, ts.Parameter.ContextID, ts.Parameter.MachineID, ts.Parameter.DeviceID)
 
 	targetInfo, err := getTargetState(ctx, endpoint)
 	if err != nil {
@@ -134,7 +134,7 @@ func (ts *TestStep) flashRead(ctx xcontext.Context, stdoutMsg *strings.Builder, 
 
 	time.Sleep(time.Second)
 
-	stdoutMsg.WriteString("DUT flash was read successfully.\n")
+	outputBuf.WriteString("DUT flash was read successfully.\n")
 
 	return nil
 }

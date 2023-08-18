@@ -25,9 +25,7 @@ func NewTargetRunner(ts *TestStep, ev testevent.Emitter) *TargetRunner {
 }
 
 func (r *TargetRunner) Run(ctx xcontext.Context, target *target.Target) error {
-	var outputMsg, errorMsg strings.Builder
-
-	ctx.Infof("Executing on target %s", target)
+	var outputBuf strings.Builder
 
 	// limit the execution time if specified
 	var cancel xcontext.CancelFunc
@@ -49,34 +47,30 @@ func (r *TargetRunner) Run(ctx xcontext.Context, target *target.Target) error {
 		return err
 	}
 
-	writeTestStep(r.ts, &outputMsg, &errorMsg)
-	writeCommand(params.Parameter.Command, params.Parameter.Args, &outputMsg, &errorMsg)
+	writeTestStep(r.ts, &outputBuf)
+	writeCommand(params.Parameter.Command, params.Parameter.Args, &outputBuf)
 
 	switch params.Parameter.Command {
 	case "power":
-		if err := r.powerCmds(ctx, &outputMsg, &errorMsg); err != nil {
-			errorMsg.WriteString(fmt.Sprintf("%v\n", err))
+		if err := r.ts.powerCmds(ctx, &outputBuf); err != nil {
+			outputBuf.WriteString(fmt.Sprintf("%v\n", err))
 
-			return emitStderr(ctx, EventStderr, errorMsg.String(), target, r.ev, err)
+			return emitStderr(ctx, outputBuf.String(), target, r.ev, err)
 		}
 
 	case "flash":
-		if err := r.flashCmds(ctx, &outputMsg, &errorMsg); err != nil {
-			errorMsg.WriteString(fmt.Sprintf("%v\n", err))
+		if err := r.ts.flashCmds(ctx, &outputBuf); err != nil {
+			outputBuf.WriteString(fmt.Sprintf("%v\n", err))
 
-			return emitStderr(ctx, EventStderr, errorMsg.String(), target, r.ev, err)
+			return emitStderr(ctx, outputBuf.String(), target, r.ev, err)
 		}
 
 	default:
-		err := fmt.Errorf("Command '%s' is not valid. Possible values are 'power' and 'flash'.", params.Parameter.Args)
-		errorMsg.WriteString(fmt.Sprintf("%v\n", err))
+		err := fmt.Errorf("Command '%s' is not valid. Possible values are 'power' and 'flash'.", params.Parameter.Command)
+		outputBuf.WriteString(fmt.Sprintf("%v\n", err))
 
-		return emitStderr(ctx, EventStderr, errorMsg.String(), target, r.ev, err)
+		return emitStderr(ctx, outputBuf.String(), target, r.ev, err)
 	}
 
-	if err := emitEvent(ctx, EventStdout, eventPayload{Msg: outputMsg.String()}, target, r.ev); err != nil {
-		return fmt.Errorf("Failed to emit event: %v", err)
-	}
-
-	return nil
+	return emitStdout(ctx, outputBuf.String(), target, r.ev)
 }
