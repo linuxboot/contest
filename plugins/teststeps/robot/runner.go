@@ -82,7 +82,7 @@ func (ts *TestStep) runRobot(ctx xcontext.Context, outputBuf *strings.Builder, t
 
 	args = append(args, ts.Parameter.FilePath)
 
-	proc, err := transport.NewProcess(ctx, ts.Parameter.ToolPath, args, "")
+	proc, err := transport.NewProcess(ctx, "/usr/local/bin/robot", args, "")
 	if err != nil {
 		outputBuf.WriteString(fmt.Sprintf("Failed to create proc: %v", err))
 
@@ -110,19 +110,25 @@ func (ts *TestStep) runRobot(ctx xcontext.Context, outputBuf *strings.Builder, t
 	// between "an error occured while launching" and "this was the outcome of the execution"
 	outcome := proc.Start(ctx)
 
-	combinedReader := io.MultiReader(stdoutPipe, stderrPipe)
-	combinedOutput := getOutputFromReader(outputBuf, combinedReader)
+	stdout, stderr := getOutputFromReader(outputBuf, stdoutPipe, stderrPipe)
 
-	outputBuf.WriteString(fmt.Sprintf("Output:\n%s\n", string(combinedOutput)))
+	outputBuf.WriteString(fmt.Sprintf("Stdout:\n%s\n", string(stdout)))
+	outputBuf.WriteString(fmt.Sprintf("Stderr:\n%s\n", string(stderr)))
 
 	if outcome == nil {
 		outcome = proc.Wait(ctx)
 	}
 
-	if outcome != nil && !ts.Parameter.ReportOnly {
-		outputBuf.WriteString(fmt.Sprintf("Tests failed: %v.", outcome))
+	if outcome != nil {
+		outputBuf.WriteString(fmt.Sprintf("Failed to run robot test: %s", outcome.Error()))
 
-		return fmt.Errorf("Tests failed: %v.", outcome)
+		return fmt.Errorf("Failed to run robot test: %v.", outcome)
+	}
+
+	if outcome != nil && !ts.Parameter.ReportOnly {
+		outputBuf.WriteString(fmt.Sprintf("Tests failed: %v", outcome))
+
+		return fmt.Errorf("Tests failed: %v", outcome)
 	}
 
 	return nil
@@ -130,15 +136,19 @@ func (ts *TestStep) runRobot(ctx xcontext.Context, outputBuf *strings.Builder, t
 
 // getOutputFromReader reads data from the provided io.Reader instances
 // representing stdout and stderr, and returns the collected output as byte slices.
-func getOutputFromReader(outputBuf *strings.Builder, combinedReader io.Reader) []byte {
-	// Read from the stdout and stderr combined reader``
+func getOutputFromReader(outputBuf *strings.Builder, stdout, stderr io.Reader) ([]byte, []byte) {
+	// Read from the stdout and stderr pipe readers``
+	outBuffer, err := readBuffer(stdout)
+	if err != nil {
+		outputBuf.WriteString(fmt.Sprintf("Failed to read from Stdout buffer: %v\n", err))
+	}
 
-	buffer, err := readBuffer(combinedReader)
+	errBuffer, err := readBuffer(stderr)
 	if err != nil {
 		outputBuf.WriteString(fmt.Sprintf("Failed to read from Stderr buffer: %v\n", err))
 	}
 
-	return buffer
+	return outBuffer, errBuffer
 }
 
 // readBuffer reads data from the provided io.Reader and returns it as a byte slice.
@@ -150,8 +160,4 @@ func readBuffer(r io.Reader) ([]byte, error) {
 	}
 
 	return buf.Bytes(), nil
-}
-
-func parseOutput(ctx xcontext.Context, outputBuf *strings.Builder, transport transport.Transport) error {
-	return nil
 }

@@ -65,7 +65,6 @@ func (ts *TestStep) writeTestStep(builders ...*strings.Builder) {
 		builder.WriteString("\n")
 
 		builder.WriteString("  Parameter:\n")
-		builder.WriteString(fmt.Sprintf("    ToolPath: %s\n", ts.Parameter.ToolPath))
 		builder.WriteString(fmt.Sprintf("    FilePath: %s\n", ts.Parameter.FilePath))
 		builder.WriteString(fmt.Sprintf("    Args: %v\n", ts.Parameter.Args))
 		builder.WriteString(fmt.Sprintf("    ReportOnly: %v\n", ts.Parameter.ReportOnly))

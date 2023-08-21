@@ -26,7 +26,6 @@ type inputStepParams struct {
 	} `json:"transport,omitempty"`
 
 	Parameter struct {
-		ToolPath   string   `json:"tool_path"`
 		FilePath   string   `json:"file_path"`
 		Args       []string `json:"args,omitempty"`
 		ReportOnly bool     `json:"report_only"`
