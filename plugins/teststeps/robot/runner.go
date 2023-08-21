@@ -85,6 +85,8 @@ func (ts *TestStep) runRobot(ctx xcontext.Context, outputBuf *strings.Builder, t
 
 	proc, err := transport.NewProcess(ctx, privileged, args, "")
 	if err != nil {
+		outputBuf.WriteString(fmt.Sprintf("Failed to create proc: %v", err))
+
 		return fmt.Errorf("Failed to create proc: %w", err)
 	}
 
@@ -92,11 +94,15 @@ func (ts *TestStep) runRobot(ctx xcontext.Context, outputBuf *strings.Builder, t
 
 	stdoutPipe, err := proc.StdoutPipe()
 	if err != nil {
+		outputBuf.WriteString(fmt.Sprintf("Failed to pipe stdout: %v", err))
+
 		return fmt.Errorf("Failed to pipe stdout: %v", err)
 	}
 
 	stderrPipe, err := proc.StderrPipe()
 	if err != nil {
+		outputBuf.WriteString(fmt.Sprintf("Failed to pipe stderr: %v", err))
+
 		return fmt.Errorf("Failed to pipe stderr: %v", err)
 	}
 
