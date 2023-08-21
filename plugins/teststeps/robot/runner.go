@@ -119,12 +119,6 @@ func (ts *TestStep) runRobot(ctx xcontext.Context, outputBuf *strings.Builder, t
 		outcome = proc.Wait(ctx)
 	}
 
-	if outcome != nil {
-		outputBuf.WriteString(fmt.Sprintf("Failed to run robot test: %s", outcome.Error()))
-
-		return fmt.Errorf("Failed to run robot test: %v.", outcome)
-	}
-
 	if outcome != nil && !ts.Parameter.ReportOnly {
 		outputBuf.WriteString(fmt.Sprintf("Tests failed: %v", outcome))
 
