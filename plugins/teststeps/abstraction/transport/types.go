@@ -52,29 +52,29 @@ func canExecute(fi os.FileInfo) bool {
 	// TODO: deal with acls?
 	stat := fi.Sys().(*syscall.Stat_t)
 	if stat.Uid == uint32(os.Getuid()) {
-		return stat.Mode&0500 == 0500
+		return stat.Mode&0o500 == 0o500
 	}
 
 	if stat.Gid == uint32(os.Getgid()) {
-		return stat.Mode&0050 == 0050
+		return stat.Mode&0o050 == 0o050
 	}
 
-	return stat.Mode&0005 == 0005
+	return stat.Mode&0o005 == 0o005
 }
 
 func checkBinary(bin string) error {
 	// check binary exists and is executable
 	fi, err := os.Stat(bin)
 	if err != nil {
-		return fmt.Errorf("no such file")
+		return fmt.Errorf("no such file: %s", bin)
 	}
 
 	if !fi.Mode().IsRegular() {
-		return fmt.Errorf("not a file")
+		return fmt.Errorf("not a file: %s", bin)
 	}
 
 	if !canExecute(fi) {
-		return fmt.Errorf("provided binary is not executable")
+		return fmt.Errorf("provided binary %s is not executable", bin)
 	}
 	return nil
 }

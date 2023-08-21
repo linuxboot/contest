@@ -108,7 +108,7 @@ func (lc *localCopy) Copy(ctx xcontext.Context) error {
 
 func copyDirectory(srcDir, dstDir string) error {
 	// Create the destination directory
-	err := os.MkdirAll(dstDir, 0755)
+	err := os.MkdirAll(dstDir, 0o755)
 	if err != nil {
 		return fmt.Errorf("failed to create destination directory: %w", err)
 	}

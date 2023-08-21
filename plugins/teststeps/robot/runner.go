@@ -17,7 +17,6 @@ import (
 
 const (
 	supportedProto = "local"
-	privileged     = "sudo"
 )
 
 type TargetRunner struct {
@@ -75,7 +74,7 @@ func (r *TargetRunner) Run(ctx xcontext.Context, target *target.Target) error {
 
 func (ts *TestStep) runRobot(ctx xcontext.Context, outputBuf *strings.Builder, transport transport.Transport,
 ) error {
-	args := []string{ts.Parameter.ToolPath}
+	var args []string
 
 	for _, arg := range ts.Parameter.Args {
 		args = append(args, "-v", arg)
@@ -83,7 +82,7 @@ func (ts *TestStep) runRobot(ctx xcontext.Context, outputBuf *strings.Builder, t
 
 	args = append(args, ts.Parameter.FilePath)
 
-	proc, err := transport.NewProcess(ctx, privileged, args, "")
+	proc, err := transport.NewProcess(ctx, ts.Parameter.ToolPath, args, "")
 	if err != nil {
 		outputBuf.WriteString(fmt.Sprintf("Failed to create proc: %v", err))
 
@@ -109,55 +108,37 @@ func (ts *TestStep) runRobot(ctx xcontext.Context, outputBuf *strings.Builder, t
 	// try to start the process, if that succeeds then the outcome is the result of
 	// waiting on the process for its result; this way there's a semantic difference
 	// between "an error occured while launching" and "this was the outcome of the execution"
-	outputBuf.WriteString(fmt.Sprintf("Stderr:\n%s\n", "start process"))
 	outcome := proc.Start(ctx)
-	if outcome != nil {
-		outputBuf.WriteString(fmt.Sprintf("Stderr:\n%s\n", outcome.Error()))
 
-		return fmt.Errorf("Failed to run robot test: %v.", outcome)
-	}
+	combinedReader := io.MultiReader(stdoutPipe, stderrPipe)
+	combinedOutput := getOutputFromReader(outputBuf, combinedReader)
 
-	outputBuf.WriteString(fmt.Sprintf("\n%s\n", "wait on process"))
+	outputBuf.WriteString(fmt.Sprintf("Output:\n%s\n", string(combinedOutput)))
+
 	if outcome == nil {
-		outputBuf.WriteString(fmt.Sprintf("\n%s\n", "waiting on process"))
-
 		outcome = proc.Wait(ctx)
 	}
 
-	outputBuf.WriteString(fmt.Sprintf("\n%s\n", "get output of process"))
-	stdout, stderr := getOutputFromReader(stdoutPipe, stderrPipe)
+	if outcome != nil && !ts.Parameter.ReportOnly {
+		outputBuf.WriteString(fmt.Sprintf("Tests failed: %v.", outcome))
 
-	if outcome != nil {
-		outputBuf.WriteString(fmt.Sprintf("Stderr:\n%s\n", string(stderr)))
-
-		return fmt.Errorf("Failed to run robot test: %v.", outcome)
+		return fmt.Errorf("Tests failed: %v.", outcome)
 	}
 
-	outputBuf.WriteString(fmt.Sprintf("Stdout:\n%s\n", string(stdout)))
-	outputBuf.WriteString(fmt.Sprintf("Stderr:\n%s\n", string(stderr)))
-
-	if ts.Parameter.ReportOnly {
-		return nil
-	}
-
-	return parseOutput(ctx, outputBuf, transport)
+	return nil
 }
 
 // getOutputFromReader reads data from the provided io.Reader instances
 // representing stdout and stderr, and returns the collected output as byte slices.
-func getOutputFromReader(stdout, stderr io.Reader) ([]byte, []byte) {
-	// Read from the stdout and stderr pipe readers``
-	outBuffer, err := readBuffer(stdout)
+func getOutputFromReader(outputBuf *strings.Builder, combinedReader io.Reader) []byte {
+	// Read from the stdout and stderr combined reader``
+
+	buffer, err := readBuffer(combinedReader)
 	if err != nil {
-		fmt.Printf("Failed to read from Stdout buffer: %v\n", err)
+		outputBuf.WriteString(fmt.Sprintf("Failed to read from Stderr buffer: %v\n", err))
 	}
 
-	errBuffer, err := readBuffer(stderr)
-	if err != nil {
-		fmt.Printf("Failed to read from Stderr buffer: %v\n", err)
-	}
-
-	return outBuffer, errBuffer
+	return buffer
 }
 
 // readBuffer reads data from the provided io.Reader and returns it as a byte slice.
