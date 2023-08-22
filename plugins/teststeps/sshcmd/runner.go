@@ -16,8 +16,6 @@ import (
 	"github.com/linuxboot/contest/plugins/teststeps/abstraction/transport"
 )
 
-type outcome error
-
 type TargetRunner struct {
 	ts *TestStep
 	ev testevent.Emitter
@@ -31,7 +29,7 @@ func NewTargetRunner(ts *TestStep, ev testevent.Emitter) *TargetRunner {
 }
 
 func (r *TargetRunner) Run(ctx xcontext.Context, target *target.Target) error {
-	var stdoutMsg, stderrMsg strings.Builder
+	var outputBuf strings.Builder
 
 	// limit the execution time if specified
 	var cancel xcontext.CancelFunc
@@ -55,55 +53,46 @@ func (r *TargetRunner) Run(ctx xcontext.Context, target *target.Target) error {
 
 	transport, err := transport.NewTransport(params.Transport.Proto, params.Transport.Options, pe)
 	if err != nil {
-		return fmt.Errorf("fail to create transport: %w", err)
+		return fmt.Errorf("failed to create transport: %w", err)
 	}
 
-	writeTestStep(r.ts, &stdoutMsg, &stderrMsg)
+	writeTestStep(r.ts, &outputBuf)
 
-	_, err = r.runCMD(ctx, &stdoutMsg, &stderrMsg, target, transport)
-	if err != nil {
-		stderrMsg.WriteString(fmt.Sprintf("%v\n", err))
+	if err := r.ts.runCMD(ctx, &outputBuf, target, transport); err != nil {
+		outputBuf.WriteString(fmt.Sprintf("%v\n", err))
 
-		return emitStderr(ctx, EventStderr, stderrMsg.String(), target, r.ev, err)
+		return emitStderr(ctx, outputBuf.String(), target, r.ev, err)
 	}
 
-	if err := emitEvent(ctx, EventStdout, eventPayload{Msg: stdoutMsg.String()}, target, r.ev); err != nil {
-		return fmt.Errorf("cannot emit event: %v", err)
-	}
-
-	return err
+	return emitStdout(ctx, outputBuf.String(), target, r.ev)
 }
 
-func (r *TargetRunner) runCMD(ctx xcontext.Context, stdoutMsg, stderrMsg *strings.Builder, target *target.Target,
-	transport transport.Transport,
-) (outcome, error) {
-	proc, err := transport.NewProcess(ctx, r.ts.Bin.Executable, r.ts.Bin.Args, r.ts.Bin.WorkingDir)
+func (ts *TestStep) runCMD(ctx xcontext.Context, outputBuf *strings.Builder, target *target.Target,
+	transport transport.Transport) error {
+	proc, err := transport.NewProcess(ctx, ts.Bin.Executable, ts.Bin.Args, ts.Bin.WorkingDir)
 	if err != nil {
 		err := fmt.Errorf("Failed to create proc: %w", err)
-		stderrMsg.WriteString(fmt.Sprintf("%v\n", err))
+		outputBuf.WriteString(fmt.Sprintf("%v\n", err))
 
-		return nil, err
+		return err
 	}
 
-	writeCommand(proc.String(), stdoutMsg, stderrMsg)
-
-	stderrMsg.WriteString("Command Stderr:\n")
-	stdoutMsg.WriteString("Command Stdout:\n")
+	writeCommand(proc.String(), outputBuf)
 
 	stdoutPipe, err := proc.StdoutPipe()
 	if err != nil {
-		err := fmt.Errorf("Failed to pipe stdout: %v", err)
-		stderrMsg.WriteString(fmt.Sprintf("%v\n", err))
+		err := fmt.Errorf("failed to pipe stdout: %v", err)
+		outputBuf.WriteString(fmt.Sprintf("%v\n", err))
 
-		return nil, err
+		return err
 	}
 
 	stderrPipe, err := proc.StderrPipe()
 	if err != nil {
-		err := fmt.Errorf("Failed to pipe stderr: %v", err)
-		stderrMsg.WriteString(fmt.Sprintf("%v\n", err))
+		err := fmt.Errorf("failed to pipe stderr: %v", err)
+		outputBuf.WriteString(fmt.Sprintf("%v\n", err))
 
-		return nil, err
+		return err
 	}
 
 	// try to start the process, if that succeeds then the outcome is the result of
@@ -114,37 +103,37 @@ func (r *TargetRunner) runCMD(ctx xcontext.Context, stdoutMsg, stderrMsg *string
 		outcome = proc.Wait(ctx)
 	}
 
-	stdout, stderr := getOutputFromReader(stdoutPipe, stderrPipe)
+	stdout, stderr := getOutputFromReader(stdoutPipe, stderrPipe, outputBuf)
+
+	outputBuf.WriteString(fmt.Sprintf("Command Stdout:\n%s\n", string(stdout)))
+	outputBuf.WriteString(fmt.Sprintf("Command Stderr:\n%s\n", string(stderr)))
 
 	if outcome != nil {
-		return nil, fmt.Errorf("Error executing command: %v.\nLogs:\n%s\n", outcome, string(stderr))
+		return fmt.Errorf("Error executing command: %v.\n", outcome)
 	}
 
-	stdoutMsg.WriteString(fmt.Sprintf("%s\n", string(stdout)))
-
-	err = parseOutput(stdoutMsg, stderrMsg, stdout, r.ts.expectStepParams)
-	if err != nil {
-		return nil, err
+	if err := ts.parseOutput(outputBuf, stdout); err != nil {
+		return err
 	}
 
-	return outcome, err
+	return nil
 }
 
 // getOutputFromReader reads data from the provided io.Reader instances
 // representing stdout and stderr, and returns the collected output as byte slices.
-func getOutputFromReader(stdout, stderr io.Reader) ([]byte, []byte) {
+func getOutputFromReader(stdout, stderr io.Reader, outputBuf *strings.Builder) ([]byte, []byte) {
 	// Read from the stdout and stderr pipe readers
-	outBuffer, err := readBuffer(stdout)
+	stdoutBuffer, err := readBuffer(stdout)
 	if err != nil {
-		fmt.Printf("Failed to read from Stdout buffer: %v\n", err)
+		outputBuf.WriteString(fmt.Sprintf("Failed to read from Stdout buffer: %v\n", err))
 	}
 
-	errBuffer, err := readBuffer(stderr)
+	stderrBuffer, err := readBuffer(stderr)
 	if err != nil {
-		fmt.Printf("Failed to read from Stderr buffer: %v\n", err)
+		outputBuf.WriteString(fmt.Sprintf("Failed to read from Stderr buffer: %v\n", err))
 	}
 
-	return outBuffer, errBuffer
+	return stdoutBuffer, stderrBuffer
 }
 
 // readBuffer reads data from the provided io.Reader and returns it as a byte slice.
@@ -158,24 +147,26 @@ func readBuffer(r io.Reader) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func parseOutput(stdoutMsg, stderrMsg *strings.Builder, stdout []byte, expects []Expect) error {
-	var err error
+func (ts *TestStep) parseOutput(outputBuf *strings.Builder, stdout []byte) error {
+	var errorString string
 
-	for _, expect := range expects {
+	for index, expect := range ts.expectStepParams {
 		re, err := regexp.Compile(expect.Regex)
 		if err != nil {
-			err = fmt.Errorf("Failed to parse the regex: %v", err)
-			stderrMsg.WriteString(err.Error())
+			errorString += fmt.Sprintf("Failed to parse the regex for 'Expect%d': %v", index+1, err)
 		}
 
 		matches := re.FindAll(stdout, -1)
 		if len(matches) > 0 {
-			stdoutMsg.WriteString(fmt.Sprintf("Found the expected string in Stdout: '%s'\n", expect))
+			outputBuf.WriteString(fmt.Sprintf("Found the expected string for 'Expect%d' in Stdout: '%s'\n", index+1, expect))
 		} else {
-			err = fmt.Errorf("Could not find the expected string '%s' in Stdout.\n", expect)
-			stderrMsg.WriteString(err.Error())
+			errorString += fmt.Sprintf("Could not find the expected string '%s' for 'Expect%d' in Stdout.\n", expect, index+1)
 		}
 	}
 
-	return err
+	if errorString != "" {
+		return fmt.Errorf("%s", errorString)
+	}
+
+	return nil
 }
