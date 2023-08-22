@@ -26,7 +26,7 @@ jobs:
       - name: Build and push
         uses: docker/build-push-action@v4
         with:
-          context: .
+          context: .github/dockerfiles/
           file: .github/dockerfiles/Dockerfile
           push: true
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/contestgrpcserver:v0.3
