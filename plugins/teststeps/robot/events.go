@@ -81,7 +81,7 @@ func (ts *TestStep) writeTestStep(builders ...*strings.Builder) {
 
 		cmd := "robot"
 		for _, arg := range ts.Parameter.Args {
-			cmd += fmt.Sprintf("-v %s", arg)
+			cmd += fmt.Sprintf(" -v %s", arg)
 		}
 
 		builder.WriteString(fmt.Sprintf("%s %s", cmd, ts.Parameter.FilePath))
