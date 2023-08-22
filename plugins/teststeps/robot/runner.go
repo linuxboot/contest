@@ -82,7 +82,7 @@ func (ts *TestStep) runRobot(ctx xcontext.Context, outputBuf *strings.Builder, t
 
 	args = append(args, ts.Parameter.FilePath)
 
-	proc, err := transport.NewProcess(ctx, "/usr/local/bin/robot", args, "")
+	proc, err := transport.NewProcess(ctx, "robot", args, "")
 	if err != nil {
 		outputBuf.WriteString(fmt.Sprintf("Failed to create proc: %v", err))
 

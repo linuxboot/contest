@@ -75,7 +75,16 @@ func (ts *TestStep) writeTestStep(builders ...*strings.Builder) {
 		builder.WriteString(fmt.Sprintf("    Timeout: %s\n", time.Duration(ts.Options.Timeout)))
 
 		builder.WriteString("Default Values:\n")
-		builder.WriteString(fmt.Sprintf("  Timeout: %s", defaultTimeout))
+		builder.WriteString(fmt.Sprintf("  Timeout: %s\n", defaultTimeout))
+
+		builder.WriteString("Executing Command:\n")
+
+		cmd := "robot"
+		for _, arg := range ts.Parameter.Args {
+			cmd += fmt.Sprintf("-v %s", arg)
+		}
+
+		builder.WriteString(fmt.Sprintf("%s %s", cmd, ts.Parameter.FilePath))
 
 		builder.WriteString("\n\n")
 	}
