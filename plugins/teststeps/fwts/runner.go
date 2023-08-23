@@ -26,8 +26,6 @@ const (
 	jsonOutputPath = "/tmp/output.json"
 )
 
-type outcome error
-
 type Output struct {
 	Result string `json:"result"`
 }
@@ -45,7 +43,7 @@ func NewTargetRunner(ts *TestStep, ev testevent.Emitter) *TargetRunner {
 }
 
 func (r *TargetRunner) Run(ctx xcontext.Context, target *target.Target) error {
-	var stdoutMsg, stderrMsg strings.Builder
+	var outputBuf strings.Builder
 
 	// limit the execution time if specified
 	var cancel xcontext.CancelFunc
@@ -61,40 +59,35 @@ func (r *TargetRunner) Run(ctx xcontext.Context, target *target.Target) error {
 
 	pe := test.NewParamExpander(target)
 
-	writeTestStep(r.ts, &stdoutMsg, &stderrMsg)
+	writeTestStep(r.ts, &outputBuf)
 
 	if r.ts.Transport.Proto != supportedProto {
 		err := fmt.Errorf("only %q is supported as protocol in this teststep", supportedProto)
-		stderrMsg.WriteString(fmt.Sprintf("%v", err))
+		outputBuf.WriteString(fmt.Sprintf("%v", err))
 
-		return emitStderr(ctx, EventStderr, stderrMsg.String(), target, r.ev, err)
+		return emitStderr(ctx, outputBuf.String(), target, r.ev, err)
 	}
 
 	transport, err := transport.NewTransport(r.ts.Transport.Proto, r.ts.Transport.Options, pe)
 	if err != nil {
 		err := fmt.Errorf("failed to create transport: %w", err)
-		stderrMsg.WriteString(fmt.Sprintf("%v", err))
+		outputBuf.WriteString(fmt.Sprintf("%v", err))
 
-		return emitStderr(ctx, EventStderr, stderrMsg.String(), target, r.ev, err)
+		return emitStderr(ctx, outputBuf.String(), target, r.ev, err)
 	}
 
-	_, err = r.ts.runFWTS(ctx, &stdoutMsg, &stderrMsg, target, transport)
-	if err != nil {
-		stderrMsg.WriteString(fmt.Sprintf("%v", err))
+	if err := r.ts.runFWTS(ctx, &outputBuf, target, transport); err != nil {
+		outputBuf.WriteString(fmt.Sprintf("%v", err))
 
-		return emitStderr(ctx, EventStderr, stderrMsg.String(), target, r.ev, err)
+		return emitStderr(ctx, outputBuf.String(), target, r.ev, err)
 	}
 
-	if err := emitEvent(ctx, EventStdout, eventPayload{Msg: stdoutMsg.String()}, target, r.ev); err != nil {
-		return fmt.Errorf("cannot emit event: %v", err)
-	}
-
-	return err
+	return emitStdout(ctx, outputBuf.String(), target, r.ev)
 }
 
-func (ts *TestStep) runFWTS(ctx xcontext.Context, stdoutMsg, stderrMsg *strings.Builder, target *target.Target,
+func (ts *TestStep) runFWTS(ctx xcontext.Context, outputBuf *strings.Builder, target *target.Target,
 	transport transport.Transport,
-) (outcome, error) {
+) error {
 	args := []string{
 		cmd,
 		strings.Join(ts.Parameter.Flags, " "),
@@ -103,19 +96,19 @@ func (ts *TestStep) runFWTS(ctx xcontext.Context, stdoutMsg, stderrMsg *strings.
 
 	proc, err := transport.NewProcess(ctx, privileged, args, "")
 	if err != nil {
-		return nil, fmt.Errorf("Failed to create proc: %w", err)
+		return fmt.Errorf("Failed to create proc: %w", err)
 	}
 
-	writeCommand(proc.String(), stdoutMsg, stderrMsg)
+	writeCommand(proc.String(), outputBuf)
 
 	stdoutPipe, err := proc.StdoutPipe()
 	if err != nil {
-		return nil, fmt.Errorf("Failed to pipe stdout: %v", err)
+		return fmt.Errorf("Failed to pipe stdout: %v", err)
 	}
 
 	stderrPipe, err := proc.StderrPipe()
 	if err != nil {
-		return nil, fmt.Errorf("Failed to pipe stderr: %v", err)
+		return fmt.Errorf("Failed to pipe stderr: %v", err)
 	}
 
 	// try to start the process, if that succeeds then the outcome is the result of
@@ -123,34 +116,36 @@ func (ts *TestStep) runFWTS(ctx xcontext.Context, stdoutMsg, stderrMsg *strings.
 	// between "an error occured while launching" and "this was the outcome of the execution"
 	outcome := proc.Start(ctx)
 	if outcome == nil {
-		outcome = proc.Wait(ctx)
+		proc.Wait(ctx)
 	}
 
-	stdout, stderr := getOutputFromReader(stdoutPipe, stderrPipe)
+	stdout, stderr := getOutputFromReader(stdoutPipe, stderrPipe, outputBuf)
 
-	stdoutMsg.WriteString(fmt.Sprintf("Stdout:\n%s\n", string(stdout)))
-	stderrMsg.WriteString(fmt.Sprintf("Stderr:\n%s\n", string(stderr)))
-
-	err = ts.parseOutput(ctx, stdoutMsg, stderrMsg, transport, outputPath)
-	if err != nil {
-		return outcome, err
+	if len(string(stdout)) > 0 {
+		outputBuf.WriteString(fmt.Sprintf("Stdout:\n%s\n", string(stdout)))
+	} else if len(string(stderr)) > 0 {
+		outputBuf.WriteString(fmt.Sprintf("Stderr:\n%s\n", string(stderr)))
 	}
 
-	return outcome, nil
+	if err = ts.parseOutput(ctx, outputBuf, transport, outputPath); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // getOutputFromReader reads data from the provided io.Reader instances
 // representing stdout and stderr, and returns the collected output as byte slices.
-func getOutputFromReader(stdout, stderr io.Reader) ([]byte, []byte) {
+func getOutputFromReader(stdout, stderr io.Reader, outputBuf *strings.Builder) ([]byte, []byte) {
 	// Read from the stdout and stderr pipe readers
 	outBuffer, err := readBuffer(stdout)
 	if err != nil {
-		fmt.Printf("Failed to read from Stdout buffer: %v\n", err)
+		outputBuf.WriteString(fmt.Sprintf("Failed to read from Stdout buffer: %v\n", err))
 	}
 
 	errBuffer, err := readBuffer(stderr)
 	if err != nil {
-		fmt.Printf("Failed to read from Stderr buffer: %v\n", err)
+		outputBuf.WriteString(fmt.Sprintf("Failed to read from Stderr buffer: %v\n", err))
 	}
 
 	return outBuffer, errBuffer
@@ -167,7 +162,7 @@ func readBuffer(r io.Reader) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func (ts *TestStep) parseOutput(ctx xcontext.Context, stdoutMsg, stderrMsg *strings.Builder,
+func (ts *TestStep) parseOutput(ctx xcontext.Context, outputBuf *strings.Builder,
 	transport transport.Transport, path string,
 ) error {
 	proc, err := transport.NewProcess(ctx, "cat", []string{path}, "")
@@ -190,14 +185,13 @@ func (ts *TestStep) parseOutput(ctx xcontext.Context, stdoutMsg, stderrMsg *stri
 	// between "an error occured while launching" and "this was the outcome of the execution"
 	_ = proc.Start(ctx)
 
-	stdout, stderr := getOutputFromReader(stdoutPipe, stderrPipe)
+	stdout, stderr := getOutputFromReader(stdoutPipe, stderrPipe, outputBuf)
 
 	if len(stderr) != 0 {
 		return fmt.Errorf("Error retrieving the output. Error: %s", string(stderr))
 	}
 
-	stdoutMsg.WriteString(fmt.Sprintf("\n\nTest logs:\n%s\n", string(stdout)))
-	stderrMsg.WriteString(fmt.Sprintf("\n\nTest logs:\n%s\n", string(stdout)))
+	outputBuf.WriteString(fmt.Sprintf("\n\nTest logs:\n%s\n", string(stdout)))
 
 	if len(stdout) != 0 {
 		re, err := regexp.Compile(`Total:\s+\|\s+\d+\|\s+\d+\|\s+\d+\|\s+\d+\|\s+\d+\|\s+\d+\|`)
@@ -207,7 +201,7 @@ func (ts *TestStep) parseOutput(ctx xcontext.Context, stdoutMsg, stderrMsg *stri
 
 		match := re.FindString(string(stdout))
 		if len(match) == 0 {
-			stderrMsg.WriteString("Failed to parse stdout. Could not find result.\n")
+			outputBuf.WriteString("Failed to parse stdout. Could not find result.\n")
 		} else {
 			data, err := parseLine(string(match))
 			if err != nil {
@@ -215,7 +209,7 @@ func (ts *TestStep) parseOutput(ctx xcontext.Context, stdoutMsg, stderrMsg *stri
 			}
 
 			if ts.Parameter.ReportOnly {
-				stdoutMsg.WriteString(fmt.Sprintf("Test result:\n%s", printData(data)))
+				outputBuf.WriteString(fmt.Sprintf("Test result:\n%s", printData(data)))
 				return nil
 			}
 
@@ -223,7 +217,7 @@ func (ts *TestStep) parseOutput(ctx xcontext.Context, stdoutMsg, stderrMsg *stri
 				return fmt.Errorf("At least one Test failed. Test result:\n%s", printData(data))
 			}
 
-			stdoutMsg.WriteString(fmt.Sprintf("No Test failed. Test result:\n%s", printData(data)))
+			outputBuf.WriteString(fmt.Sprintf("No Test failed. Test result:\n%s", printData(data)))
 		}
 	}
 
