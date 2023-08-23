@@ -67,7 +67,7 @@ func (ts *TestStep) validateAndPopulate(stepParams test.TestStepParameters) erro
 	}
 
 	if len(ts.Parameter.Modules) == 0 {
-		return fmt.Errorf("missing or empty 'module' parameter")
+		return fmt.Errorf("missing or empty 'modules' parameter")
 	}
 
 	if ts.Parameter.ToolPath == "" && !ts.Parameter.NixOS {
