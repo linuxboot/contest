@@ -15,7 +15,7 @@ import (
 
 // We need a default timeout to avoid endless running tests.
 const (
-	defaultTimeout = 10 * time.Minute
+	defaultTimeout = 1 * time.Hour
 	in             = "input"
 )
 
