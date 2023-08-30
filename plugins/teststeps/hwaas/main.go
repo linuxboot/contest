@@ -28,13 +28,14 @@ const (
 
 type inputStepParams struct {
 	Parameter struct {
+		Command   string   `json:"command,omitempty"`
+		Args      []string `json:"args,omitempty"`
 		Host      string   `json:"host,omitempty"`
 		Version   string   `json:"version,omitempty"`
 		ContextID string   `json:"context_id,omitempty"`
 		MachineID string   `json:"machine_id,omitempty"`
 		DeviceID  string   `json:"device_id,omitempty"`
-		Command   string   `json:"command,omitempty"`
-		Args      []string `json:"args,omitempty"`
+		Image     string   `json:"image,omitempty"`
 	} `json:"parameter"`
 
 	Options struct {

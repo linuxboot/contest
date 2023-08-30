@@ -25,6 +25,12 @@ func (ts *TestStep) powerCmds(ctx xcontext.Context, outputBuf *strings.Builder) 
 		switch ts.Parameter.Args[0] {
 
 		case "on":
+			if ts.Parameter.Image != "" {
+				if err := ts.mountImage(ctx, outputBuf); err != nil {
+					return err
+				}
+			}
+
 			if err := ts.powerOn(ctx, outputBuf); err != nil {
 				return err
 			}
@@ -59,7 +65,7 @@ func (ts *TestStep) powerCmds(ctx xcontext.Context, outputBuf *strings.Builder) 
 // powerOn turns on the device. To power the device on we have to fulfill this requirements -> reset is off -> pdu is on.
 func (ts *TestStep) powerOn(ctx xcontext.Context, outputBuf *strings.Builder) error {
 	if err := ts.unresetDUT(ctx); err != nil {
-		return fmt.Errorf("Failed to power on DUT: %v", err)
+		return fmt.Errorf("failed to power on DUT: %v", err)
 	}
 
 	time.Sleep(time.Second)
@@ -73,7 +79,7 @@ func (ts *TestStep) powerOn(ctx xcontext.Context, outputBuf *strings.Builder) er
 	if state != on {
 		time.Sleep(time.Second)
 		if err := ts.postPower(ctx, "3s"); err != nil {
-			return fmt.Errorf("Failed to power on DUT: %v", err)
+			return fmt.Errorf("failed to power on DUT: %v", err)
 		}
 
 		time.Sleep(5 * time.Second)
@@ -86,7 +92,7 @@ func (ts *TestStep) powerOn(ctx xcontext.Context, outputBuf *strings.Builder) er
 	}
 
 	if state != on {
-		return fmt.Errorf("Failed to power on DUT: State is '%s'", state)
+		return fmt.Errorf("failed to power on DUT: State is '%s'", state)
 	}
 
 	outputBuf.WriteString("DUT was powered on successfully.\n")
@@ -100,14 +106,14 @@ func (ts *TestStep) powerOffSoft(ctx xcontext.Context, outputBuf *strings.Builde
 	// Check the led if the device is on
 	state, err := ts.getState(ctx, led)
 	if err != nil {
-		return fmt.Errorf("Failed to power off DUT: %v", err)
+		return fmt.Errorf("failed to power off DUT: %v", err)
 	}
 
 	if state == on {
 		time.Sleep(time.Second)
 		// If device is on, press power button for 12s
 		if err := ts.postPower(ctx, "12s"); err != nil {
-			return fmt.Errorf("Failed to power off DUT: %v", err)
+			return fmt.Errorf("failed to power off DUT: %v", err)
 		}
 
 		time.Sleep(12 * time.Second)
@@ -121,7 +127,7 @@ func (ts *TestStep) powerOffSoft(ctx xcontext.Context, outputBuf *strings.Builde
 // powerOffHard ensures that -> pdu is off & reset is on.
 func (ts *TestStep) powerOffHard(ctx xcontext.Context, stdoutMsg *strings.Builder) error {
 	if err := ts.resetDUT(ctx); err != nil {
-		return fmt.Errorf("Failed to reset DUT: %v", err)
+		return fmt.Errorf("failed to reset DUT: %v", err)
 	}
 
 	stdoutMsg.WriteString("DUT was resetted successfully.\n")
@@ -145,17 +151,17 @@ func (ts *TestStep) postPower(ctx xcontext.Context, duration string) error {
 
 	powerBody, err := json.Marshal(postPower)
 	if err != nil {
-		return fmt.Errorf("Failed to marshal body: %w", err)
+		return fmt.Errorf("failed to marshal body: %w", err)
 	}
 
 	resp, err := HTTPRequest(ctx, http.MethodPost, endpoint, bytes.NewBuffer(powerBody))
 	if err != nil {
-		return fmt.Errorf("Failed to do HTTP request: %v", err)
+		return fmt.Errorf("failed to do HTTP request: %v", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("Failed to Post to Power. Statuscode: %d, Response Body: %v", resp.StatusCode, resp.Body)
+		return fmt.Errorf("failed to Post to Power. Statuscode: %d, Response Body: %v", resp.StatusCode, resp.Body)
 	}
 
 	return nil
@@ -166,7 +172,7 @@ func (ts *TestStep) postPower(ctx xcontext.Context, duration string) error {
 // http.MethodPut does power on the pdu.
 func (ts *TestStep) pressPDU(ctx xcontext.Context, method string) error {
 	if method != http.MethodDelete && method != http.MethodPut {
-		return fmt.Errorf("Invalid method '%s'. Only supported methods for toggeling the PDU are: '%s' and '%s'", method, http.MethodDelete, http.MethodPut)
+		return fmt.Errorf("invalid method '%s'. Only supported methods for toggeling the PDU are: '%s' and '%s'", method, http.MethodDelete, http.MethodPut)
 	}
 
 	endpoint := fmt.Sprintf("%s%s/contexts/%s/machines/%s/power",
@@ -174,7 +180,7 @@ func (ts *TestStep) pressPDU(ctx xcontext.Context, method string) error {
 
 	resp, err := HTTPRequest(ctx, method, endpoint, bytes.NewBuffer(nil))
 	if err != nil {
-		return fmt.Errorf("Failed to do HTTP request: %v", err)
+		return fmt.Errorf("failed to do HTTP request: %v", err)
 	}
 	defer resp.Body.Close()
 
@@ -187,7 +193,7 @@ func (ts *TestStep) pressPDU(ctx xcontext.Context, method string) error {
 		}
 
 		if method == http.MethodPut && !powerState || method == http.MethodDelete && powerState {
-			return fmt.Errorf("Failed to toggle PDU. Method: '%s', State: '%t'", method, powerState)
+			return fmt.Errorf("failed to toggle PDU. Method: '%s', State: '%t'", method, powerState)
 		}
 	}
 
@@ -202,7 +208,7 @@ type postReset struct {
 // A valid state is either 'on' or 'off'.
 func (ts *TestStep) postReset(ctx xcontext.Context, wantState string) error {
 	if wantState != on && wantState != off {
-		return fmt.Errorf("Invalid state '%s'. Only supported states for reset are: '%s' and '%s'", wantState, on, off)
+		return fmt.Errorf("invalid state '%s'. Only supported states for reset are: '%s' and '%s'", wantState, on, off)
 	}
 
 	endpoint := fmt.Sprintf("%s%s/contexts/%s/machines/%s/auxiliaries/%s/api/reset",
@@ -214,17 +220,17 @@ func (ts *TestStep) postReset(ctx xcontext.Context, wantState string) error {
 
 	resetBody, err := json.Marshal(postReset)
 	if err != nil {
-		return fmt.Errorf("Failed to marshal body: %w", err)
+		return fmt.Errorf("failed to marshal body: %w", err)
 	}
 
 	resp, err := HTTPRequest(ctx, http.MethodPost, endpoint, bytes.NewBuffer(resetBody))
 	if err != nil {
-		return fmt.Errorf("Failed to do HTTP request: %v", err)
+		return fmt.Errorf("failed to do HTTP request: %v", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("Reset could not be set to state '%s'", wantState)
+		return fmt.Errorf("reset could not be set to state '%s'", wantState)
 	} else {
 		state, err := ts.getState(ctx, reset)
 		if err != nil {
@@ -232,7 +238,7 @@ func (ts *TestStep) postReset(ctx xcontext.Context, wantState string) error {
 		}
 
 		if state != wantState {
-			return fmt.Errorf("Reset could not be set to state '%s'. State is '%s'", wantState, state)
+			return fmt.Errorf("reset could not be set to state '%s'. State is '%s'", wantState, state)
 		}
 	}
 
@@ -252,23 +258,23 @@ func (ts *TestStep) getState(ctx xcontext.Context, command string) (string, erro
 
 	resp, err := HTTPRequest(ctx, http.MethodGet, endpoint, bytes.NewBuffer(nil))
 	if err != nil {
-		return "", fmt.Errorf("Failed to do HTTP request: %v", err)
+		return "", fmt.Errorf("failed to do HTTP request: %v", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("State could not be retrieved. Statuscode: %d, Response Body: %v", resp.StatusCode, resp.Body)
+		return "", fmt.Errorf("state could not be retrieved. Statuscode: %d, Response Body: %v", resp.StatusCode, resp.Body)
 	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return "", fmt.Errorf("Could not extract response body: %v", err)
+		return "", fmt.Errorf("could not extract response body: %v", err)
 	}
 
 	data := getState{}
 
 	if err := json.Unmarshal(body, &data); err != nil {
-		return "", fmt.Errorf("Could not unmarshal response body: %v", err)
+		return "", fmt.Errorf("could not unmarshal response body: %v", err)
 	}
 
 	return data.State, nil
@@ -282,7 +288,7 @@ func (ts *TestStep) getPDUState(ctx xcontext.Context) (bool, error) {
 
 	resp, err := HTTPRequest(ctx, http.MethodGet, endpoint, bytes.NewBuffer(nil))
 	if err != nil {
-		return false, fmt.Errorf("Failed to do HTTP request: %v", err)
+		return false, fmt.Errorf("failed to do HTTP request: %v", err)
 	}
 	defer resp.Body.Close()
 
@@ -292,13 +298,13 @@ func (ts *TestStep) getPDUState(ctx xcontext.Context) (bool, error) {
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return false, fmt.Errorf("Could not extract response body: %v", err)
+		return false, fmt.Errorf("could not extract response body: %v", err)
 	}
 
 	var state bool
 
 	if err := json.Unmarshal(body, &state); err != nil {
-		return false, fmt.Errorf("Could not unmarshal response body: %v", err)
+		return false, fmt.Errorf("could not unmarshal response body: %v", err)
 	}
 
 	return state, nil

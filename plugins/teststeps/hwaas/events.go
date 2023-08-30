@@ -78,8 +78,6 @@ func writeCommand(command string, args []string, builders ...*strings.Builder) {
 		builder.WriteString("Operation on DUT:\n")
 		builder.WriteString(fmt.Sprintf("%s %s", command, strings.Join(args, " ")))
 		builder.WriteString("\n\n")
-
-		builder.WriteString("Output:\n")
 	}
 }
 
