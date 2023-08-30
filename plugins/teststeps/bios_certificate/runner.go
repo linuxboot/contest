@@ -23,8 +23,6 @@ const (
 	jsonFlag       = "--json"
 )
 
-type outcome error
-
 type Error struct {
 	Msg string `json:"error"`
 }
@@ -42,7 +40,7 @@ func NewTargetRunner(ts *TestStep, ev testevent.Emitter) *TargetRunner {
 }
 
 func (r *TargetRunner) Run(ctx xcontext.Context, target *target.Target) error {
-	var stdoutMsg, stderrMsg strings.Builder
+	var outputBuf strings.Builder
 
 	// limit the execution time if specified
 	timeout := r.ts.Options.Timeout
@@ -57,72 +55,65 @@ func (r *TargetRunner) Run(ctx xcontext.Context, target *target.Target) error {
 	var params inputStepParams
 	if err := pe.ExpandObject(r.ts.inputStepParams, &params); err != nil {
 		err := fmt.Errorf("failed to expand input parameter: %v", err)
-		stderrMsg.WriteString(fmt.Sprintf("%v", err))
+		outputBuf.WriteString(fmt.Sprintf("%v", err))
 
-		return emitStderr(ctx, EventStderr, stderrMsg.String(), target, r.ev, err)
+		return emitStderr(ctx, outputBuf.String(), target, r.ev, err)
 	}
 
-	writeTestStep(r.ts, &stdoutMsg, &stderrMsg)
+	writeTestStep(r.ts, &outputBuf, &outputBuf)
 
 	if params.Transport.Proto != supportedProto {
 		err := fmt.Errorf("only %q is supported as protocol in this teststep", supportedProto)
-		stderrMsg.WriteString(fmt.Sprintf("%v", err))
+		outputBuf.WriteString(fmt.Sprintf("%v", err))
 
-		return emitStderr(ctx, EventStderr, stderrMsg.String(), target, r.ev, err)
+		return emitStderr(ctx, outputBuf.String(), target, r.ev, err)
 	}
 
 	transportProto, err := transport.NewTransport(params.Transport.Proto, params.Transport.Options, pe)
 	if err != nil {
 		err := fmt.Errorf("failed to create transport: %w", err)
-		stderrMsg.WriteString(fmt.Sprintf("%v", err))
+		outputBuf.WriteString(fmt.Sprintf("%v", err))
 
-		return emitStderr(ctx, EventStderr, stderrMsg.String(), target, r.ev, err)
+		return emitStderr(ctx, outputBuf.String(), target, r.ev, err)
 	}
 
 	switch params.Command {
 	case "enable":
-		_, err = r.ts.runEnable(ctx, &stdoutMsg, &stderrMsg, transportProto)
-		if err != nil {
-			stderrMsg.WriteString(fmt.Sprintf("%v", err))
+		if err := r.ts.runEnable(ctx, &outputBuf, transportProto); err != nil {
+			outputBuf.WriteString(fmt.Sprintf("%v", err))
 
-			return emitStderr(ctx, EventStderr, stderrMsg.String(), target, r.ev, err)
+			return emitStderr(ctx, outputBuf.String(), target, r.ev, err)
 		}
 
 	case "update":
-		_, err = r.ts.runUpdate(ctx, &stdoutMsg, &stderrMsg, transportProto)
-		if err != nil {
-			stderrMsg.WriteString(fmt.Sprintf("%v", err))
+		if err := r.ts.runUpdate(ctx, &outputBuf, transportProto); err != nil {
+			outputBuf.WriteString(fmt.Sprintf("%v", err))
 
-			return emitStderr(ctx, EventStderr, stderrMsg.String(), target, r.ev, err)
+			return emitStderr(ctx, outputBuf.String(), target, r.ev, err)
 		}
 
 	case "disable":
-		_, err = r.ts.runDisable(ctx, &stdoutMsg, &stderrMsg, transportProto)
-		if err != nil {
-			stderrMsg.WriteString(fmt.Sprintf("%v", err))
+		if err := r.ts.runDisable(ctx, &outputBuf, transportProto); err != nil {
+			outputBuf.WriteString(fmt.Sprintf("%v", err))
 
-			return emitStderr(ctx, EventStderr, stderrMsg.String(), target, r.ev, err)
+			return emitStderr(ctx, outputBuf.String(), target, r.ev, err)
 		}
 
 	default:
 		err := fmt.Errorf("command not supported")
-		stderrMsg.WriteString(fmt.Sprintf("%v", err))
+		outputBuf.WriteString(fmt.Sprintf("%v", err))
 
 		return err
 	}
 
-	if err := emitEvent(ctx, EventStdout, eventPayload{Msg: stdoutMsg.String()}, target, r.ev); err != nil {
-		return fmt.Errorf("cannot emit event: %v", err)
-	}
-
-	return nil
+	return emitStdout(ctx, outputBuf.String(), target, r.ev)
 }
 
 func (ts *TestStep) runEnable(
-	ctx xcontext.Context, stdoutMsg, stderrMsg *strings.Builder, transport transport.Transport,
-) (outcome, error) {
+	ctx xcontext.Context, outputBuf *strings.Builder, transport transport.Transport,
+) error {
 	if ts.Parameter.Password == "" || ts.Parameter.CertPath == "" {
-		return nil, fmt.Errorf("password and certificate file must be set")
+		return fmt.Errorf("password and certificate file must be set")
 	}
 
 	args := []string{
@@ -134,30 +125,21 @@ func (ts *TestStep) runEnable(
 		jsonFlag,
 	}
 
-	writeCommand(privileged, args, stdoutMsg, stderrMsg)
-
 	proc, err := transport.NewProcess(ctx, privileged, args, "")
 	if err != nil {
-		err := fmt.Errorf("failed to create process: %v", err)
-		stderrMsg.WriteString(fmt.Sprintf("%v\n", err))
-
-		return nil, err
+		return fmt.Errorf("failed to create process: %v", err)
 	}
+
+	writeCommand(proc.String(), outputBuf)
 
 	stdoutPipe, err := proc.StdoutPipe()
 	if err != nil {
-		err := fmt.Errorf("failed to pipe stdout: %v", err)
-		stderrMsg.WriteString(fmt.Sprintf("%v\n", err))
-
-		return nil, err
+		return fmt.Errorf("failed to pipe stdout: %v", err)
 	}
 
 	stderrPipe, err := proc.StderrPipe()
 	if err != nil {
-		err := fmt.Errorf("failed to pipe stderr: %v", err)
-		stderrMsg.WriteString(fmt.Sprintf("%v\n", err))
-
-		return nil, err
+		return fmt.Errorf("failed to pipe stderr: %v", err)
 	}
 
 	// try to start the process, if that succeeds then the outcome is the result of
@@ -170,21 +152,28 @@ func (ts *TestStep) runEnable(
 
 	stdout, stderr := getOutputFromReader(stdoutPipe, stderrPipe)
 
-	stdoutMsg.WriteString(fmt.Sprintf("Command Stdout:\n%s\n", string(stdout)))
-
-	err = parseOutput(stderrMsg, stderr)
-	if err != nil {
-		return nil, err
+	if len(string(stdout)) > 0 {
+		outputBuf.WriteString(fmt.Sprintf("Stdout:\n%s\n", string(stdout)))
+	} else if len(string(stderr)) > 0 {
+		outputBuf.WriteString(fmt.Sprintf("Stderr:\n%s\n", string(stderr)))
 	}
 
-	return outcome, err
+	if outcome != nil {
+		return fmt.Errorf("failed to run bios certificate cmd: %v", outcome)
+	}
+
+	if err := parseOutput(outputBuf, stderr); err != nil {
+		return err
+	}
+
+	return err
 }
 
 func (ts *TestStep) runUpdate(
-	ctx xcontext.Context, stdoutMsg, stderrMsg *strings.Builder, transport transport.Transport,
-) (outcome, error) {
+	ctx xcontext.Context, outputBuf *strings.Builder, transport transport.Transport,
+) error {
 	if ts.Parameter.CertPath == "" || ts.Parameter.KeyPath == "" {
-		return nil, fmt.Errorf("new certificate and old private key file must be set")
+		return fmt.Errorf("new certificate and old private key file must be set")
 	}
 
 	args := []string{
@@ -196,30 +185,21 @@ func (ts *TestStep) runUpdate(
 		jsonFlag,
 	}
 
-	writeCommand(privileged, args, stdoutMsg, stderrMsg)
-
 	proc, err := transport.NewProcess(ctx, privileged, args, "")
 	if err != nil {
-		err := fmt.Errorf("failed to create process: %v", err)
-		stderrMsg.WriteString(fmt.Sprintf("%v\n", err))
-
-		return nil, err
+		return fmt.Errorf("failed to create process: %v", err)
 	}
+
+	writeCommand(proc.String(), outputBuf)
 
 	stdoutPipe, err := proc.StdoutPipe()
 	if err != nil {
-		err := fmt.Errorf("failed to pipe stdout: %v", err)
-		stderrMsg.WriteString(fmt.Sprintf("%v\n", err))
-
-		return nil, err
+		return fmt.Errorf("failed to pipe stdout: %v", err)
 	}
 
 	stderrPipe, err := proc.StderrPipe()
 	if err != nil {
-		err := fmt.Errorf("failed to pipe stderr: %v", err)
-		stderrMsg.WriteString(fmt.Sprintf("%v\n", err))
-
-		return nil, err
+		return fmt.Errorf("failed to pipe stderr: %v", err)
 	}
 
 	// try to start the process, if that succeeds then the outcome is the result of
@@ -232,21 +212,28 @@ func (ts *TestStep) runUpdate(
 
 	stdout, stderr := getOutputFromReader(stdoutPipe, stderrPipe)
 
-	stdoutMsg.WriteString(fmt.Sprintf("Command Stdout:\n%s\n", string(stdout)))
-
-	err = parseOutput(stderrMsg, stderr)
-	if err != nil {
-		return nil, err
+	if len(string(stdout)) > 0 {
+		outputBuf.WriteString(fmt.Sprintf("Stdout:\n%s\n", string(stdout)))
+	} else if len(string(stderr)) > 0 {
+		outputBuf.WriteString(fmt.Sprintf("Stderr:\n%s\n", string(stderr)))
 	}
 
-	return outcome, err
+	if outcome != nil {
+		return fmt.Errorf("failed to run bios certificate cmd: %v", outcome)
+	}
+
+	if err := parseOutput(outputBuf, stderr); err != nil {
+		return err
+	}
+
+	return err
 }
 
 func (ts *TestStep) runDisable(
-	ctx xcontext.Context, stdoutMsg, stderrMsg *strings.Builder, transport transport.Transport,
-) (outcome, error) {
+	ctx xcontext.Context, outputBuf *strings.Builder, transport transport.Transport,
+) error {
 	if ts.Parameter.Password == "" || ts.Parameter.KeyPath == "" {
-		return nil, fmt.Errorf("password and private key file must be set")
+		return fmt.Errorf("password and private key file must be set")
 	}
 
 	args := []string{
@@ -258,30 +245,21 @@ func (ts *TestStep) runDisable(
 		jsonFlag,
 	}
 
-	writeCommand(privileged, args, stdoutMsg, stderrMsg)
-
 	proc, err := transport.NewProcess(ctx, privileged, args, "")
 	if err != nil {
-		err := fmt.Errorf("failed to create process: %v", err)
-		stderrMsg.WriteString(fmt.Sprintf("%v\n", err))
-
-		return nil, err
+		return fmt.Errorf("failed to create process: %v", err)
 	}
+
+	writeCommand(proc.String(), outputBuf)
 
 	stdoutPipe, err := proc.StdoutPipe()
 	if err != nil {
-		err := fmt.Errorf("failed to pipe stdout: %v", err)
-		stderrMsg.WriteString(fmt.Sprintf("%v\n", err))
-
-		return nil, err
+		return fmt.Errorf("failed to pipe stdout: %v", err)
 	}
 
 	stderrPipe, err := proc.StderrPipe()
 	if err != nil {
-		err := fmt.Errorf("failed to pipe stderr: %v", err)
-		stderrMsg.WriteString(fmt.Sprintf("%v\n", err))
-
-		return nil, err
+		return fmt.Errorf("failed to pipe stderr: %v", err)
 	}
 
 	// try to start the process, if that succeeds then the outcome is the result of
@@ -294,14 +272,21 @@ func (ts *TestStep) runDisable(
 
 	stdout, stderr := getOutputFromReader(stdoutPipe, stderrPipe)
 
-	stdoutMsg.WriteString(fmt.Sprintf("Command Stdout:\n%s\n", string(stdout)))
-
-	err = parseOutput(stderrMsg, stderr)
-	if err != nil {
-		return nil, err
+	if len(string(stdout)) > 0 {
+		outputBuf.WriteString(fmt.Sprintf("Stdout:\n%s\n", string(stdout)))
+	} else if len(string(stderr)) > 0 {
+		outputBuf.WriteString(fmt.Sprintf("Stderr:\n%s\n", string(stderr)))
 	}
 
-	return outcome, err
+	if outcome != nil {
+		return fmt.Errorf("failed to run bios certificate cmd: %v", outcome)
+	}
+
+	if err := parseOutput(outputBuf, stderr); err != nil {
+		return err
+	}
+
+	return err
 }
 
 // getOutputFromReader reads data from the provided io.Reader instances
@@ -332,20 +317,15 @@ func readBuffer(r io.Reader) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func parseOutput(stderrMsg *strings.Builder, stderr []byte) error {
+func parseOutput(outputBuf *strings.Builder, stderr []byte) error {
 	err := Error{}
 	if len(stderr) != 0 {
 		if err := json.Unmarshal(stderr, &err); err != nil {
-			err := fmt.Errorf("failed to unmarshal stderr '%s': %v", string(stderr), err)
-			stderrMsg.WriteString(fmt.Sprintf("%v\n", err))
-
-			return err
+			return fmt.Errorf("failed to unmarshal stderr '%s': %v", string(stderr), err)
 		}
 	}
 
 	if err.Msg != "" {
-		stderrMsg.WriteString(fmt.Sprintf("Command Stderr:\n%s\n", string(stderr)))
-
 		return errors.New(err.Msg)
 	}
 
