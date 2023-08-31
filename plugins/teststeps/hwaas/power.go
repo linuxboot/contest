@@ -54,11 +54,32 @@ func (ts *TestStep) powerCmds(ctx xcontext.Context, outputBuf *strings.Builder) 
 
 			return nil
 
+		case "reboot":
+			if err := ts.powerOffSoft(ctx, outputBuf); err != nil {
+				return err
+			}
+
+			if len(ts.Parameter.Args) >= 2 {
+				if ts.Parameter.Args[1] == "hard" {
+					if err := ts.powerOffHard(ctx, outputBuf); err != nil {
+						return err
+					}
+				} else {
+					return fmt.Errorf("failed to execute the reboot command. The last argument is not valid. The only possible value is 'hard'.")
+				}
+			}
+
+			if err := ts.powerOn(ctx, outputBuf); err != nil {
+				return err
+			}
+
+			return nil
+
 		default:
-			return fmt.Errorf("failed to execute the power command. The argument '%s' is not valid. Possible values are 'on' and 'off'.", ts.Parameter.Args)
+			return fmt.Errorf("failed to execute the power command. The argument '%s' is not valid. Possible values are 'on', 'off' and 'reboot'.", ts.Parameter.Args)
 		}
 	} else {
-		return fmt.Errorf("failed to execute the power command. Args is empty. Possible values are 'on' and 'off'.")
+		return fmt.Errorf("failed to execute the power command. Args is empty. Possible values are 'on', 'off' and 'reboot'.")
 	}
 }
 
