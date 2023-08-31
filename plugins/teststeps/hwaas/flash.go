@@ -46,7 +46,7 @@ func (ts *TestStep) flashCmds(ctx xcontext.Context, outputBuf *strings.Builder) 
 			return fmt.Errorf("failed to execute the flash command. The argument '%s' is not valid. Possible values are 'read /path/to/binary' and 'write /path/to/binary'.", ts.Parameter.Args)
 		}
 	} else {
-		return fmt.Errorf("failed to execute the power command. Args is not valid. Possible values are 'read /path/to/binary' and 'write /path/to/binary'.")
+		return fmt.Errorf("failed to execute the flash command. Args is not valid. Possible values are 'read /path/to/binary' and 'write /path/to/binary'.")
 	}
 }
 
@@ -60,10 +60,7 @@ func (ts *TestStep) flashWrite(ctx xcontext.Context, outputBuf *strings.Builder,
 		return err
 	}
 
-	endpoint := fmt.Sprintf("%s%s/contexts/%s/machines/%s/auxiliaries/%s/api/flash",
-		ts.Parameter.Host, ts.Parameter.Version, ts.Parameter.ContextID, ts.Parameter.MachineID, ts.Parameter.DeviceID)
-
-	targetInfo, err := getTargetState(ctx, endpoint)
+	targetInfo, err := ts.getTargetState(ctx)
 	if err != nil {
 		return err
 	}
@@ -71,15 +68,15 @@ func (ts *TestStep) flashWrite(ctx xcontext.Context, outputBuf *strings.Builder,
 		return fmt.Errorf("flashing DUT with %s failed: DUT is currently busy.\n", sourceFile)
 	}
 
-	if err := postFWImage(ctx, endpoint, sourceFile); err != nil {
+	if err := ts.postFWImage(ctx, sourceFile); err != nil {
 		return fmt.Errorf("flashing DUT with %s failed: %v\n", sourceFile, err)
 	}
 
-	if err := flashTarget(ctx, endpoint); err != nil {
+	if err := ts.flashTarget(ctx); err != nil {
 		return fmt.Errorf("flashing DUT with %s failed: %v\n", sourceFile, err)
 	}
 
-	if err := waitTarget(ctx, endpoint); err != nil {
+	if err := ts.waitTarget(ctx); err != nil {
 		return err
 	}
 
@@ -104,10 +101,7 @@ func (ts *TestStep) flashRead(ctx xcontext.Context, outputBuf *strings.Builder, 
 		return err
 	}
 
-	endpoint := fmt.Sprintf("%s%s/contexts/%s/machines/%s/auxiliaries/%s/api/flash",
-		ts.Parameter.Host, ts.Parameter.Version, ts.Parameter.ContextID, ts.Parameter.MachineID, ts.Parameter.DeviceID)
-
-	targetInfo, err := getTargetState(ctx, endpoint)
+	targetInfo, err := ts.getTargetState(ctx)
 	if err != nil {
 		return err
 	}
@@ -115,16 +109,16 @@ func (ts *TestStep) flashRead(ctx xcontext.Context, outputBuf *strings.Builder, 
 		return fmt.Errorf("reading image from DUT into %s failed: DUT is currently busy.\n", destinationFile)
 	}
 
-	err = readTarget(ctx, endpoint)
+	err = ts.readTarget(ctx)
 	if err != nil {
 		return fmt.Errorf("reading image from DUT into %s failed: %v\n", destinationFile, err)
 	}
 
-	if err := waitTarget(ctx, endpoint); err != nil {
+	if err := ts.waitTarget(ctx); err != nil {
 		return err
 	}
 
-	if err := pullFWImage(ctx, endpoint, destinationFile); err != nil {
+	if err := ts.pullFWImage(ctx, destinationFile); err != nil {
 		return err
 	}
 
@@ -147,7 +141,10 @@ type getFlash struct {
 
 // getTargetState returns the flash state of the target.
 // If an error occured, the field error is filled.
-func getTargetState(ctx xcontext.Context, endpoint string) (getFlash, error) {
+func (ts *TestStep) getTargetState(ctx xcontext.Context) (getFlash, error) {
+	endpoint := fmt.Sprintf("%s%s/contexts/%s/machines/%s/auxiliaries/%s/api/flash",
+		ts.Parameter.Host, ts.Parameter.Version, ts.Parameter.ContextID, ts.Parameter.MachineID, ts.Parameter.DeviceID)
+
 	resp, err := HTTPRequest(ctx, http.MethodGet, endpoint, bytes.NewBuffer(nil))
 	if err != nil {
 		return getFlash{}, fmt.Errorf("failed to do HTTP request: %v", err)
@@ -169,8 +166,9 @@ func getTargetState(ctx xcontext.Context, endpoint string) (getFlash, error) {
 }
 
 // pullFWImage downloads the binary from the target and stores it at 'filePath'.
-func pullFWImage(ctx xcontext.Context, endpoint string, filePath string) error {
-	endpoint = fmt.Sprintf("%s%s", endpoint, "/file")
+func (ts *TestStep) pullFWImage(ctx xcontext.Context, filePath string) error {
+	endpoint := fmt.Sprintf("%s%s/contexts/%s/machines/%s/auxiliaries/%s/api/flash/file",
+		ts.Parameter.Host, ts.Parameter.Version, ts.Parameter.ContextID, ts.Parameter.MachineID, ts.Parameter.DeviceID)
 
 	resp, err := HTTPRequest(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
@@ -198,7 +196,10 @@ func pullFWImage(ctx xcontext.Context, endpoint string, filePath string) error {
 }
 
 // postFWImage posts the binary to the target.
-func postFWImage(ctx xcontext.Context, endpoint string, filePath string) error {
+func (ts *TestStep) postFWImage(ctx xcontext.Context, filePath string) error {
+	endpoint := fmt.Sprintf("%s%s/contexts/%s/machines/%s/auxiliaries/%s/api/flash/file",
+		ts.Parameter.Host, ts.Parameter.Version, ts.Parameter.ContextID, ts.Parameter.MachineID, ts.Parameter.DeviceID)
+
 	// open the binary that shall be flashed
 	file, err := os.Open(filePath)
 	if err != nil {
@@ -220,7 +221,7 @@ func postFWImage(ctx xcontext.Context, endpoint string, filePath string) error {
 	writer.Close()
 
 	// create the http request
-	req, err := http.NewRequestWithContext(ctx, http.MethodPut, fmt.Sprintf("%s%s", endpoint, "/file"), body)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPut, endpoint, body)
 	if err != nil {
 		return fmt.Errorf("failed to create the http request: %v", err)
 	}
@@ -236,7 +237,18 @@ func postFWImage(ctx xcontext.Context, endpoint string, filePath string) error {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("failed to upload binary. Statuscode: %d, Response Body: %v", resp.StatusCode, resp.Body)
+		var rawMsg json.RawMessage
+
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return fmt.Errorf("could not extract response body: %v", err)
+		}
+
+		if err := json.Unmarshal(body, &rawMsg); err != nil {
+			return fmt.Errorf("could not extract response body: %v", err)
+		}
+
+		return fmt.Errorf("failed to upload binary. Statuscode: %d, Response Body: %v", resp.StatusCode, rawMsg)
 	}
 
 	return nil
@@ -247,7 +259,10 @@ type postFlash struct {
 }
 
 // readTarget reads the binary from the target into the flash buffer.
-func readTarget(ctx xcontext.Context, endpoint string) error {
+func (ts *TestStep) readTarget(ctx xcontext.Context) error {
+	endpoint := fmt.Sprintf("%s%s/contexts/%s/machines/%s/auxiliaries/%s/api/flash",
+		ts.Parameter.Host, ts.Parameter.Version, ts.Parameter.ContextID, ts.Parameter.MachineID, ts.Parameter.DeviceID)
+
 	postFlash := postFlash{
 		Action: read,
 	}
@@ -262,7 +277,7 @@ func readTarget(ctx xcontext.Context, endpoint string) error {
 		return fmt.Errorf("failed to do HTTP request: %v", err)
 	}
 
-	if resp.StatusCode != http.StatusCreated {
+	if !(resp.StatusCode == http.StatusCreated || resp.StatusCode == http.StatusOK) {
 		return fmt.Errorf("failed to read image from target. Statuscode: %d, Response Body: %v", resp.StatusCode, resp.Body)
 	}
 
@@ -270,7 +285,10 @@ func readTarget(ctx xcontext.Context, endpoint string) error {
 }
 
 // flashTarget flashes the target with the binary in the flash buffer.
-func flashTarget(ctx xcontext.Context, endpoint string) error {
+func (ts *TestStep) flashTarget(ctx xcontext.Context) error {
+	endpoint := fmt.Sprintf("%s%s/contexts/%s/machines/%s/auxiliaries/%s/api/flash",
+		ts.Parameter.Host, ts.Parameter.Version, ts.Parameter.ContextID, ts.Parameter.MachineID, ts.Parameter.DeviceID)
+
 	postFlash := postFlash{
 		Action: write,
 	}
@@ -293,11 +311,11 @@ func flashTarget(ctx xcontext.Context, endpoint string) error {
 }
 
 // waitTarget wait for the process that is running on the Flash endpoint, either its write or read.
-func waitTarget(ctx xcontext.Context, endpoint string) error {
+func (ts *TestStep) waitTarget(ctx xcontext.Context) error {
 	timestamp := time.Now()
 
 	for {
-		targetInfo, err := getTargetState(ctx, endpoint)
+		targetInfo, err := ts.getTargetState(ctx)
 		if err != nil {
 			return err
 		}
