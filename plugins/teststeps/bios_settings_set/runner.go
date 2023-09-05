@@ -24,8 +24,6 @@ const (
 	jsonFlag       = "--json"
 )
 
-type outcome error
-
 type Error struct {
 	Msg string `json:"error"`
 }
@@ -43,9 +41,7 @@ func NewTargetRunner(ts *TestStep, ev testevent.Emitter) *TargetRunner {
 }
 
 func (r *TargetRunner) Run(ctx xcontext.Context, target *target.Target) error {
-	var stdoutMsg, stderrMsg strings.Builder
-
-	ctx.Infof("Executing on target %s", target)
+	var outputBuf strings.Builder
 
 	// limit the execution time if specified
 	timeout := r.ts.Options.Timeout
@@ -60,61 +56,59 @@ func (r *TargetRunner) Run(ctx xcontext.Context, target *target.Target) error {
 	var params inputStepParams
 	if err := pe.ExpandObject(r.ts.inputStepParams, &params); err != nil {
 		err := fmt.Errorf("failed to expand input parameter: %v", err)
-		stderrMsg.WriteString(fmt.Sprintf("%v", err))
+		outputBuf.WriteString(fmt.Sprintf("%v", err))
 
-		return emitStderr(ctx, EventStderr, stderrMsg.String(), target, r.ev, err)
+		return emitStderr(ctx, outputBuf.String(), target, r.ev, err)
 	}
 
-	writeTestStep(r.ts, &stdoutMsg, &stderrMsg)
+	writeTestStep(r.ts, &outputBuf)
 
 	if params.Transport.Proto != supportedProto {
 		err := fmt.Errorf("only %q is supported as protocol in this teststep", supportedProto)
-		stderrMsg.WriteString(fmt.Sprintf("%v", err))
+		outputBuf.WriteString(fmt.Sprintf("%v", err))
 
-		return emitStderr(ctx, EventStderr, stderrMsg.String(), target, r.ev, err)
+		return emitStderr(ctx, outputBuf.String(), target, r.ev, err)
 	}
 
 	if params.Parameter.Password == "" && params.Parameter.KeyPath == "" {
 		err := fmt.Errorf("password or certificate file must be set")
-		stderrMsg.WriteString(fmt.Sprintf("%v", err))
+		outputBuf.WriteString(fmt.Sprintf("%v", err))
 
-		return emitStderr(ctx, EventStderr, stderrMsg.String(), target, r.ev, err)
+		return emitStderr(ctx, outputBuf.String(), target, r.ev, err)
 	}
 
-	if params.Parameter.Option == "" || params.Parameter.Value == "" {
-		err := fmt.Errorf("bios option and value must be set")
-		stderrMsg.WriteString(fmt.Sprintf("%v", err))
+	if len(params.Parameter.BiosOptions) == 0 {
+		err := fmt.Errorf("at least one bios option and value must be set")
+		outputBuf.WriteString(fmt.Sprintf("%v", err))
 
-		return emitStderr(ctx, EventStderr, stderrMsg.String(), target, r.ev, err)
+		return emitStderr(ctx, outputBuf.String(), target, r.ev, err)
 	}
 
 	transportProto, err := transport.NewTransport(params.Transport.Proto, params.Transport.Options, pe)
 	if err != nil {
 		err := fmt.Errorf("failed to create transport: %w", err)
-		stderrMsg.WriteString(fmt.Sprintf("%v", err))
+		outputBuf.WriteString(fmt.Sprintf("%v", err))
 
-		return emitStderr(ctx, EventStderr, stderrMsg.String(), target, r.ev, err)
+		return emitStderr(ctx, outputBuf.String(), target, r.ev, err)
 	}
 
-	// for any ambiguity, outcome is an error interface, but it encodes whether the process
-	// was launched sucessfully and it resulted in a failure; err means the launch failed
-	_, err = r.runSet(ctx, &stdoutMsg, &stderrMsg, target, transportProto, params)
-	if err != nil {
-		return emitStderr(ctx, EventStderr, stderrMsg.String(), target, r.ev, err)
+	if err := r.ts.runSet(ctx, &outputBuf, transportProto, params); err != nil {
+		outputBuf.WriteString(fmt.Sprintf("%v", err))
+
+		return emitStderr(ctx, outputBuf.String(), target, r.ev, err)
 	}
 
-	if err := emitEvent(ctx, EventStdout, eventPayload{Msg: stdoutMsg.String()}, target, r.ev); err != nil {
-		return fmt.Errorf("cannot emit event: %v", err)
-	}
-
-	return err
+	return emitStdout(ctx, outputBuf.String(), target, r.ev)
 }
 
-func (r *TargetRunner) runSet(
-	ctx xcontext.Context, stdoutMsg, stderrMsg *strings.Builder, target *target.Target,
+func (ts *TestStep) runSet(
+	ctx xcontext.Context, outputBuf *strings.Builder,
 	transport transport.Transport, params inputStepParams,
-) (outcome, error) {
-	var authString string
+) error {
+	var (
+		authString string
+		finalErr   error
+	)
 
 	if params.Parameter.Password != "" {
 		authString = fmt.Sprintf("--password=%s", params.Parameter.Password)
@@ -122,74 +116,88 @@ func (r *TargetRunner) runSet(
 		authString = fmt.Sprintf("--private-key=%s", params.Parameter.KeyPath)
 	}
 
-	args := []string{
-		params.Parameter.ToolPath,
-		cmd,
-		argument,
-		fmt.Sprintf("--option=%s", params.Parameter.Option),
-		fmt.Sprintf("--value=%s", params.Parameter.Value),
-		authString,
-		jsonFlag,
+	for _, option := range ts.Parameter.BiosOptions {
+		args := []string{
+			params.Parameter.ToolPath,
+			cmd,
+			argument,
+			fmt.Sprintf("--option=%s", option.Option),
+			fmt.Sprintf("--value=%s", option.Value),
+			authString,
+			jsonFlag,
+		}
+
+		proc, err := transport.NewProcess(ctx, privileged, args, "")
+		if err != nil {
+			err := fmt.Errorf("failed to create process: %v", err)
+			outputBuf.WriteString(fmt.Sprintf("%v\n", err))
+
+			return err
+		}
+
+		writeCommand(proc.String(), outputBuf)
+
+		stdoutPipe, err := proc.StdoutPipe()
+		if err != nil {
+			return fmt.Errorf("Failed to pipe stdout: %v", err)
+		}
+
+		stderrPipe, err := proc.StderrPipe()
+		if err != nil {
+			return fmt.Errorf("Failed to pipe stderr: %v", err)
+		}
+
+		// try to start the process, if that succeeds then the outcome is the result of
+		// waiting on the process for its result; this way there's a semantic difference
+		// between "an error occured while launching" and "this was the outcome of the execution"
+		outcome := proc.Start(ctx)
+		if outcome == nil {
+			outcome = proc.Wait(ctx)
+		}
+
+		stdout, stderr := getOutputFromReader(stdoutPipe, stderrPipe, outputBuf)
+
+		if len(string(stdout)) > 0 {
+			outputBuf.WriteString(fmt.Sprintf("Stdout:\n%s\n", string(stdout)))
+		} else if len(string(stderr)) > 0 {
+			outputBuf.WriteString(fmt.Sprintf("Stderr:\n%s\n", string(stderr)))
+		}
+
+		if outcome != nil {
+			err := fmt.Errorf("failed to run bios set cmd for option '%s': %v", option.Option, outcome)
+			outputBuf.WriteString(fmt.Sprintf("%v\n", err))
+			finalErr = err
+
+			continue
+		}
+
+		if err := ts.parseOutput(stderr); err != nil {
+			outputBuf.WriteString(fmt.Sprintf("%v\n", err))
+			outputBuf.WriteString("\n\n")
+
+			finalErr = fmt.Errorf("At least one bios setting could not be set.")
+
+			continue
+		}
+
+		outputBuf.WriteString("\n\n")
 	}
 
-	writeCommand(privileged, args, stdoutMsg, stderrMsg)
-
-	proc, err := transport.NewProcess(ctx, privileged, args, "")
-	if err != nil {
-		err := fmt.Errorf("failed to create process: %v", err)
-		stderrMsg.WriteString(fmt.Sprintf("%v\n", err))
-
-		return nil, err
-	}
-
-	stdoutPipe, err := proc.StdoutPipe()
-	if err != nil {
-		err := fmt.Errorf("failed to pipe stdout: %v", err)
-		stderrMsg.WriteString(fmt.Sprintf("%v\n", err))
-
-		return nil, err
-	}
-
-	stderrPipe, err := proc.StderrPipe()
-	if err != nil {
-		err := fmt.Errorf("failed to pipe stderr: %v", err)
-		stderrMsg.WriteString(fmt.Sprintf("%v\n", err))
-
-		return nil, err
-	}
-
-	// try to start the process, if that succeeds then the outcome is the result of
-	// waiting on the process for its result; this way there's a semantic difference
-	// between "an error occured while launching" and "this was the outcome of the execution"
-	outcome := proc.Start(ctx)
-	if outcome == nil {
-		outcome = proc.Wait(ctx)
-	}
-
-	stdout, stderr := getOutputFromReader(stdoutPipe, stderrPipe)
-
-	stdoutMsg.WriteString(fmt.Sprintf("Command Stdout:\n%s\n", string(stdout)))
-
-	err = parseSetOutput(stderrMsg, stderr, params.Parameter.ShallFail)
-	if err != nil {
-		return nil, err
-	}
-
-	return outcome, err
+	return finalErr
 }
 
 // getOutputFromReader reads data from the provided io.Reader instances
 // representing stdout and stderr, and returns the collected output as byte slices.
-func getOutputFromReader(stdout, stderr io.Reader) ([]byte, []byte) {
+func getOutputFromReader(stdout, stderr io.Reader, outputBuf *strings.Builder) ([]byte, []byte) {
 	// Read from the stdout and stderr pipe readers
 	outBuffer, err := readBuffer(stdout)
 	if err != nil {
-		fmt.Printf("failed to read from Stdout buffer: %v\n", err)
+		outputBuf.WriteString(fmt.Sprintf("Failed to read from Stdout buffer: %v\n", err))
 	}
 
 	errBuffer, err := readBuffer(stderr)
 	if err != nil {
-		fmt.Printf("failed to read from Stderr buffer: %v\n", err)
+		outputBuf.WriteString(fmt.Sprintf("Failed to read from Stderr buffer: %v\n", err))
 	}
 
 	return outBuffer, errBuffer
@@ -206,23 +214,18 @@ func readBuffer(r io.Reader) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func parseSetOutput(stderrMsg *strings.Builder, stderr []byte, fail bool) error {
+func (ts *TestStep) parseOutput(stderr []byte) error {
 	err := Error{}
 	if len(stderr) != 0 {
 		if err := json.Unmarshal(stderr, &err); err != nil {
-			err := fmt.Errorf("failed to unmarshal stderr: %v", err)
-			stderrMsg.WriteString(fmt.Sprintf("%v\n", err))
-
-			return err
+			return fmt.Errorf("failed to unmarshal stderr: %v", err)
 		}
 	}
 
 	if err.Msg != "" {
-		if err.Msg == "BIOS options are locked, needs unlocking." && fail {
+		if err.Msg == "BIOS options are locked, needs unlocking." && ts.Parameter.ShallFail {
 			return nil
 		} else if err.Msg != "" {
-			stderrMsg.WriteString(fmt.Sprintf("Command Stderr:\n%s\n", string(stderr)))
-
 			return errors.New(err.Msg)
 		}
 	}

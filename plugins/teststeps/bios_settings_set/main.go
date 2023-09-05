@@ -27,13 +27,16 @@ type inputStepParams struct {
 	} `json:"options,omitempty"`
 
 	Parameter struct {
-		ToolPath  string `json:"tool_path,omitempty"`
-		Password  string `json:"password,omitempty"`
-		KeyPath   string `json:"key_path,omitempty"`
-		Option    string `json:"option,omitempty"`
-		Value     string `json:"value,omitempty"`
-		ShallFail bool   `json:"shall_fail,omitempty"`
+		ToolPath    string       `json:"tool_path,omitempty"`
+		Password    string       `json:"password,omitempty"`
+		KeyPath     string       `json:"key_path,omitempty"`
+		BiosOptions []BiosOption `json:"bios_options,omitempty"`
+		ShallFail   bool         `json:"shall_fail,omitempty"`
 	} `json:"parameter"`
+}
+type BiosOption struct {
+	Option string `json:"option"`
+	Value  string `json:"value"`
 }
 
 // Name is the name used to look this plugin up.
@@ -46,10 +49,6 @@ type TestStep struct {
 
 // Run executes the step.
 func (ts *TestStep) Run(ctx xcontext.Context, ch test.TestStepChannels, params test.TestStepParameters, ev testevent.Emitter, resumeState json.RawMessage) (json.RawMessage, error) {
-	if err := ts.populateParams(params); err != nil {
-		return nil, err
-	}
-
 	tr := NewTargetRunner(ts, ev)
 	return teststeps.ForEachTarget(Name, ctx, ch, tr.Run)
 }
