@@ -52,6 +52,17 @@ func emitEvent(ctx xcontext.Context, name event.Name, payload interface{}, tgt *
 // Function to format teststep information and append it to a string builder.
 func writeTestStep(step *TestStep, builders ...*strings.Builder) {
 	for _, builder := range builders {
+		platform := step.inputStepParams.Parameter.Platform
+		pch := step.inputStepParams.Parameter.PCH
+
+		if platform == "" {
+			platform = "auto"
+		}
+
+		if pch == "" {
+			pch = "auto"
+		}
+
 		builder.WriteString("Input Parameter:\n")
 		builder.WriteString("  Transport:\n")
 		builder.WriteString(fmt.Sprintf("    Protocol: %s\n", step.Transport.Proto))
@@ -67,6 +78,8 @@ func writeTestStep(step *TestStep, builders ...*strings.Builder) {
 		builder.WriteString("  Parameter:\n")
 		builder.WriteString(fmt.Sprintf("    ToolPath: %s\n", step.Parameter.ToolPath))
 		builder.WriteString(fmt.Sprintf("    NixOS: %t\n", step.Parameter.NixOS))
+		builder.WriteString(fmt.Sprintf("    Platform: %s\n", platform))
+		builder.WriteString(fmt.Sprintf("    PCH: %s\n", pch))
 
 		builder.WriteString("    Modules:\n")
 		for i, module := range step.Parameter.Modules {

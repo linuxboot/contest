@@ -28,6 +28,8 @@ type inputStepParams struct {
 	Parameter struct {
 		Modules  []string `json:"modules"`
 		ToolPath string   `json:"tool_path"`
+		Platform string   `json:"platform,omitempty"`
+		PCH      string   `json:"pch,omitempty"`
 		NixOS    bool     `json:"nix_os"`
 	} `json:"parameter"`
 

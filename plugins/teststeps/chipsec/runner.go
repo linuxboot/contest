@@ -108,6 +108,16 @@ func (ts *TestStep) runModule(ctx xcontext.Context, outputBuf *strings.Builder, 
 		outputBuf.WriteString("\n\n\n\n")
 		outputBuf.WriteString(fmt.Sprintf("Running tests for chipsec module '%s' now.\n", module))
 
+		var optionalArgs []string
+
+		if ts.Parameter.Platform != "" {
+			optionalArgs = append(optionalArgs, "--platform", ts.Parameter.Platform)
+		}
+
+		if ts.Parameter.PCH != "" {
+			optionalArgs = append(optionalArgs, "--pch", ts.Parameter.PCH)
+		}
+
 		switch ts.Parameter.NixOS {
 		case false:
 			args := []string{
@@ -118,6 +128,8 @@ func (ts *TestStep) runModule(ctx xcontext.Context, outputBuf *strings.Builder, 
 				jsonFlag,
 				filepath.Join(ts.Parameter.ToolPath, outputFile),
 			}
+
+			args = append(args, optionalArgs...)
 
 			proc, err = transp.NewProcess(ctx, privileged, args, "")
 			if err != nil {
@@ -130,6 +142,8 @@ func (ts *TestStep) runModule(ctx xcontext.Context, outputBuf *strings.Builder, 
 				jsonFlag,
 				filepath.Join(ts.Parameter.ToolPath, outputFile),
 			}
+
+			args = append(args, optionalArgs...)
 
 			proc, err = transp.NewProcess(ctx, nixOSBin, args, "")
 			if err != nil {
