@@ -58,6 +58,7 @@ import (
 	dutctl "github.com/linuxboot/contest/plugins/teststeps/dutctl"
 	echo "github.com/linuxboot/contest/plugins/teststeps/echo"
 	exec "github.com/linuxboot/contest/plugins/teststeps/exec"
+	fwhunt "github.com/linuxboot/contest/plugins/teststeps/fwhunt"
 	fwts "github.com/linuxboot/contest/plugins/teststeps/fwts"
 	hwaas "github.com/linuxboot/contest/plugins/teststeps/hwaas"
 	ping "github.com/linuxboot/contest/plugins/teststeps/ping"
@@ -130,6 +131,7 @@ func GetPluginConfig() *PluginConfig {
 	pc.TestStepLoaders = append(pc.TestStepLoaders, cpuload.Load)
 	pc.TestStepLoaders = append(pc.TestStepLoaders, cpuset.Load)
 	pc.TestStepLoaders = append(pc.TestStepLoaders, chipsec.Load)
+	pc.TestStepLoaders = append(pc.TestStepLoaders, fwhunt.Load)
 	pc.TestStepLoaders = append(pc.TestStepLoaders, fwts.Load)
 	pc.TestStepLoaders = append(pc.TestStepLoaders, echo.Load)
 	pc.TestStepLoaders = append(pc.TestStepLoaders, exec.Load)

@@ -454,6 +454,36 @@ The "dutctl" teststep allows you to control a device of your choide. Power, Flas
     - regex: (everypossibleregex)
 ```
 
+## FwHunt Teststep
+
+The "FwHunt" teststep allows you to run [FwHunt](https://github.com/binarly-io/FwHunt/tree/main) on your DUT. The rules can be provided as relative path to the repositories rules directory. If no rule or rules-dir is provided, all available rules are used.
+
+**YAML Description**
+```yaml
+- name: fwhunt
+  label: Run fwhunt tests
+  parameters:
+    input: 
+        parameter:
+            rules_dirs: [RULES_DIR1, RULES_DIR2]               # optional, type: []string
+            rules: [RULE1, RULE2]               # optional, type: []string
+            report_only: BOOLEAN                # optional, type: boolean, Use if only interested in the Report without result interpreting
+        options:
+            timeout: TIMEOUT                    # optional, type: duration, default: 5m
+```
+
+**Example Usage**
+
+```yaml
+- name: fwhunt
+  label: Run fwhunt tests
+  parameters:
+    input: 
+        parameter:
+            rules_dirs: Threats/BlackLotusBootkit.yml        
+            report_only: true             
+```
+
 ## FWTS Teststep
 
 The "FWTS" teststep allows you to run the Firmware Testsuite on your DUT.
