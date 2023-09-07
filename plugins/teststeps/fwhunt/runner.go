@@ -15,8 +15,7 @@ import (
 )
 
 const (
-	privileged = "sudo"
-	rulesPath  = "/fwhunt-scan/FwHunt-rules/rules"
+	rulesPath = "/fwhunt-scan/FwHunt-rules/rules"
 )
 
 type Output struct {
@@ -67,7 +66,6 @@ func (ts *TestStep) runFwHunt(ctx xcontext.Context, outputBuf *strings.Builder, 
 	transport transport.Transport,
 ) error {
 	args := []string{
-		"python3",
 		"/fwhunt-scan/fwhunt_scan_analyzer.py",
 		"scan-firmware",
 	}
@@ -86,7 +84,7 @@ func (ts *TestStep) runFwHunt(ctx xcontext.Context, outputBuf *strings.Builder, 
 
 	args = append(args, "/tmp/firmware.bin")
 
-	proc, err := transport.NewProcess(ctx, privileged, args, "")
+	proc, err := transport.NewProcess(ctx, "python3", args, "")
 	if err != nil {
 		return fmt.Errorf("Failed to create proc: %w", err)
 	}

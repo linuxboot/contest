@@ -27,7 +27,11 @@ type localProcess struct {
 }
 
 func newLocalProcess(ctx xcontext.Context, bin string, args []string, workingDir string) (Process, error) {
-	if err := checkBinary(bin); err != nil {
+	path, err := exec.LookPath(bin)
+	if err != nil {
+		return nil, err
+	}
+	if err := checkBinary(path); err != nil {
 		return nil, err
 	}
 
