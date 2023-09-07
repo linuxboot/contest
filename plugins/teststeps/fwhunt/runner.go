@@ -105,11 +105,6 @@ func (ts *TestStep) runFwHunt(ctx xcontext.Context, outputBuf *strings.Builder, 
 	// waiting on the process for its result; this way there's a semantic difference
 	// between "an error occured while launching" and "this was the outcome of the execution"
 	outcome := proc.Start(ctx)
-	if outcome == nil {
-		if err := proc.Wait(ctx); err != nil {
-			return fmt.Errorf("Failed to run fwhunt tool: %v", err)
-		}
-	}
 
 	stdout, stderr := getOutputFromReader(stdoutPipe, stderrPipe, outputBuf)
 
@@ -117,6 +112,12 @@ func (ts *TestStep) runFwHunt(ctx xcontext.Context, outputBuf *strings.Builder, 
 		outputBuf.WriteString(fmt.Sprintf("Stdout:\n%s\n", string(stdout)))
 	} else if len(string(stderr)) > 0 {
 		outputBuf.WriteString(fmt.Sprintf("Stderr:\n%s\n", string(stderr)))
+	}
+
+	if outcome == nil {
+		if err := proc.Wait(ctx); err != nil {
+			return fmt.Errorf("Failed to run fwhunt tool: %v", err)
+		}
 	}
 
 	if len(stderr) > 0 && !ts.Parameter.ReportOnly {
