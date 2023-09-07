@@ -35,8 +35,8 @@ WORKDIR /root/contest
 RUN --mount=type=ssh go build ./cmds/contest
 
 #fwhunt dependencies 
-RUN git clone https://github.com/binarly-io/fwhunt-scan.git /root/fwhunt-scan
-RUN git clone https://github.com/binarly-io/FwHunt.git /root/fwhunt-scan/FwHunt-rules
+RUN --mount=type=ssh git clone https://github.com/binarly-io/fwhunt-scan.git /root/fwhunt-scan
+RUN --mount=type=ssh git clone https://github.com/binarly-io/FwHunt.git /root/fwhunt-scan/FwHunt-rules
 
 FROM ubuntu:22.04
 
