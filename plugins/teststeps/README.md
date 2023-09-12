@@ -527,7 +527,51 @@ The "FWTS" teststep allows you to run the Firmware Testsuite on your DUT.
         timeout: 1m
 ```
 
+## Firmware Version Teststep
 
+The "firmware version" teststep allows you to execute binaries locally or on a target device using SSH protocol.
+
+**YAML Description**
+```yaml
+- name: firmware version
+  label: firmware version teststep
+  parameters:
+    input: 
+      - transport:
+          proto: ssh                        # mandatory, type: string, options: local, ssh
+          options:                          # mandatory when using ssh protocol
+            host: TARGET_HOST               # mandatory, type: string
+            port: SSH_PORT                  # optional, type: integer, default: 22
+            user: USERNAME                  # mandatory, type: string
+            password: PASSWORD              # optional, type: string
+            identity_file: IDENTITY_FILE    # optional, type: string
+        parameter:
+            tool_path: TOOL_PATH                # type: string
+            format: FORMAT                      # optional, type: string
+            expected_version: EXPECTED_VERSION  # type: string
+        options:
+            timeout: TIMEOUT                    # optional, type: duration, default: 1m
+```
+
+**Example Usage**
+```yaml
+- name: sshcmd
+  label: sshcmd teststep
+  parameters:
+    input:
+    - transport:
+        proto: ssh
+        options:
+          host: 192.168.1.100
+          port: 2222
+          user: admin
+          identity_file: /path/to/identity/file
+      parameter:
+          tool_path: /path/to/binary                # type: string
+          format: triplet                      # optional, type: string
+          expected_version: "1.0.25"  # type: string
+      options:
+        timeout: 2m
 
 ## HWaaS Teststep
 
@@ -649,3 +693,4 @@ The "sshcmd" teststep allows you to execute binaries locally or on a target devi
       options:
         timeout: 2m
 ```
+

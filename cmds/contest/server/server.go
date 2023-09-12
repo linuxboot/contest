@@ -58,6 +58,7 @@ import (
 	dutctl "github.com/linuxboot/contest/plugins/teststeps/dutctl"
 	echo "github.com/linuxboot/contest/plugins/teststeps/echo"
 	exec "github.com/linuxboot/contest/plugins/teststeps/exec"
+	firmware_version "github.com/linuxboot/contest/plugins/teststeps/fw_version"
 	fwhunt "github.com/linuxboot/contest/plugins/teststeps/fwhunt"
 	fwts "github.com/linuxboot/contest/plugins/teststeps/fwts"
 	hwaas "github.com/linuxboot/contest/plugins/teststeps/hwaas"
@@ -133,6 +134,7 @@ func GetPluginConfig() *PluginConfig {
 	pc.TestStepLoaders = append(pc.TestStepLoaders, chipsec.Load)
 	pc.TestStepLoaders = append(pc.TestStepLoaders, fwhunt.Load)
 	pc.TestStepLoaders = append(pc.TestStepLoaders, fwts.Load)
+	pc.TestStepLoaders = append(pc.TestStepLoaders, firmware_version.Load)
 	pc.TestStepLoaders = append(pc.TestStepLoaders, echo.Load)
 	pc.TestStepLoaders = append(pc.TestStepLoaders, exec.Load)
 	pc.TestStepLoaders = append(pc.TestStepLoaders, randecho.Load)
