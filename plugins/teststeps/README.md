@@ -989,3 +989,54 @@ The "sshcmd" teststep allows you to execute binaries locally or on a target devi
       options:
         timeout: 2m
 ```
+
+
+## Sysbench Teststep
+
+The "sysbench" teststep allows you to execute sysbench benchmarks on a target device.
+
+**YAML Description**
+```yaml
+- name: sysbench
+  label: sysbench teststep
+  parameters:
+    input: 
+    - transport:
+        proto: ssh                        # mandatory, type: string, options: local, ssh
+        options:                          # mandatory when using ssh protocol
+          host: TARGET_HOST               # mandatory, type: string
+          port: SSH_PORT                  # optional, type: integer, default: 22
+          user: USERNAME                  # mandatory, type: string
+          password: PASSWORD              # optional, type: string
+          identity_file: IDENTITY_FILE    # optional, type: string
+      parameter:
+          args: [ARG1, ARG2, ARG3]        # optional, type: []string
+      options:
+          timeout: TIMEOUT                # optional, type: duration, default: 1m
+    expect: 
+    - option: IsEnabled
+      value: "true"
+```
+
+**Example Usage**
+```yaml
+- name: sysbench
+  label: Performance low-power
+  parameters:
+    input: 
+    - transport:
+        proto: ssh
+        options:
+          host: 192.168.1.100
+          port: 2222
+          user: admin
+          identity_file: /path/to/identity/file
+      parameter:
+        args: [cpu, --cpu-max-prime=20000, --threads=16, --time=60, run]
+      options:
+        timeout: 1m
+    expect: 
+    - option: EventsPerSecond
+      value: <4000
+```
+

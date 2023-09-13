@@ -70,6 +70,7 @@ import (
 	secureboot "github.com/linuxboot/contest/plugins/teststeps/secureboot"
 	sleep "github.com/linuxboot/contest/plugins/teststeps/sleep"
 	sshcmd "github.com/linuxboot/contest/plugins/teststeps/sshcmd"
+	sysbench "github.com/linuxboot/contest/plugins/teststeps/sysbench"
 
 	// the reporter plugins
 	noop "github.com/linuxboot/contest/plugins/reporters/noop"
@@ -144,6 +145,7 @@ func GetPluginConfig() *PluginConfig {
 	pc.TestStepLoaders = append(pc.TestStepLoaders, sleep.Load)
 	pc.TestStepLoaders = append(pc.TestStepLoaders, s0ix_selftest.Load)
 	pc.TestStepLoaders = append(pc.TestStepLoaders, sshcmd.Load)
+	pc.TestStepLoaders = append(pc.TestStepLoaders, sysbench.Load)
 	pc.TestStepLoaders = append(pc.TestStepLoaders, copy.Load)
 	pc.TestStepLoaders = append(pc.TestStepLoaders, bios_setting_set.Load)
 	pc.TestStepLoaders = append(pc.TestStepLoaders, bios_setting_get.Load)
