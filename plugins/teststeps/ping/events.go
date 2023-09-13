@@ -56,12 +56,15 @@ func writeTestStep(step *TestStep, builders ...*strings.Builder) {
 		builder.WriteString("  Parameter:\n")
 		builder.WriteString(fmt.Sprintf("    Host: %s\n", step.Parameter.Host))
 		builder.WriteString(fmt.Sprintf("    Port: %d\n", step.Parameter.Port))
+		builder.WriteString("  Expect:\n")
+		builder.WriteString(fmt.Sprintf("    ShouldFail: %t\n", step.expect.ShouldFail))
 		builder.WriteString("  Options:\n")
 		builder.WriteString(fmt.Sprintf("    Timeout: %s\n", time.Duration(step.Options.Timeout)))
 		builder.WriteString("\n")
 
 		builder.WriteString("Default Values:\n")
 		builder.WriteString(fmt.Sprintf("  Port: %d\n", defaultPort))
+		builder.WriteString(fmt.Sprintf("  ShouldFail: %t\n", defaultShouldFail))
 		builder.WriteString(fmt.Sprintf("  Timeout: %s\n", defaultTimeout))
 
 		builder.WriteString("\n")
@@ -76,9 +79,18 @@ func writeCommand(addr string, builders ...*strings.Builder) {
 	}
 }
 
+// emitStdout emits the whole message to Stdout
+func emitStdout(ctx xcontext.Context, message string, tgt *target.Target, ev testevent.Emitter) error {
+	if err := emitEvent(ctx, EventStdout, eventPayload{Msg: message}, tgt, ev); err != nil {
+		return fmt.Errorf("cannot emit event: %v", err)
+	}
+
+	return nil
+}
+
 // emitStderr emits the whole error message an returns the error
-func emitStderr(ctx xcontext.Context, name event.Name, stderrMsg string, tgt *target.Target, ev testevent.Emitter, err error) error {
-	if err := emitEvent(ctx, EventStderr, eventPayload{Msg: stderrMsg}, tgt, ev); err != nil {
+func emitStderr(ctx xcontext.Context, message string, tgt *target.Target, ev testevent.Emitter, err error) error {
+	if err := emitEvent(ctx, EventStderr, eventPayload{Msg: message}, tgt, ev); err != nil {
 		return fmt.Errorf("cannot emit event: %v", err)
 	}
 

@@ -14,9 +14,11 @@ import (
 )
 
 const (
-	defaultPort                  = 22 // SSH port
-	defaultTimeout time.Duration = time.Minute
-	in                           = "input"
+	defaultPort                     = 22 // SSH port
+	defaultShouldFail               = false
+	defaultTimeout    time.Duration = time.Minute
+	in                              = "input"
+	out                             = "expect"
 )
 
 type inputStepParams struct {
@@ -30,11 +32,16 @@ type inputStepParams struct {
 	} `json:"options,omitempty"`
 }
 
+type expect struct {
+	ShouldFail bool `json:"should_fail,omitempty"`
+}
+
 // Name is the name used to look this plugin up.
 var Name = "Ping"
 
 type TestStep struct {
 	inputStepParams
+	expect
 }
 
 // Run executes the step.
@@ -58,6 +65,17 @@ func (ts *TestStep) populateParams(stepParams test.TestStepParameters) error {
 		return fmt.Errorf("failed to deserialize %q parameters: %v", in, err)
 	}
 
+	if ts.inputStepParams.Parameter.Host == "" {
+		return fmt.Errorf("a host address needs to be set")
+	}
+
+	expect := stepParams.GetOne(out)
+
+	if !expect.IsEmpty() {
+		if err := json.Unmarshal(expect.JSON(), &ts.expect); err != nil {
+			return fmt.Errorf("failed to deserialize %q parameters: %v", in, err)
+		}
+	}
 	return nil
 }
 

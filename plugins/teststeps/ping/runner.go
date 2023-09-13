@@ -30,7 +30,7 @@ func NewTargetRunner(ts *TestStep, ev testevent.Emitter) *TargetRunner {
 }
 
 func (r *TargetRunner) Run(ctx xcontext.Context, target *target.Target) error {
-	var stdoutMsg, stderrMsg strings.Builder
+	var outputBuf strings.Builder
 
 	// limit the execution time if specified
 	var cancel xcontext.CancelFunc
@@ -50,44 +50,46 @@ func (r *TargetRunner) Run(ctx xcontext.Context, target *target.Target) error {
 
 	if err := pe.ExpandObject(r.ts.inputStepParams, &inputParams); err != nil {
 		err := fmt.Errorf("failed to expand input parameter: %v", err)
-		stderrMsg.WriteString(fmt.Sprintf("%v\n", err))
+		outputBuf.WriteString(fmt.Sprintf("%v\n", err))
 
-		return emitStderr(ctx, EventStderr, stderrMsg.String(), target, r.ev, err)
+		return emitStderr(ctx, outputBuf.String(), target, r.ev, err)
 	}
 
 	if inputParams.Parameter.Port == 0 {
 		inputParams.Parameter.Port = defaultPort
 	}
 
-	writeTestStep(r.ts, &stdoutMsg, &stderrMsg)
+	writeTestStep(r.ts, &outputBuf)
 
 	// for any ambiguity, outcome is an error interface, but it encodes whether the process
 	// was launched sucessfully and it resulted in a failure; err means the launch failed
-	if err := r.runPing(ctx, &stdoutMsg, &stderrMsg, target, inputParams); err != nil {
-		return emitStderr(ctx, EventStderr, stderrMsg.String(), target, r.ev, err)
+	if err := r.runPing(ctx, &outputBuf, target, inputParams); err != nil {
+		return emitStderr(ctx, outputBuf.String(), target, r.ev, err)
 	}
 
-	if err := emitEvent(ctx, EventStdout, eventPayload{Msg: stdoutMsg.String()}, target, r.ev); err != nil {
-		return fmt.Errorf("cannot emit event: %v", err)
-	}
-
-	return nil
+	return emitStdout(ctx, outputBuf.String(), target, r.ev)
 }
 
-func (r *TargetRunner) runPing(ctx xcontext.Context, stdoutMsg, stderrMsg *strings.Builder, target *target.Target,
-	inputParams inputStepParams) error {
+func (r *TargetRunner) runPing(ctx xcontext.Context, outputBuf *strings.Builder, target *target.Target,
+	inputParams inputStepParams,
+) error {
 	// Set timeout
 	timeTimeout := time.After(time.Duration(inputParams.Options.Timeout))
 	ticker := time.NewTicker(time.Second)
 
-	writeCommand(fmt.Sprintf("'%s:%d'", inputParams.Parameter.Host, inputParams.Parameter.Port), stdoutMsg, stderrMsg)
+	writeCommand(fmt.Sprintf("'%s:%d'", inputParams.Parameter.Host, inputParams.Parameter.Port), outputBuf)
 
 	for {
 		select {
 		case <-timeTimeout:
+			if r.ts.expect.ShouldFail {
+				outputBuf.WriteString(fmt.Sprintf("Ping Output:\nCouldn't connect to host '%s' on port '%d'", inputParams.Parameter.Host, inputParams.Parameter.Port))
+
+				return nil
+			}
 			err := fmt.Errorf("Timeout, port %d was not opened in time.", inputParams.Parameter.Port)
 
-			stderrMsg.WriteString(fmt.Sprintf("Ping Output:\n%s", err.Error()))
+			outputBuf.WriteString(fmt.Sprintf("Ping Output:\n%s", err.Error()))
 
 			return err
 
@@ -98,7 +100,7 @@ func (r *TargetRunner) runPing(ctx xcontext.Context, stdoutMsg, stderrMsg *strin
 			}
 			defer conn.Close()
 
-			stdoutMsg.WriteString(fmt.Sprintf("Ping Output:\nSuccessfully pinged '%s' on port '%d'", inputParams.Parameter.Host, inputParams.Parameter.Port))
+			outputBuf.WriteString(fmt.Sprintf("Ping Output:\nSuccessfully pinged '%s' on port '%d'", inputParams.Parameter.Host, inputParams.Parameter.Port))
 
 			return nil
 		}

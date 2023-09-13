@@ -622,6 +622,8 @@ The "copy" teststep allows you to copy files or directories to a destination loc
       - parameter:
             host: TARGET_HOST               # mandatory, type: string
             port: PORT                      # optional, type: int, default 22
+        expect:
+            should_fail:                    # optional, type bool, default: false
         options:
             timeout: TIMEOUT                # optional, type: duration, default: 1m
 ```
