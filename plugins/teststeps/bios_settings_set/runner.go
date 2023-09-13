@@ -223,11 +223,15 @@ func (ts *TestStep) parseOutput(stderr []byte) error {
 	}
 
 	if err.Msg != "" {
-		if err.Msg == "BIOS options are locked, needs unlocking." && ts.Parameter.ShallFail {
+		if err.Msg == "BIOS options are locked, needs unlocking." && ts.expect.ShouldFail {
 			return nil
-		} else if err.Msg != "" {
+		} else if err.Msg != "" && ts.expect.ShouldFail {
+			return nil
+		} else {
 			return errors.New(err.Msg)
 		}
+	} else if ts.expect.ShouldFail {
+		return fmt.Errorf("Setting BIOS option should fail, but produced no error.")
 	}
 
 	return nil

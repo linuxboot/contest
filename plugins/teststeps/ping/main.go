@@ -76,6 +76,7 @@ func (ts *TestStep) populateParams(stepParams test.TestStepParameters) error {
 			return fmt.Errorf("failed to deserialize %q parameters: %v", in, err)
 		}
 	}
+
 	return nil
 }
 

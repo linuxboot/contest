@@ -13,7 +13,8 @@ import (
 )
 
 const (
-	in = "input"
+	in  = "input"
+	out = "expect"
 )
 
 type inputStepParams struct {
@@ -31,12 +32,14 @@ type inputStepParams struct {
 		Password    string       `json:"password,omitempty"`
 		KeyPath     string       `json:"key_path,omitempty"`
 		BiosOptions []BiosOption `json:"bios_options,omitempty"`
-		ShallFail   bool         `json:"shall_fail,omitempty"`
 	} `json:"parameter"`
 }
 type BiosOption struct {
 	Option string `json:"option"`
 	Value  string `json:"value"`
+}
+type expect struct {
+	ShouldFail bool `json:"should_fail"`
 }
 
 // Name is the name used to look this plugin up.
@@ -45,6 +48,7 @@ var Name = "Set Bios Setting"
 // TestStep implementation for this teststep plugin
 type TestStep struct {
 	inputStepParams
+	expect
 }
 
 // Run executes the step.
@@ -62,6 +66,18 @@ func (ts *TestStep) populateParams(stepParams test.TestStepParameters) error {
 
 	if err := json.Unmarshal(input.JSON(), &ts.inputStepParams); err != nil {
 		return fmt.Errorf("failed to deserialize %q parameters: %v", in, err)
+	}
+
+	expect := stepParams.GetOne(out)
+
+	if !expect.IsEmpty() {
+		if err := json.Unmarshal(expect.JSON(), &ts.expect); err != nil {
+			return fmt.Errorf("failed to deserialize %q parameters: %v", in, err)
+		}
+	}
+
+	if ts.ShouldFail && len(ts.Parameter.BiosOptions) > 3 {
+		return fmt.Errorf("if your teststep should fail you can only check a maximum of three bios settings")
 	}
 
 	return nil

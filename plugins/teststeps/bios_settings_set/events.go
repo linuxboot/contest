@@ -62,7 +62,6 @@ func writeTestStep(step *TestStep, builders ...*strings.Builder) {
 		} else {
 			builder.WriteString(string(optionsJSON))
 		}
-		builder.WriteString(fmt.Sprintf("    ShallFail: %v\n", step.Parameter.ShallFail))
 		builder.WriteString("\n")
 
 		builder.WriteString("  Parameter:\n")
@@ -74,6 +73,11 @@ func writeTestStep(step *TestStep, builders ...*strings.Builder) {
 			builder.WriteString(fmt.Sprintf("      Option %d: %s\n", i+1, option.Option))
 			builder.WriteString(fmt.Sprintf("      Value: %s\n", option.Value))
 		}
+		builder.WriteString("\n")
+		builder.WriteString("\n")
+
+		builder.WriteString("  Expect:\n")
+		builder.WriteString(fmt.Sprintf("    ShouldFail: %t\n", step.expect.ShouldFail))
 		builder.WriteString("\n")
 		builder.WriteString("\n")
 

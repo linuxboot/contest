@@ -124,7 +124,8 @@ The "BIOS Set" teststep allows you to set BIOS settings with a specific value.
             key_path: KEY_PATH              # optional, type: string
             option: BIOS_OPTION             # optional, type: string
             value: BIOS_VALUE               # optional, type: string
-            shall_fail: SHALL_FAIL          # optional, type: boolean
+        expect:
+            should_fail: SHOULD_FAIL          # optional, type: boolean
         options:
             timeout: TIMEOUT                # optional, type: duration, default: 1m
 ```
