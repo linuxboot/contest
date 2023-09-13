@@ -7,6 +7,7 @@ Templating in the test description yaml files is supported. The delimiter for te
 The "BIOS Certificate" teststep allows you to enable, update or disable BIOS certificates for authentication.
 
 **YAML Description**
+
 ```yaml
 - name: bios certificate management
   label: bios certificate teststep
@@ -30,6 +31,7 @@ The "BIOS Certificate" teststep allows you to enable, update or disable BIOS cer
 ```
 
 **Example Usage**
+
 ```yaml
 - name: bios certificate management
   label: bios certificate teststep
@@ -55,6 +57,7 @@ The "BIOS Certificate" teststep allows you to enable, update or disable BIOS cer
 The "BIOS Get" teststep allows you to get BIOS settings and expect values.
 
 **YAML Description**
+
 ```yaml
 - name: get bios setting
   label: get bios setting teststep
@@ -80,6 +83,7 @@ The "BIOS Get" teststep allows you to get BIOS settings and expect values.
 ```
 
 **Example Usage**
+
 ```yaml
 - name: get bios setting
   label: get bios setting teststep
@@ -105,6 +109,7 @@ The "BIOS Get" teststep allows you to get BIOS settings and expect values.
 The "BIOS Set" teststep allows you to set BIOS settings with a specific value.
 
 **YAML Description**
+
 ```yaml
 - name: set bios setting
   label: set bios setting teststep
@@ -131,6 +136,7 @@ The "BIOS Set" teststep allows you to set BIOS settings with a specific value.
 ```
 
 **Example Usage**
+
 ```yaml
 - name: bios certificate
   label: bios certificate teststep
@@ -157,6 +163,7 @@ The "BIOS Set" teststep allows you to set BIOS settings with a specific value.
 The "ChipSec" teststep allows you to run different chipsec modules on your DUT.
 
 **YAML Description**
+
 ```yaml
 - name: chipsec
   label: Run ChipSec tests
@@ -179,6 +186,7 @@ The "ChipSec" teststep allows you to run different chipsec modules on your DUT.
 ```
 
 **Example Usage**
+
 ```yaml
 - name: chipsec
   label: Run ChipSec tests
@@ -205,6 +213,7 @@ The "ChipSec" teststep allows you to run different chipsec modules on your DUT.
 The "CpuStats" teststep allows you to run check on different cpu stats of the DUT.
 
 **YAML Description**
+
 ```yaml
 - name: cpustats
   label: Run cpustats test
@@ -233,6 +242,7 @@ The "CpuStats" teststep allows you to run check on different cpu stats of the DU
 ```
 
 **Example Usage**
+
 ```yaml
 - name: cpustats
   label: Run CpuStats test
@@ -270,6 +280,7 @@ The "CpuStats" teststep allows you to run check on different cpu stats of the DU
 The "CpuLoad" teststep allows you to put load on your DUT either the whole cpu or specific cores. You can also check CPU stats while the the cpu/cores working.
 
 **YAML Description**
+
 ```yaml
 - name: cpuload
   label: Run cpuload test
@@ -301,6 +312,7 @@ The "CpuLoad" teststep allows you to put load on your DUT either the whole cpu o
 ```
 
 **Example Usage**
+
 ```yaml
 - name: cpuload
   label: Run CpuLoad test
@@ -325,6 +337,7 @@ The "CpuLoad" teststep allows you to put load on your DUT either the whole cpu o
 The "CpuSet" teststep allows you to set cpu cores on or off.
 
 **YAML Description**
+
 ```yaml
 - name: cpuset
   label: Run cpuset test
@@ -348,6 +361,7 @@ The "CpuSet" teststep allows you to set cpu cores on or off.
 ```
 
 **Example Usage**
+
 ```yaml
 - name: cpuload
   label: Run CpuLoad test
@@ -368,12 +382,12 @@ The "CpuSet" teststep allows you to set cpu cores on or off.
         timeout: 1m
 ```
 
-
 ## Copy Teststep
 
 The "copy" teststep allows you to copy files or directories to a destination locally or on a target device using SSH protocol.
 
 **YAML Description**
+
 ```yaml
 - name: copy
   label: copy teststep
@@ -396,6 +410,7 @@ The "copy" teststep allows you to copy files or directories to a destination loc
 ```
 
 **Example Usage**
+
 ```yaml
 - name: copy
   label: copy teststep
@@ -415,11 +430,13 @@ The "copy" teststep allows you to copy files or directories to a destination loc
       options:
         timeout: 2m
 ```
+
 ## DutCtl Teststep
 
 The "dutctl" teststep allows you to control a device of your choide. Power, Flash and Serial commands are supported.
 
 **YAML Description**
+
 ```yaml
 - name: dutctl
   label: dutctl teststep
@@ -438,6 +455,7 @@ The "dutctl" teststep allows you to control a device of your choide. Power, Flas
 ```
 
 **Example Usage**
+
 ```yaml
 - name: dutctl
   label: dutctl teststep
@@ -460,6 +478,7 @@ The "dutctl" teststep allows you to control a device of your choide. Power, Flas
 The "FwHunt" teststep allows you to run [FwHunt](https://github.com/binarly-io/FwHunt/tree/main) on your DUT. The rules can be provided as relative path to the repositories rules directory. If no rule or rules-dir is provided, all available rules are used.
 
 **YAML Description**
+
 ```yaml
 - name: fwhunt
   label: Run fwhunt tests
@@ -490,6 +509,7 @@ The "FwHunt" teststep allows you to run [FwHunt](https://github.com/binarly-io/F
 The "FWTS" teststep allows you to run the Firmware Testsuite on your DUT.
 
 **YAML Description**
+
 ```yaml
 - name: fwts
   label: Run fwts tests
@@ -511,6 +531,7 @@ The "FWTS" teststep allows you to run the Firmware Testsuite on your DUT.
 ```
 
 **Example Usage**
+
 ```yaml
 - name: fwts
   label: Run fwts tests
@@ -533,6 +554,7 @@ The "FWTS" teststep allows you to run the Firmware Testsuite on your DUT.
 The "firmware version" teststep allows you to execute binaries locally or on a target device using SSH protocol.
 
 **YAML Description**
+
 ```yaml
 - name: firmware version
   label: firmware version teststep
@@ -555,6 +577,7 @@ The "firmware version" teststep allows you to execute binaries locally or on a t
 ```
 
 **Example Usage**
+
 ```yaml
 - name: sshcmd
   label: sshcmd teststep
@@ -597,6 +620,7 @@ The "hwaas" teststep allows you to control a DUT via the HWaaS API.
 ```
 
 **Example Usage**
+
 ```yaml
 - name: hwaas
   label: hwaas teststep
@@ -612,9 +636,10 @@ The "hwaas" teststep allows you to control a DUT via the HWaaS API.
 
 ## Ping Teststep
 
-The "copy" teststep allows you to copy files or directories to a destination locally or on a target device using SSH protocol.
+The "ping" teststep allows you to ping a device providing a hostname and optionally a port.
 
 **YAML Description**
+
 ```yaml
 - name: ping
   label: ping teststep
@@ -630,6 +655,7 @@ The "copy" teststep allows you to copy files or directories to a destination loc
 ```
 
 **Example Usage**
+
 ```yaml
 - name: ping
   label: ping teststep
@@ -650,12 +676,238 @@ The "copy" teststep allows you to copy files or directories to a destination loc
         timeout: 2m
 ```
 
+## Secure Boot Key Management Teststep
+
+The "Secure Boot Key Management" Teststep allow you to do various SecureBoot related actions.
+
+### Status  
+
+Get a status report if secureboot or setupmod is currently enabled.
+**YAML Description**
+
+```yaml
+- name: Secure Boot Management
+  label: Check if SetupMode
+  parameters:
+    input: 
+      - transport:
+          proto: ssh                        # mandatory, type: string, options: local, ssh
+          options:                          # mandatory when using ssh protocol
+            host: TARGET_HOST               # mandatory, type: string
+            port: SSH_PORT                  # optional, type: integer, default: 22
+            user: USERNAME                  # mandatory, type: string
+            password: PASSWORD              # optional, type: string
+            identity_file: IDENTITY_FILE    # optional, type: string
+        parameter:
+            cmd: status
+            tool_path: TOOL_PATH            # type: string
+        options:
+            timeout: TIMEOUT                # optional, type: duration, default: 1m
+    expect: 
+      secure_boot: SECURE_BOOT              # mandatory, type: bool
+      setup_mode:  SETUP_MODE               # mandatory, type: bool
+```
+
+**Example Usage**
+
+```yaml
+- name: ping
+  label: ping teststep
+  parameters:
+    input:
+    - transport:
+        proto: ssh
+        options:
+          host: 192.168.1.100
+          port: 2222
+          user: admin
+          identity_file: /path/to/identity/file
+        parameter:
+            cmd: status
+            tool_path: /path/to/tool          
+        options:
+            timeout: 1m              
+    expect: 
+      secure_boot: false
+      setup_mode: true
+```
+
+### Enroll-Key, Rotate-Key
+
+Enroll,rotate a key for a hierarchy
+**YAML Description**
+
+```yaml
+- name: Secure Boot Management
+  label: Check if SetupMode
+  parameters:
+    input: 
+      - transport:
+          proto: ssh                        # mandatory, type: string, options: local, ssh
+          options:                          # mandatory when using ssh protocol
+            host: TARGET_HOST               # mandatory, type: string
+            port: SSH_PORT                  # optional, type: integer, default: 22
+            user: USERNAME                  # mandatory, type: string
+            password: PASSWORD              # optional, type: string
+            identity_file: IDENTITY_FILE    # optional, type: string
+        parameter:
+            cmd: [enroll-key,rotate-key]
+            tool_path: TOOL_PATH            # mandatory, type: string
+            hierarchy: HIERARCHY            # mandatory, type: string, allowed: ["db,dbx,KEK,PK] 
+            key_file: KEY_TO_ENROLL         # mandatory, type: file-path
+            cert_file: CERT_TO_ENROLL       # mandatory, type: file-path
+            signing_key_file: SIGNING_KEY   # mandatory, type: file-path
+            signing_cert_file: SIGNING_CERT # mandatory, type: file-path
+        options:
+            timeout: TIMEOUT                # optional, type: duration, default: 1m
+    expect: 
+      should_fail: SHOULD_FAIL              # optional, type: bool
+```
+
+**Example Usage**
+
+```yaml
+- name: ping
+  label: ping teststep
+  parameters:
+    input:
+    - transport:
+        proto: ssh
+        options:
+          host: 192.168.1.100
+          port: 2222
+          user: admin
+          identity_file: /path/to/identity/file
+        parameter:
+          command: enroll-key
+          tool_path: /tmp/sbctl/sbctl
+          hierarchy: KEK
+          key_file: /tmp/sbctl/keys/KEK.key
+          cert_file: /tmp/sbctl/keys/KEK.crt
+          signing_key_file: /tmp/sbctl/keys/PK.key
+          signing_cert_file: /tmp/sbctl/keys/PK.crt  
+        options:
+            timeout: 1m              
+    expect: 
+      should_fail: true
+```
+
+### Reset
+
+Enroll,rotate a key for a hierarchy
+**YAML Description**
+
+```yaml
+- name: Secure Boot Management
+  label: Check if SetupMode
+  parameters:
+    input: 
+      - transport:
+          proto: ssh                        # mandatory, type: string, options: local, ssh
+          options:                          # mandatory when using ssh protocol
+            host: TARGET_HOST               # mandatory, type: string
+            port: SSH_PORT                  # optional, type: integer, default: 22
+            user: USERNAME                  # mandatory, type: string
+            password: PASSWORD              # optional, type: string
+            identity_file: IDENTITY_FILE    # optional, type: string
+        parameter:
+            cmd: reset
+            tool_path: TOOL_PATH            # mandatory, type: string
+            hierarchy: HIERARCHY            # mandatory, type: string, allowed: ["db,dbx,KEK,PK] 
+            signing_key_file: SIGNING_KEY   # mandatory, type: file-path
+            signing_cert_file: SIGNING_CERT # mandatory, type: file-path
+        options:
+            timeout: TIMEOUT                # optional, type: duration, default: 1m
+    expect: 
+      should_fail: SHOULD_FAIL              # optional, type: bool
+```
+
+**Example Usage**
+
+```yaml
+- name: ping
+  label: ping teststep
+  parameters:
+    input:
+    - transport:
+        proto: ssh
+        options:
+          host: 192.168.1.100
+          port: 2222
+          user: admin
+          identity_file: /path/to/identity/file
+        parameter:
+          command: reset
+          tool_path: /tmp/sbctl/sbctl
+          hierarchy: KEK
+          signing_key_file: /tmp/sbctl/keys/PK.key
+          signing_cert_file: /tmp/sbctl/keys/PK.crt  
+        options:
+            timeout: 1m              
+    expect: 
+      should_fail: true
+```
+
+### Custom-Key
+
+Enroll,rotate a key for a hierarchy
+**YAML Description**
+
+```yaml
+- name: Secure Boot Management
+  label: Check if SetupMode
+  parameters:
+    input: 
+      - transport:
+          proto: ssh                        # mandatory, type: string, options: local, ssh
+          options:                          # mandatory when using ssh protocol
+            host: TARGET_HOST               # mandatory, type: string
+            port: SSH_PORT                  # optional, type: integer, default: 22
+            user: USERNAME                  # mandatory, type: string
+            password: PASSWORD              # optional, type: string
+            identity_file: IDENTITY_FILE    # optional, type: string
+        parameter:
+            cmd: reset
+            tool_path: TOOL_PATH            # mandatory, type: string
+            hierarchy: HIERARCHY            # mandatory, type: string, allowed: ["db,dbx,KEK,PK] 
+            custom_key_file: key-file  # mandatory, type: file-path
+        options:
+            timeout: TIMEOUT                # optional, type: duration, default: 1m
+    expect: 
+      should_fail: SHOULD_FAIL              # optional, type: bool
+```
+
+**Example Usage**
+
+```yaml
+- name: ping
+  label: ping teststep
+  parameters:
+    input:
+    - transport:
+        proto: ssh
+        options:
+          host: 192.168.1.100
+          port: 2222
+          user: admin
+          identity_file: /path/to/identity/file
+              parameter:
+                command: custom-key
+                tool_path: /tmp/sbctl/sbctl
+                hierarchy: PK
+                custom_key_file: /tmp/sbctl/keys-new/PK.esl
+        options:
+            timeout: 1m              
+    expect: 
+      should_fail: true
+```
 
 ## SSHCMD Teststep
 
 The "sshcmd" teststep allows you to execute binaries locally or on a target device using SSH protocol.
 
 **YAML Description**
+
 ```yaml
 - name: sshcmd
   label: sshcmd teststep
@@ -677,6 +929,7 @@ The "sshcmd" teststep allows you to execute binaries locally or on a target devi
 ```
 
 **Example Usage**
+
 ```yaml
 - name: sshcmd
   label: sshcmd teststep
@@ -696,4 +949,3 @@ The "sshcmd" teststep allows you to execute binaries locally or on a target devi
       options:
         timeout: 2m
 ```
-

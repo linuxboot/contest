@@ -74,7 +74,7 @@ func writeEnrollKeysTestStep(step *TestStep, builders ...*strings.Builder) {
 		builder.WriteString("\n")
 
 		builder.WriteString("  Expect:\n")
-		builder.WriteString(fmt.Sprintf("    ShouldFail: %t\n", step.inputStepParams.Parameter.ShouldFail))
+		builder.WriteString(fmt.Sprintf("    ShouldFail: %t\n", step.expect.ShouldFail))
 		builder.WriteString("\n")
 
 		builder.WriteString("  Options:\n")
@@ -106,7 +106,7 @@ func writeRotateKeysTestStep(step *TestStep, builders ...*strings.Builder) {
 		builder.WriteString("\n")
 
 		builder.WriteString("  Expect:\n")
-		builder.WriteString(fmt.Sprintf("    ShouldFail: %t\n", step.inputStepParams.Parameter.ShouldFail))
+		builder.WriteString(fmt.Sprintf("    ShouldFail: %t\n", step.expect.ShouldFail))
 		builder.WriteString("\n")
 
 		builder.WriteString("  Options:\n")
@@ -138,7 +138,7 @@ func writeResetTestStep(step *TestStep, builders ...*strings.Builder) {
 		builder.WriteString("\n")
 
 		builder.WriteString("  Expect:\n")
-		builder.WriteString(fmt.Sprintf("    ShouldFail: %t\n", step.inputStepParams.Parameter.ShouldFail))
+		builder.WriteString(fmt.Sprintf("    ShouldFail: %t\n", step.expect.ShouldFail))
 		builder.WriteString("\n")
 
 		builder.WriteString("  Options:\n")
@@ -169,7 +169,7 @@ func writeCustomKeyTestStep(step *TestStep, builders ...*strings.Builder) {
 		builder.WriteString("\n")
 
 		builder.WriteString("  Expect:\n")
-		builder.WriteString(fmt.Sprintf("    ShouldFail: %t\n", step.inputStepParams.Parameter.ShouldFail))
+		builder.WriteString(fmt.Sprintf("    ShouldFail: %t\n", step.expect.ShouldFail))
 		builder.WriteString("\n")
 
 		builder.WriteString("  Options:\n")
@@ -198,8 +198,8 @@ func writeStatusTestStep(step *TestStep, builders ...*strings.Builder) {
 		builder.WriteString("\n")
 
 		builder.WriteString("  Expect:\n")
-		builder.WriteString(fmt.Sprintf("      Secure Boot: %t\n", step.inputStepParams.Parameter.SecureBoot))
-		builder.WriteString(fmt.Sprintf("      Setup Mode: %t\n", step.inputStepParams.Parameter.SetupMode))
+		builder.WriteString(fmt.Sprintf("      Secure Boot: %t\n", step.expect.SecureBoot))
+		builder.WriteString(fmt.Sprintf("      Setup Mode: %t\n", step.expect.SetupMode))
 		builder.WriteString("\n")
 
 		builder.WriteString("  Options:\n")

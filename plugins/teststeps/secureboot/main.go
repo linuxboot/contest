@@ -36,10 +36,13 @@ type inputStepParams struct {
 		SigningKeyFile  string `json:"signing_key_file,omitempty"`
 		SigningCertFile string `json:"signing_cert_file,omitempty"`
 		CustomKeyFile   string `json:"custom_key_file,omitempty"`
-		SecureBoot      bool   `json:"secure_boot,omitempty"`
-		SetupMode       bool   `json:"setup_mode,omitempty"`
-		ShouldFail      bool   `json:"should_fail,omitempty"`
 	} `json:"parameter"`
+}
+
+type expect struct {
+	SecureBoot bool `json:"secure_boot,omitempty"`
+	SetupMode  bool `json:"setup_mode,omitempty"`
+	ShouldFail bool `json:"should_fail,omitempty"`
 }
 
 // Name is the name used to look this plugin up.
@@ -48,6 +51,7 @@ var Name = "Secure Boot Management"
 // TestStep implementation for the exec plugin
 type TestStep struct {
 	inputStepParams
+	expect
 }
 
 // Run executes the step.
@@ -77,6 +81,14 @@ func (ts *TestStep) validateAndPopulateParams(stepParams test.TestStepParameters
 
 	if ts.Parameter.ToolPath == "" {
 		return fmt.Errorf("ToolPath must not be empty")
+	}
+
+	expect := stepParams.GetOne(out)
+
+	if !expect.IsEmpty() {
+		if err := json.Unmarshal(expect.JSON(), &ts.expect); err != nil {
+			return fmt.Errorf("failed to deserialize %q parameters: %v", in, err)
+		}
 	}
 
 	return nil

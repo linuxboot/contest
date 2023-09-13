@@ -97,7 +97,7 @@ func (r *TargetRunner) Run(ctx xcontext.Context, target *target.Target) error {
 			return emitStderr(ctx, outputBuf.String(), target, r.ev, err)
 		}
 	case "status":
-		if _, err = r.ts.getStatus(ctx, &outputBuf, transportProto, r.ts.Parameter.SetupMode, r.ts.Parameter.SecureBoot); err != nil {
+		if _, err = r.ts.getStatus(ctx, &outputBuf, transportProto, r.ts.expect.SetupMode, r.ts.expect.SecureBoot); err != nil {
 			outputBuf.WriteString(fmt.Sprintf("%v\n", err))
 
 			return emitStderr(ctx, outputBuf.String(), target, r.ev, err)
@@ -278,7 +278,7 @@ func (ts *TestStep) reset(
 		return outcome, err
 	}
 
-	switch ts.Parameter.ShouldFail {
+	switch ts.expect.ShouldFail {
 	case false:
 		if len(stderr) != 0 {
 			return outcome, fmt.Errorf("failed unexpectedly to enroll secure boot keys for hierarchy %s: %v", ts.inputStepParams.Parameter.Hierarchy, string(stderr))
@@ -416,7 +416,7 @@ func (ts *TestStep) enrollKeys(
 		return outcome, err
 	}
 
-	switch ts.Parameter.ShouldFail {
+	switch ts.expect.ShouldFail {
 	case false:
 		if len(stderr) != 0 {
 			return outcome, fmt.Errorf("failed unexpectedly to enroll secure boot keys for hierarchy %s: %v", ts.inputStepParams.Parameter.Hierarchy, string(stderr))
@@ -483,7 +483,7 @@ func (ts *TestStep) rotateKeys(
 		return outcome, err
 	}
 
-	switch ts.Parameter.ShouldFail {
+	switch ts.expect.ShouldFail {
 	case false:
 		if len(stderr) != 0 {
 			return outcome, fmt.Errorf("failed unexpectedly to rotate secure boot keys for hierarchy %s: %v", ts.inputStepParams.Parameter.Hierarchy, string(stderr))
@@ -533,7 +533,7 @@ func (ts *TestStep) customKey(
 		return outcome, err
 	}
 
-	switch ts.Parameter.ShouldFail {
+	switch ts.expect.ShouldFail {
 	case false:
 		if len(stderr) != 0 {
 			return outcome, fmt.Errorf("failed unexpectedly to rotate secure boot keys for hierarchy %s: %v", ts.inputStepParams.Parameter.Hierarchy, string(stderr))
