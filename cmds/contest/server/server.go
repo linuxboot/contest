@@ -66,6 +66,7 @@ import (
 	qemu "github.com/linuxboot/contest/plugins/teststeps/qemu"
 	randecho "github.com/linuxboot/contest/plugins/teststeps/randecho"
 	robot "github.com/linuxboot/contest/plugins/teststeps/robot"
+	s0ix_selftest "github.com/linuxboot/contest/plugins/teststeps/s0ix-selftest"
 	secureboot "github.com/linuxboot/contest/plugins/teststeps/secureboot"
 	sleep "github.com/linuxboot/contest/plugins/teststeps/sleep"
 	sshcmd "github.com/linuxboot/contest/plugins/teststeps/sshcmd"
@@ -141,6 +142,7 @@ func GetPluginConfig() *PluginConfig {
 	pc.TestStepLoaders = append(pc.TestStepLoaders, robot.Load)
 	pc.TestStepLoaders = append(pc.TestStepLoaders, secureboot.Load)
 	pc.TestStepLoaders = append(pc.TestStepLoaders, sleep.Load)
+	pc.TestStepLoaders = append(pc.TestStepLoaders, s0ix_selftest.Load)
 	pc.TestStepLoaders = append(pc.TestStepLoaders, sshcmd.Load)
 	pc.TestStepLoaders = append(pc.TestStepLoaders, copy.Load)
 	pc.TestStepLoaders = append(pc.TestStepLoaders, bios_setting_set.Load)

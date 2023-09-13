@@ -902,6 +902,46 @@ Enroll,rotate a key for a hierarchy
       should_fail: true
 ```
 
+## S0ix-Selftest Teststep
+
+The "s0ix-selftest" teststep allows you to run the Intel S0ix-Selftest tool.
+
+**YAML Description**
+```yaml
+- name: s0ix-selftest
+  label: Run s0ix selftest
+  parameters:
+    input: 
+      - transport:
+          proto: ssh                        # mandatory, type: string, options: ssh
+          options:                          # mandatory when using ssh protocol
+            host: TARGET_HOST               # mandatory, type: string
+            port: SSH_PORT                  # optional, type: integer, default: 22
+            user: USERNAME                  # mandatory, type: string
+            password: PASSWORD              # optional, type: string
+            identity_file: IDENTITY_FILE    # optional, type: string
+        options:
+            timeout: TIMEOUT                # optional, type: duration, default: 1m
+```
+
+**Example Usage**
+```yaml
+- name: s0ix-selftest
+  label: Run s0ix selftest
+  parameters:
+    input:
+    - transport:
+        proto: ssh
+        options:
+          host: 192.168.1.100
+          port: 2222
+          user: admin
+          identity_file: /path/to/identity/file
+      options:
+        timeout: 2m
+```
+
+
 ## SSHCMD Teststep
 
 The "sshcmd" teststep allows you to execute binaries locally or on a target device using SSH protocol.
