@@ -90,12 +90,17 @@ func (ts *TestStep) runLoad(ctx xcontext.Context, outputBuf *strings.Builder, tr
 		args []string
 	)
 
-	if len(ts.Parameter.Cores) == 0 {
-		args = []string{"stress-ng", "--cpu $(nproc)", "--cpu-load 100", fmt.Sprintf("--timeout %s", ts.Parameter.Duration), "&"}
+	if len(ts.Parameter.Args) > 0 {
+		args = append([]string{"stress-ng", "--cpu $(nproc)"}, ts.Parameter.Args...)
+		args = append(args, fmt.Sprintf("--timeout %s", ts.Parameter.Duration), "&")
 	} else {
-		for _, core := range ts.Parameter.Cores {
-			args = append(args, []string{fmt.Sprintf("taskset -c %d", core), "stress-ng", "--cpu 1", "--cpu-load 100",
-				fmt.Sprintf("--timeout %s", ts.Parameter.Duration), "&"}...)
+		if len(ts.Parameter.CPUs) == 0 {
+			args = []string{"stress-ng", "--cpu $(nproc)", "--cpu-load 100", fmt.Sprintf("--timeout %s", ts.Parameter.Duration), "&"}
+		} else {
+			for _, core := range ts.Parameter.CPUs {
+				args = append(args, []string{fmt.Sprintf("taskset -c %d", core), "stress-ng", "--cpu 1", "--cpu-load 100",
+					fmt.Sprintf("--timeout %s", ts.Parameter.Duration), "&"}...)
+			}
 		}
 	}
 
@@ -121,8 +126,6 @@ func (ts *TestStep) runLoad(ctx xcontext.Context, outputBuf *strings.Builder, tr
 	// between "an error occured while launching" and "this was the outcome of the execution"
 	outcome := proc.Start(ctx)
 	if outcome != nil {
-		outputBuf.WriteString(fmt.Sprintf("Stderr:\n%s\n", outcome.Error()))
-
 		return fmt.Errorf("Failed to run load test: %v.", outcome)
 	}
 
@@ -136,18 +139,10 @@ func (ts *TestStep) runLoad(ctx xcontext.Context, outputBuf *strings.Builder, tr
 		outcome = proc.Wait(ctx)
 	}
 
-	stdout, stderr := getOutputFromReader(stdoutPipe, stderrPipe)
+	_, stderr := getOutputFromReader(stdoutPipe, stderrPipe)
 
 	if outcome != nil {
-		if len(stderr) > 0 {
-			outputBuf.WriteString(fmt.Sprintf("Stderr:\n%s\n", string(stderr)))
-		}
-
-		return fmt.Errorf("Failed to run load test: %v.", outcome)
-	}
-
-	if len(stdout) > 0 {
-		outputBuf.WriteString(fmt.Sprintf("Stdout:\n%s\n", string(stdout)))
+		return fmt.Errorf("Failed to run load test: %v.\n%s\n", outcome, string(stderr))
 	}
 
 	return err
@@ -160,8 +155,8 @@ func (ts *TestStep) parseStats(ctx xcontext.Context, outputBuf *strings.Builder,
 	}
 
 	// Run cpu stats only for 96% of the load duration.
-	interval := duration * 96 / 100
-	offset := duration * 2 / 100
+	interval := duration * 94 / 100
+	offset := duration * 3 / 100
 
 	// Start the cpu stats command with a small offset, so it is in the middle of the load duration.
 	time.Sleep(offset)
@@ -201,11 +196,15 @@ func (ts *TestStep) parseStats(ctx xcontext.Context, outputBuf *strings.Builder,
 
 	stdout, stderr := getOutputFromReader(stdoutPipe, stderrPipe)
 
+	if len(string(stdout)) > 0 {
+		outputBuf.WriteString(fmt.Sprintf("Stats Stdout:\n%s\n", string(stdout)))
+	} else if len(string(stderr)) > 0 {
+		outputBuf.WriteString(fmt.Sprintf("Stats Stderr:\n%s\n", string(stderr)))
+	}
+
 	if outcome != nil {
 		return fmt.Errorf("Failed to get CPU stats: %v.\nStats Stderr:\n%s\n", outcome, string(stderr))
 	}
-
-	outputBuf.WriteString(fmt.Sprintf("Stats Stdout:\n%s\n", string(stdout)))
 
 	if err = ts.parseOutput(ctx, outputBuf, stdout); err != nil {
 		return err
