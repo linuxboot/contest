@@ -9,7 +9,7 @@ require (
 	github.com/bufbuild/connect-go v1.5.1
 	github.com/bufbuild/connect-grpcreflect-go v1.0.0
 	github.com/chappjc/logrus-prefix v0.0.0-20180227015900-3a1d64819adb
-	github.com/firmwareci/system-suite v0.0.0-20230809065410-69922e74ec6b
+	github.com/firmwareci/system-suite v0.0.0-20230913123226-985a92c97c9f
 	github.com/go-sql-driver/mysql v1.6.0
 	github.com/google/go-safeweb v0.0.0-20211026121254-697f59a9d57f
 	github.com/google/goexpect v0.0.0-20200703111054-623d5ca06f56

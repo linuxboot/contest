@@ -67,7 +67,7 @@ func (ts *TestStep) writeTestStep(builders ...*strings.Builder) {
 		builder.WriteString("  Parameter:\n")
 		builder.WriteString(fmt.Sprintf("    ToolPath: %s\n", ts.Parameter.ToolPath))
 		builder.WriteString(fmt.Sprintf("    Args: %v\n", ts.Parameter.Args))
-		builder.WriteString(fmt.Sprintf("    Cores: %v\n", ts.Parameter.Cores))
+		builder.WriteString(fmt.Sprintf("    CPUs: %v\n", ts.Parameter.CPUs))
 		builder.WriteString("\n")
 
 		builder.WriteString("  Options:\n")
@@ -87,7 +87,7 @@ func (ts *TestStep) writeTestStep(builders ...*strings.Builder) {
 
 		builder.WriteString("  Core specific expectations:\n")
 		for _, expect := range ts.expectStepParams.Individual {
-			builder.WriteString(fmt.Sprintf("  Cores %v:\n", expect.Cores))
+			builder.WriteString(fmt.Sprintf("  CPUs %v:\n", expect.CPUs))
 			builder.WriteString(fmt.Sprintf("    Option: %s\n", expect.Option))
 			builder.WriteString(fmt.Sprintf("    Value: %s\n", expect.Value))
 		}

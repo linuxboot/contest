@@ -30,7 +30,7 @@ type inputStepParams struct {
 	Parameter struct {
 		ToolPath string   `json:"tool_path,omitempty"`
 		Args     []string `json:"args,omitempty"`
-		Cores    []int    `json:"cores,omitempty"`
+		CPUs     []int    `json:"cpus,omitempty"`
 		Duration string   `json:"duration"`
 	} `json:"parameter"`
 
@@ -50,7 +50,7 @@ type General struct {
 }
 
 type Individual struct {
-	Core   int    `json:"core"`
+	CPU    int    `json:"cpu"`
 	Option string `json:"option"`
 	Value  string `json:"value"`
 }
