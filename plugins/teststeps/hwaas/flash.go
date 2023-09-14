@@ -303,7 +303,7 @@ func (ts *TestStep) flashTarget(ctx xcontext.Context) error {
 		return fmt.Errorf("failed to do HTTP request: %v", err)
 	}
 
-	if resp.StatusCode != http.StatusCreated {
+	if !(resp.StatusCode == http.StatusCreated || resp.StatusCode == http.StatusOK) {
 		return fmt.Errorf("failed to flash binary on target. Statuscode: %d, Response Body: %v", resp.StatusCode, resp.Body)
 	}
 

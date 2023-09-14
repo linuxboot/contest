@@ -25,12 +25,6 @@ func (ts *TestStep) powerCmds(ctx xcontext.Context, outputBuf *strings.Builder) 
 		switch ts.Parameter.Args[0] {
 
 		case "on":
-			if ts.Parameter.Image != "" {
-				if err := ts.mountImage(ctx, outputBuf); err != nil {
-					return err
-				}
-			}
-
 			if err := ts.powerOn(ctx, outputBuf); err != nil {
 				return err
 			}
@@ -98,12 +92,23 @@ func (ts *TestStep) powerOn(ctx xcontext.Context, outputBuf *strings.Builder) er
 	}
 
 	if state != on {
+		if ts.Parameter.Image != "" {
+			if err := ts.mountImage(ctx, outputBuf); err != nil {
+				return err
+			}
+		}
+
 		time.Sleep(time.Second)
+
 		if err := ts.postPower(ctx, "3s"); err != nil {
 			return fmt.Errorf("failed to power on DUT: %v", err)
 		}
 
 		time.Sleep(5 * time.Second)
+	} else {
+		outputBuf.WriteString("DUT was already powered on.\n")
+
+		return nil
 	}
 
 	// Check the led if the device is on

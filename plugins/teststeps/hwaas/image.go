@@ -21,12 +21,6 @@ func (ts *TestStep) mountImage(ctx xcontext.Context, outputBuf *strings.Builder)
 		return err
 	}
 
-	if err := ts.checkMountImage(ctx, string(hashSum)); err != nil {
-		if err := ts.postMountImage(ctx); err != nil {
-			return fmt.Errorf("failed to post image to api: %v", err)
-		}
-	}
-
 	plugged, err := ts.checkUSBPlug(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to check usb plug state: %v", err)
@@ -38,7 +32,13 @@ func (ts *TestStep) mountImage(ctx xcontext.Context, outputBuf *strings.Builder)
 		}
 	}
 
-	if err := ts.configureUSB(ctx, string(hashSum)); err != nil {
+	if err := ts.checkMountImage(ctx, hashSum); err != nil {
+		if err := ts.postMountImage(ctx); err != nil {
+			return fmt.Errorf("failed to post image to api: %v", err)
+		}
+	}
+
+	if err := ts.configureUSB(ctx, fmt.Sprintf("%x", hashSum)); err != nil {
 		return fmt.Errorf("failed to configure usb device: %v", err)
 	}
 
@@ -51,8 +51,8 @@ func (ts *TestStep) mountImage(ctx xcontext.Context, outputBuf *strings.Builder)
 	return nil
 }
 
-func (ts *TestStep) checkMountImage(ctx xcontext.Context, hashSum string) error {
-	endpoint := fmt.Sprintf("%s%s/images/%s", ts.Parameter.Host, ts.Parameter.Version, hashSum)
+func (ts *TestStep) checkMountImage(ctx xcontext.Context, hashSum []byte) error {
+	endpoint := fmt.Sprintf("%s%s/images/%x", ts.Parameter.Host, ts.Parameter.Version, hashSum)
 
 	resp, err := HTTPRequest(ctx, http.MethodGet, endpoint, bytes.NewBuffer(nil))
 	if err != nil {
@@ -60,8 +60,13 @@ func (ts *TestStep) checkMountImage(ctx xcontext.Context, hashSum string) error 
 	}
 	defer resp.Body.Close()
 
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("could not extract response body: %v", err)
+	}
+
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("image could not be checked. Statuscode: %d, Response Body: %v", resp.StatusCode, resp.Body)
+		return fmt.Errorf("image could not be checked. Statuscode: %d, Response Body: %v", resp.StatusCode, string(body))
 	}
 
 	return nil
@@ -105,19 +110,20 @@ func (ts *TestStep) postMountImage(ctx xcontext.Context) error {
 	}
 	defer resp.Body.Close()
 
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("could not extract response body: %v", err)
+	}
+
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("failed to upload binary. Statuscode: %d, Response Body: %v", resp.StatusCode, resp.Body)
+		return fmt.Errorf("failed to upload image. Statuscode: %d, Response Body: %v", resp.StatusCode, string(respBody))
 	}
 
 	return nil
 }
 
-type plugState struct {
-	State bool `json:"state"`
-}
-
 func (ts *TestStep) checkUSBPlug(ctx xcontext.Context) (bool, error) {
-	endpoint := fmt.Sprintf("%s%s/contexts/%s/machines/%s/usb",
+	endpoint := fmt.Sprintf("%s%s/contexts/%s/machines/%s/usb/plug",
 		ts.Parameter.Host, ts.Parameter.Version, ts.Parameter.ContextID, ts.Parameter.MachineID)
 
 	resp, err := HTTPRequest(ctx, http.MethodGet, endpoint, bytes.NewBuffer(nil))
@@ -126,22 +132,23 @@ func (ts *TestStep) checkUSBPlug(ctx xcontext.Context) (bool, error) {
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
-		return false, fmt.Errorf("image could not be checked. Statuscode: %d, Response Body: %v", resp.StatusCode, resp.Body)
-	}
-
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return false, fmt.Errorf("could not extract response body: %v", err)
 	}
 
-	data := plugState{}
-
-	if err := json.Unmarshal(body, &data); err != nil {
-		return false, fmt.Errorf("could not unmarshal response body: %v", err)
+	if resp.StatusCode != http.StatusOK {
+		return false, fmt.Errorf("usb plug could not be checked. Statuscode: %d, Response Body: %v", resp.StatusCode, string(body))
 	}
 
-	return data.State, nil
+	switch string(body) {
+	case "true":
+		return true, nil
+	case "false":
+		return false, nil
+	default:
+		return false, fmt.Errorf("failed to parse the response body: '%s'", string(body))
+	}
 }
 
 const (
@@ -167,26 +174,33 @@ func (ts *TestStep) plugUSB(ctx xcontext.Context, plug bool) error {
 	}
 	defer resp.Body.Close()
 
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("could not extract response body: %v", err)
+	}
+
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("image could not be checked. Statuscode: %d, Response Body: %v", resp.StatusCode, resp.Body)
+		return fmt.Errorf("usb device could not be plugged/unplugged. Statuscode: %d, Response Body: %v", resp.StatusCode, string(body))
 	}
 
 	return nil
 }
 
-type imageHash struct {
-	ImageHash string `json:"imageHash"`
+type fileHashes []struct {
+	FileHashes []string `json:"fileHashes"`
 }
 
 func (ts *TestStep) configureUSB(ctx xcontext.Context, hash string) error {
 	endpoint := fmt.Sprintf("%s%s/contexts/%s/machines/%s/usb/functions",
 		ts.Parameter.Host, ts.Parameter.Version, ts.Parameter.ContextID, ts.Parameter.MachineID)
 
-	imageHash := imageHash{
-		ImageHash: hash,
+	fileHashes := fileHashes{
+		{
+			FileHashes: []string{hash},
+		},
 	}
 
-	imageHashBody, err := json.Marshal(imageHash)
+	imageHashBody, err := json.Marshal(fileHashes)
 	if err != nil {
 		return fmt.Errorf("failed to marshal body: %w", err)
 	}
@@ -197,8 +211,13 @@ func (ts *TestStep) configureUSB(ctx xcontext.Context, hash string) error {
 	}
 	defer resp.Body.Close()
 
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("could not extract response body: %v", err)
+	}
+
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("usb device could not be configured. Statuscode: %d, Response Body: %v", resp.StatusCode, resp.Body)
+		return fmt.Errorf("usb device could not be configured. Statuscode: %d, Response Body: %v", resp.StatusCode, string(body))
 	}
 
 	return nil

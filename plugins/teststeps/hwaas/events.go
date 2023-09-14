@@ -61,6 +61,7 @@ func writeTestStep(step *TestStep, builders ...*strings.Builder) {
 		builder.WriteString(fmt.Sprintf("    MachineID: %s\n", step.Parameter.MachineID))
 		builder.WriteString(fmt.Sprintf("    DeviceID: %s\n", step.Parameter.DeviceID))
 		builder.WriteString(fmt.Sprintf("    Version: %s\n", step.Parameter.Version))
+		builder.WriteString(fmt.Sprintf("    Image: %s\n", step.Parameter.Image))
 		builder.WriteString("  Options:\n")
 		builder.WriteString(fmt.Sprintf("    Timeout: %s\n", time.Duration(step.Options.Timeout)))
 		builder.WriteString("\n")

@@ -15,7 +15,7 @@ import (
 
 // We need a default timeout to avoid endless running tests.
 const (
-	defaultTimeout   time.Duration = 15 * time.Minute
+	defaultTimeout   time.Duration = time.Minute
 	defaultContextID string        = "0fb4acd8-e429-11ed-b5ea-0242ac120002"
 	defaultMachineID string        = "ws"
 	defaultDeviceID  string        = "flasher"

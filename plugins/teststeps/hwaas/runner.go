@@ -30,14 +30,12 @@ func (r *TargetRunner) Run(ctx xcontext.Context, target *target.Target) error {
 	// limit the execution time if specified
 	var cancel xcontext.CancelFunc
 
-	if r.ts.Options.Timeout != 0 {
-		ctx, cancel = xcontext.WithTimeout(ctx, time.Duration(r.ts.Options.Timeout))
-		defer cancel()
-	} else {
+	if r.ts.Options.Timeout == 0 {
 		r.ts.Options.Timeout = xjson.Duration(defaultTimeout)
-		ctx, cancel = xcontext.WithTimeout(ctx, time.Duration(r.ts.Options.Timeout))
-		defer cancel()
 	}
+
+	ctx, cancel = xcontext.WithTimeout(ctx, time.Duration(r.ts.Options.Timeout))
+	defer cancel()
 
 	pe := test.NewParamExpander(target)
 
