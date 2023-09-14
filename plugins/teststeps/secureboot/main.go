@@ -31,6 +31,7 @@ type inputStepParams struct {
 		Command         string `json:"command"`
 		ToolPath        string `json:"tool_path"`
 		Hierarchy       string `json:"hierarchy,omitempty"`
+		Append          bool   `json:"append,omitempty"`
 		KeyFile         string `json:"key_file,omitempty"`
 		CertFile        string `json:"cert_file,omitempty"`
 		SigningKeyFile  string `json:"signing_key_file,omitempty"`

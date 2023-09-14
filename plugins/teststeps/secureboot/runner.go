@@ -273,7 +273,13 @@ func (ts *TestStep) reset(
 		return outcome, err
 	}
 
-	_, stderr, outcome, err := execCmdWithArgs(ctx, true, ts.inputStepParams.Parameter.ToolPath, []string{"reset", fmt.Sprintf("--partial=%v", ts.inputStepParams.Parameter.Hierarchy)}, outputBuf, transport)
+	args := []string{"reset", fmt.Sprintf("--partial=%v", ts.inputStepParams.Parameter.Hierarchy)}
+
+	if ts.Parameter.CertFile != "" {
+		args = append(args, fmt.Sprintf("--cert-files %s", ts.Parameter.CertFile))
+	}
+
+	_, stderr, outcome, err := execCmdWithArgs(ctx, true, ts.inputStepParams.Parameter.ToolPath, args, outputBuf, transport)
 	if err != nil {
 		return outcome, err
 	}
@@ -409,6 +415,10 @@ func (ts *TestStep) enrollKeys(
 		"enroll-keys",
 		"--microsoft",
 		fmt.Sprintf("--partial=%v", ts.inputStepParams.Parameter.Hierarchy),
+	}
+
+	if ts.Parameter.Append {
+		args = append(args, "--append")
 	}
 
 	_, stderr, outcome, err := execCmdWithArgs(ctx, true, ts.inputStepParams.Parameter.ToolPath, args, outputBuf, transport)

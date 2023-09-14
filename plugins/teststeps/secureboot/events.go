@@ -67,6 +67,7 @@ func writeEnrollKeysTestStep(step *TestStep, builders ...*strings.Builder) {
 		builder.WriteString("  Parameter:\n")
 		builder.WriteString(fmt.Sprintf("    ToolPath: %s\n", step.Parameter.ToolPath))
 		builder.WriteString(fmt.Sprintf("    Hierarchy: %s\n", step.Parameter.Hierarchy))
+		builder.WriteString(fmt.Sprintf("    Append: %t\n", step.Parameter.Append))
 		builder.WriteString(fmt.Sprintf("    KeyFilePath: %s\n", step.Parameter.KeyFile))
 		builder.WriteString(fmt.Sprintf("    CertFilePath: %s\n", step.Parameter.CertFile))
 		builder.WriteString(fmt.Sprintf("    SigningKeyFilePath: %s\n", step.Parameter.SigningKeyFile))
@@ -133,7 +134,8 @@ func writeResetTestStep(step *TestStep, builders ...*strings.Builder) {
 		builder.WriteString("  Parameter:\n")
 		builder.WriteString(fmt.Sprintf("    ToolPath: %s\n", step.Parameter.ToolPath))
 		builder.WriteString(fmt.Sprintf("    Hierarchy: %s\n", step.Parameter.Hierarchy))
-		builder.WriteString(fmt.Sprintf("    KeyFilePath: %s\n", step.Parameter.KeyFile))
+		builder.WriteString(fmt.Sprintf("    SigningKeyFilePath: %s\n", step.Parameter.SigningKeyFile))
+		builder.WriteString(fmt.Sprintf("    SigningCertFilePath: %s\n", step.Parameter.SigningCertFile))
 		builder.WriteString(fmt.Sprintf("    CertFilePath: %s\n", step.Parameter.CertFile))
 		builder.WriteString("\n")
 
