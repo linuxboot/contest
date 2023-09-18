@@ -112,7 +112,12 @@ func (r *TargetRunner) Run(ctx xcontext.Context, target *target.Target) error {
 func (ts *TestStep) runGet(
 	ctx xcontext.Context, outputBuf *strings.Builder, transport transport.Transport,
 ) error {
-	var finalErr error
+	var (
+		finalErr   error
+		parsingBuf strings.Builder
+	)
+
+	parsingBuf.WriteString("Test result:\n\n")
 
 	for _, expect := range ts.expectStepParams {
 		args := []string{
@@ -173,17 +178,19 @@ func (ts *TestStep) runGet(
 			continue
 		}
 
-		if err = parseOutput(outputBuf, stdout, stderr, expect); err != nil {
-			outputBuf.WriteString(fmt.Sprintf("%v\n", err))
-			outputBuf.WriteString("\n\n")
+		if err = parseOutput(&parsingBuf, stdout, stderr, expect); err != nil {
+			parsingBuf.WriteString(fmt.Sprintf("%v\n", err))
 
 			finalErr = fmt.Errorf("At least one expect parameter is not as expected.")
+			outputBuf.WriteString("\n")
 
 			continue
 		}
 
-		outputBuf.WriteString("\n\n")
+		outputBuf.WriteString("\n")
 	}
+
+	outputBuf.WriteString(fmt.Sprintf("%s\n", parsingBuf.String()))
 
 	return finalErr
 }
@@ -216,7 +223,7 @@ func readBuffer(r io.Reader) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func parseOutput(outputBuf *strings.Builder, stdout, stderr []byte, expectOption Expect) error {
+func parseOutput(parsingBuf *strings.Builder, stdout, stderr []byte, expectOption Expect) error {
 	output := Output{}
 	if len(stdout) != 0 {
 		if err := json.Unmarshal(stdout, &output); err != nil {
@@ -234,14 +241,14 @@ func parseOutput(outputBuf *strings.Builder, stdout, stderr []byte, expectOption
 	if err.Msg == "" {
 		if expectOption.Option == output.Data.Name {
 			if expectOption.Value != output.Data.Value {
-				return fmt.Errorf("Expected setting '%s' value is not as expected, have '%s' want '%s'.\n",
+				return fmt.Errorf("\u2717 BIOS setting '%s' is not as expected, have '%s' want '%s'.",
 					expectOption.Option, output.Data.Value, expectOption.Value)
 			} else {
-				outputBuf.WriteString(fmt.Sprintf("BIOS setting '%s' is set as expected: '%s'.\n", expectOption.Option, expectOption.Value))
+				parsingBuf.WriteString(fmt.Sprintf("\u2713 BIOS setting '%s' is set as expected: '%s'.\n", expectOption.Option, expectOption.Value))
 				return nil
 			}
 		} else {
-			return fmt.Errorf("Expected setting '%s' is not found in the attribute list.\n", expectOption.Option)
+			return fmt.Errorf("\u2717 BIOS setting '%s' was not found in the attribute list.", expectOption.Option)
 		}
 	} else {
 		err := fmt.Errorf("%s", err.Msg)
