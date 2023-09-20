@@ -46,13 +46,13 @@ func (s *Stats) CheckGeneralOption(expect General, outputBuf *strings.Builder) e
 			return err
 		}
 		if s.Data.CPUsLogical != cpusLogical {
-			err := fmt.Errorf("data for option '%s' is not as expected, have '%d', want '%d'", expect.Option, s.Data.CPUsLogical, cpusLogical)
+			err := fmt.Errorf("\u2717 %s is not as expected, have '%d', want '%d'", expect.Option, s.Data.CPUsLogical, cpusLogical)
 			outputBuf.WriteString(err.Error())
 
 			return err
 		}
 
-		outputBuf.WriteString(fmt.Sprintf("data for option '%s' is as expected. System has '%d' logical Cores.\n",
+		outputBuf.WriteString(fmt.Sprintf("\u2713 %s is as expected. System has '%d' logical Cores.\n",
 			expect.Option, s.Data.CPUsLogical))
 
 	case "CPUsPhysical":
@@ -64,38 +64,38 @@ func (s *Stats) CheckGeneralOption(expect General, outputBuf *strings.Builder) e
 			return err
 		}
 		if s.Data.CPUsPhysical != cpusPhysical {
-			err := fmt.Errorf("data for option '%s' is not as expected, have '%d', want '%d'", expect.Option, s.Data.CPUsPhysical, cpusPhysical)
+			err := fmt.Errorf("\u2717 %s is not as expected, have '%d', want '%d'", expect.Option, s.Data.CPUsPhysical, cpusPhysical)
 			outputBuf.WriteString(err.Error())
 
 			return err
 		}
 
-		outputBuf.WriteString(fmt.Sprintf("data for option '%s' is as expected. System has '%d' physical Cores.\n",
+		outputBuf.WriteString(fmt.Sprintf("\u2713 %s is as expected. System has '%d' physical Cores.\n",
 			expect.Option, s.Data.CPUsPhysical))
 
 	case "Profile":
 		if s.Data.Profile != expect.Value {
-			err := fmt.Errorf("data for option '%s' is not as expected, have '%s', want '%s'", expect.Option, s.Data.Profile, expect.Value)
+			err := fmt.Errorf("\u2717 %s is not as expected, have '%s', want '%s'", expect.Option, s.Data.Profile, expect.Value)
 			outputBuf.WriteString(err.Error())
 
 			return err
 		}
 
-		outputBuf.WriteString(fmt.Sprintf("data for option '%s' is as expected. System has has ACPI Platform Profile '%s'.\n",
+		outputBuf.WriteString(fmt.Sprintf("\u2713 %s is as expected. System has ACPI Platform Profile '%s'.\n",
 			expect.Option, s.Data.Profile))
 
 	case "CurPowerConsumption":
 		rPowerCon := math.Round(s.Data.Power.CurPowerConsumption)
 		if err := parseValue(int(rPowerCon), expect.Value); err != nil {
-			err := fmt.Errorf("data for option '%s' is not as expected. '%s' is '%dW'. The expect value was '%sW'\n",
-				expect.Option, expect.Option, int(rPowerCon), expect.Value)
+			err := fmt.Errorf("\u2717 %s is not as expected. Have '%dW', want '%sW'\n",
+				expect.Option, int(rPowerCon), expect.Value)
 			outputBuf.WriteString(err.Error())
 
 			return err
 		}
 
-		outputBuf.WriteString(fmt.Sprintf("data for option '%s' is as expected. '%s' is '%dW'. The expect value was '%sW'\n",
-			expect.Option, expect.Option, int(rPowerCon), expect.Value))
+		outputBuf.WriteString(fmt.Sprintf("\u2713 %s is as expected. Have '%dW', want '%sW'\n",
+			expect.Option, int(rPowerCon), expect.Value))
 
 	case "PowerLimit1":
 		if err := parseValue(s.Data.Power.PowerLimit1, expect.Value); err != nil {
@@ -106,23 +106,23 @@ func (s *Stats) CheckGeneralOption(expect General, outputBuf *strings.Builder) e
 			return err
 		}
 
-		outputBuf.WriteString(fmt.Sprintf("data for option '%s' is as expected. '%s' is '%dW'. The expect value was '%sW'\n",
-			expect.Option, expect.Option, s.Data.Power.PowerLimit1, expect.Value))
+		outputBuf.WriteString(fmt.Sprintf("\u2713 %s is as expected. Have '%dW', want '%sW'\n",
+			expect.Option, s.Data.Power.PowerLimit1, expect.Value))
 
 	case "PowerLimit2":
 		if err := parseValue(s.Data.Power.PowerLimit2, expect.Value); err != nil {
-			err := fmt.Errorf("data for option '%s' is not as expected. '%s' is '%dW'. The expect value was '%sW'\n",
-				expect.Option, expect.Option, s.Data.Power.PowerLimit2, expect.Value)
+			err := fmt.Errorf("\u2717 %s is not as expected. Have '%dW', want '%sW'\n",
+				expect.Option, s.Data.Power.PowerLimit2, expect.Value)
 			outputBuf.WriteString(err.Error())
 
 			return err
 		}
 
-		outputBuf.WriteString(fmt.Sprintf("data for option '%s' is as expected. '%s' is '%dW'. The expect value was '%sW'\n",
-			expect.Option, expect.Option, s.Data.Power.PowerLimit2, expect.Value))
+		outputBuf.WriteString(fmt.Sprintf("\u2713 %s is as expected. Have '%dW', want '%sW'\n",
+			expect.Option, s.Data.Power.PowerLimit2, expect.Value))
 
 	default:
-		err := fmt.Errorf("could to find option '%s'. Supported options are: '%s'", expect.Option, s.GeneralOptions())
+		err := fmt.Errorf("\u2717 could to find option %s. Supported options are: '%s'", expect.Option, s.GeneralOptions())
 		outputBuf.WriteString(err.Error())
 
 		return err
@@ -138,19 +138,21 @@ func (s *Stats) CheckIndividualOption(expect Individual, interval bool, outputBu
 		switch expect.Option {
 		case "CStates":
 			if err := s.checkCStatesFromString(cpu, expect, interval); err != nil {
-				outputBuf.WriteString(fmt.Sprintf("Core '%d':\n%s\n", cpu, err.Error()))
+				outputBuf.WriteString(fmt.Sprintf("\u2717 %s for CPU '%d' is not as expected:\n%s\n",
+					expect.Option, cpu, err.Error()))
 
 				finalErr = true
 
 				continue
 			}
 
-			outputBuf.WriteString(fmt.Sprintf("'%s' for cpu '%d' is as expected: '%s'\n",
+			outputBuf.WriteString(fmt.Sprintf("\u2713 %s for CPU '%d' is as expected: '%s'\n",
 				expect.Option, cpu, expect.Value))
 
 		case "AverageFrequency":
 			if err := parseValue(s.Data.CPUs[cpu].Frequency.AverageFrequency, expect.Value); err != nil {
-				err := fmt.Errorf("Core '%d': data is not as expected, have '%dKHz', want '%sKHz'\n", cpu, s.Data.CPUs[cpu].Frequency.AverageFrequency, expect.Value)
+				err := fmt.Errorf("\u2717 %s for CPU '%d' is not as expected:\n%s\n",
+					expect.Option, cpu, err.Error())
 				outputBuf.WriteString(err.Error())
 
 				finalErr = true
@@ -158,12 +160,13 @@ func (s *Stats) CheckIndividualOption(expect Individual, interval bool, outputBu
 				continue
 			}
 
-			outputBuf.WriteString(fmt.Sprintf("'%s' for cpu '%d' is as expected. '%s' is '%dKHz'. The expect value was '%sKHz'\n",
-				expect.Option, cpu, expect.Option, s.Data.CPUs[cpu].Frequency.AverageFrequency, expect.Value))
+			outputBuf.WriteString(fmt.Sprintf("\u2713 %s for CPU '%d' is as expected: '%dKHz'.\n",
+				expect.Option, cpu, s.Data.CPUs[cpu].Frequency.AverageFrequency))
 
 		case "BusyFrequency":
 			if err := parseValue(s.Data.CPUs[cpu].Frequency.BusyFrequency, expect.Value); err != nil {
-				err := fmt.Errorf("Core '%d': data is not as expected, have '%dKHz', want '%sKHz'\n", cpu, s.Data.CPUs[cpu].Frequency.BusyFrequency, expect.Value)
+				err := fmt.Errorf("\u2717 %s for CPU '%d' is not as expected:\n%s\n",
+					expect.Option, cpu, err.Error())
 				outputBuf.WriteString(err.Error())
 
 				finalErr = true
@@ -171,11 +174,12 @@ func (s *Stats) CheckIndividualOption(expect Individual, interval bool, outputBu
 				continue
 			}
 
-			outputBuf.WriteString(fmt.Sprintf("'%s' for cpu '%d' is as expected. '%s' is '%dKHz'. The expect value was '%sKHz'\n",
-				expect.Option, cpu, expect.Option, s.Data.CPUs[cpu].Frequency.BusyFrequency, expect.Value))
+			outputBuf.WriteString(fmt.Sprintf("\u2713 %s for CPU '%d' is as expected: '%dKHz'.\n",
+				expect.Option, cpu, s.Data.CPUs[cpu].Frequency.BusyFrequency))
 
 		default:
-			err := fmt.Errorf("could to find option '%s' for cpu '%d'. Supported options are: '%s'\n", expect.Option, cpu, s.IndividualOptions())
+			err := fmt.Errorf("\u2717 could not find option %s for CPU '%d'. Supported options are: '%s'\n",
+				expect.Option, cpu, s.IndividualOptions())
 			outputBuf.WriteString(err.Error())
 
 			finalErr = true
@@ -185,7 +189,7 @@ func (s *Stats) CheckIndividualOption(expect Individual, interval bool, outputBu
 	}
 
 	if finalErr {
-		return fmt.Errorf("error while checking individual option: %s", outputBuf.String())
+		return fmt.Errorf("\u2717 error while checking individual option: %s", outputBuf.String())
 	}
 
 	return nil
