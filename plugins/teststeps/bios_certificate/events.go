@@ -75,6 +75,10 @@ func writeTestStep(step *TestStep, builders ...*strings.Builder) {
 		builder.WriteString("  Options:\n")
 		builder.WriteString(fmt.Sprintf("    Timeout: %s\n", time.Duration(step.Options.Timeout)))
 		builder.WriteString("\n\n")
+
+		builder.WriteString("Expect Parameter:\n")
+		builder.WriteString(fmt.Sprintf("  ShouldFail: %v\n", step.ShouldFail))
+		builder.WriteString("\n\n")
 	}
 }
 

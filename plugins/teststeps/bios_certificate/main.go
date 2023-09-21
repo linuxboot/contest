@@ -37,12 +37,17 @@ type inputStepParams struct {
 	} `json:"parameter"`
 }
 
+type expectStepParams struct {
+	ShouldFail bool `json:"should_fail,omitempty"`
+}
+
 // Name is the name used to look this plugin up.
 var Name = "Bios Certificate Management"
 
 // TestStep implementation for the exec plugin
 type TestStep struct {
 	inputStepParams
+	expectStepParams
 }
 
 // Run executes the step.
@@ -52,7 +57,7 @@ func (ts *TestStep) Run(ctx xcontext.Context, ch test.TestStepChannels, params t
 }
 
 func (ts *TestStep) populateParams(stepParams test.TestStepParameters) error {
-	var input *test.Param
+	var input, expect *test.Param
 
 	if input = stepParams.GetOne(in); input.IsEmpty() {
 		return fmt.Errorf("input parameter cannot be empty")
@@ -60,6 +65,14 @@ func (ts *TestStep) populateParams(stepParams test.TestStepParameters) error {
 
 	if err := json.Unmarshal(input.JSON(), &ts.inputStepParams); err != nil {
 		return fmt.Errorf("failed to deserialize %q parameters: %v", in, err)
+	}
+
+	expect = stepParams.GetOne(out)
+
+	if !expect.IsEmpty() {
+		if err := json.Unmarshal(expect.JSON(), &ts.expectStepParams); err != nil {
+			return fmt.Errorf("failed to deserialize %q parameters: %v", out, err)
+		}
 	}
 
 	return nil
