@@ -76,7 +76,7 @@ func (ts *TestStep) flashWrite(ctx xcontext.Context, outputBuf *strings.Builder,
 		return fmt.Errorf("flashing DUT with %s failed: %v\n", sourceFile, err)
 	}
 
-	if err := ts.waitTarget(ctx); err != nil {
+	if err := ts.waitTarget(ctx, write); err != nil {
 		return err
 	}
 
@@ -114,7 +114,7 @@ func (ts *TestStep) flashRead(ctx xcontext.Context, outputBuf *strings.Builder, 
 		return fmt.Errorf("reading image from DUT into %s failed: %v\n", destinationFile, err)
 	}
 
-	if err := ts.waitTarget(ctx); err != nil {
+	if err := ts.waitTarget(ctx, read); err != nil {
 		return err
 	}
 
@@ -311,7 +311,7 @@ func (ts *TestStep) flashTarget(ctx xcontext.Context) error {
 }
 
 // waitTarget wait for the process that is running on the Flash endpoint, either its write or read.
-func (ts *TestStep) waitTarget(ctx xcontext.Context) error {
+func (ts *TestStep) waitTarget(ctx xcontext.Context, action string) error {
 	timestamp := time.Now()
 
 	for {
@@ -328,10 +328,10 @@ func (ts *TestStep) waitTarget(ctx xcontext.Context) error {
 			continue
 		}
 		if targetInfo.State == stateError {
-			return fmt.Errorf("error while flashing DUT: %s", targetInfo.Error)
+			return fmt.Errorf("error while %sing flash: %s", action, targetInfo.Error)
 		}
 		if time.Since(timestamp) >= defaultTimeout {
-			return fmt.Errorf("flashing DUT failed: timeout")
+			return fmt.Errorf("%sing DUT failed: timeout", action)
 		}
 	}
 
@@ -349,6 +349,8 @@ func HTTPRequest(ctx xcontext.Context, method string, endpoint string, body io.R
 	if err != nil {
 		return nil, err
 	}
+
+	req.Header.Add("Content-Type", "application/json")
 
 	resp, err := client.Do(req)
 	if err != nil {
