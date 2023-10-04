@@ -17,6 +17,7 @@ const (
 	off   = "off"
 	reset = "reset"
 	led   = "led"
+	vcc   = "vcc"
 )
 
 // powerCmds is a helper function to call into the different power commands
@@ -79,16 +80,29 @@ func (ts *TestStep) powerCmds(ctx xcontext.Context, outputBuf *strings.Builder) 
 
 // powerOn turns on the device. To power the device on we have to fulfill this requirements -> reset is off -> pdu is on.
 func (ts *TestStep) powerOn(ctx xcontext.Context, outputBuf *strings.Builder) error {
+	var (
+		state string
+		err   error
+	)
+
 	if err := ts.unresetDUT(ctx); err != nil {
 		return fmt.Errorf("failed to power on DUT: %v", err)
 	}
 
 	time.Sleep(time.Second)
 
-	// Check the led if the device is on
-	state, err := ts.getState(ctx, led)
-	if err != nil {
-		return err
+	if ts.Parameter.NoLED {
+		// Check vcc if the device is on
+		state, err = ts.retrieveVCC(ctx)
+		if err != nil {
+			return err
+		}
+	} else {
+		// Check the led if the device is on
+		state, err = ts.getState(ctx, led)
+		if err != nil {
+			return err
+		}
 	}
 
 	if state != on {
@@ -111,10 +125,18 @@ func (ts *TestStep) powerOn(ctx xcontext.Context, outputBuf *strings.Builder) er
 		return nil
 	}
 
-	// Check the led if the device is on
-	state, err = ts.getState(ctx, led)
-	if err != nil {
-		return err
+	if ts.Parameter.NoLED {
+		// Check vcc if the device is on
+		state, err = ts.retrieveVCC(ctx)
+		if err != nil {
+			return err
+		}
+	} else {
+		// Check the led if the device is on
+		state, err = ts.getState(ctx, led)
+		if err != nil {
+			return err
+		}
 	}
 
 	if state != on {
@@ -128,11 +150,32 @@ func (ts *TestStep) powerOn(ctx xcontext.Context, outputBuf *strings.Builder) er
 
 // powerOffSoft turns off the device.
 func (ts *TestStep) powerOffSoft(ctx xcontext.Context, outputBuf *strings.Builder) error {
+	var (
+		state string
+		err   error
+	)
+
 	// First check if device needs to be powered down
-	// Check the led if the device is on
-	state, err := ts.getState(ctx, led)
-	if err != nil {
-		return fmt.Errorf("failed to power off DUT: %v", err)
+	if ts.Parameter.NoLED {
+		if err := ts.pressPDU(ctx, http.MethodDelete); err != nil {
+			return err
+		}
+
+		// Check the vcc if the device is on
+		state, err = ts.getState(ctx, vcc)
+		if err != nil {
+			return err
+		}
+
+		if err := ts.pressPDU(ctx, http.MethodPut); err != nil {
+			return err
+		}
+	} else {
+		// Check the led if the device is on
+		state, err = ts.getState(ctx, led)
+		if err != nil {
+			return err
+		}
 	}
 
 	if state == on {
@@ -396,4 +439,25 @@ func (ts *TestStep) unresetDUT(ctx xcontext.Context) error {
 	time.Sleep(time.Second)
 
 	return nil
+}
+
+// retrieveVCC is a workaround to check if a device is powered on, if its LED is not working.
+// Therefore the PDU have to be turned off, than the VCC state is the indicator for the power state.
+// Afterwards the PDU is turned on again.
+func (ts *TestStep) retrieveVCC(ctx xcontext.Context) (string, error) {
+	if err := ts.pressPDU(ctx, http.MethodDelete); err != nil {
+		return "", err
+	}
+
+	// Check the vcc if the device is on
+	state, err := ts.getState(ctx, vcc)
+	if err != nil {
+		return "", err
+	}
+
+	if err := ts.pressPDU(ctx, http.MethodPut); err != nil {
+		return "", err
+	}
+
+	return state, nil
 }

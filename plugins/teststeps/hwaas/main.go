@@ -36,6 +36,7 @@ type inputStepParams struct {
 		MachineID string   `json:"machine_id,omitempty"`
 		DeviceID  string   `json:"device_id,omitempty"`
 		Image     string   `json:"image,omitempty"`
+		NoLED     bool     `json:"no_led,omitempty"`
 	} `json:"parameter"`
 
 	Options struct {
@@ -53,11 +54,6 @@ type TestStep struct {
 
 // Run executes the cmd step.
 func (ts *TestStep) Run(ctx xcontext.Context, ch test.TestStepChannels, params test.TestStepParameters, ev testevent.Emitter, resumeState json.RawMessage) (json.RawMessage, error) {
-	// Validate the parameter
-	if err := ts.validateAndPopulate(params); err != nil {
-		return nil, err
-	}
-
 	tr := NewTargetRunner(ts, ev)
 	return teststeps.ForEachTarget(Name, ctx, ch, tr.Run)
 }
