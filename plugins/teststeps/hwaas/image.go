@@ -73,7 +73,7 @@ func (ts *TestStep) checkMountImage(ctx xcontext.Context, hashSum []byte) error 
 }
 
 func (ts *TestStep) postMountImage(ctx xcontext.Context) error {
-	endpoint := fmt.Sprintf("%s%s/images/", ts.Parameter.Host, ts.Parameter.Version)
+	endpoint := fmt.Sprintf("%s%s/images", ts.Parameter.Host, ts.Parameter.Version)
 
 	file, err := os.Open(ts.Parameter.Image)
 	if err != nil {
