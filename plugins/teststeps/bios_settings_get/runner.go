@@ -247,12 +247,10 @@ func parseOutput(parsingBuf *strings.Builder, stdout, stderr []byte, expectOptio
 				parsingBuf.WriteString(fmt.Sprintf("\u2713 BIOS setting '%s' is set as expected: '%s'.\n", expectOption.Option, expectOption.Value))
 				return nil
 			}
-		} else {
-			return fmt.Errorf("\u2717 BIOS setting '%s' was not found in the attribute list.", expectOption.Option)
 		}
 	} else {
-		err := fmt.Errorf("%s", err.Msg)
-
-		return err
+		return fmt.Errorf("\u2717 BIOS setting '%s' was not found in the attribute list: %s", expectOption.Option, err.Msg)
 	}
+
+	return nil
 }
