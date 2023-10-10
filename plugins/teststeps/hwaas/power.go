@@ -89,65 +89,51 @@ func (ts *TestStep) powerOn(ctx xcontext.Context, outputBuf *strings.Builder) er
 		err   error
 	)
 
-	for index := 0; index < 3; index++ {
-		if err := ts.unresetDUT(ctx); err != nil {
+	if err := ts.unresetDUT(ctx); err != nil {
+		return fmt.Errorf("failed to power on DUT: %v", err)
+	}
+
+	if ts.Parameter.NoLED {
+		// Check vcc if the device is on
+		state, err = ts.retrieveVCC(ctx)
+		if err != nil {
+			return err
+		}
+	} else {
+		// Check the led if the device is on
+		state, err = ts.getState(ctx, led)
+		if err != nil {
+			return err
+		}
+	}
+
+	if state == off {
+		if ts.Parameter.Image != "" {
+			if err := ts.mountImage(ctx, outputBuf); err != nil {
+				return err
+			}
+		}
+
+		time.Sleep(time.Second)
+
+		if err := ts.postPower(ctx, powerOn); err != nil {
 			return fmt.Errorf("failed to power on DUT: %v", err)
 		}
 
-		if ts.Parameter.NoLED {
-			// Check vcc if the device is on
-			state, err = ts.retrieveVCC(ctx)
-			if err != nil {
-				return err
-			}
-		} else {
-			// Check the led if the device is on
-			state, err = ts.getState(ctx, led)
-			if err != nil {
-				return err
-			}
-		}
+		time.Sleep(powerTimeout)
+	} else if state == on {
+		outputBuf.WriteString("DUT was already powered on.\n")
 
-		if state == off {
-			if ts.Parameter.Image != "" {
-				if err := ts.mountImage(ctx, outputBuf); err != nil {
-					return err
-				}
-			}
+		return nil
+	}
 
-			time.Sleep(time.Second)
-
-			if err := ts.postPower(ctx, powerOn); err != nil {
-				return fmt.Errorf("failed to power on DUT: %v", err)
-			}
-
-			time.Sleep(powerTimeout)
-		} else if state == on {
-			outputBuf.WriteString("DUT was already powered on.\n")
-
-			return nil
-		}
-
-		if ts.Parameter.NoLED {
-			// Check vcc if the device is on
-			state, err = ts.retrieveVCC(ctx)
-			if err != nil {
-				return err
-			}
-		} else {
-			// Check the led if the device is on
-			state, err = ts.getState(ctx, led)
-			if err != nil {
-				return err
-			}
-		}
-
-		if state == on {
-			break
-		}
-
-		if err := ts.resetDUT(ctx); err != nil {
-			return fmt.Errorf("failed to reset DUT: %v", err)
+	if ts.Parameter.NoLED {
+		return nil
+	} else {
+		// Check the led if the device is on
+		state, err = ts.getState(ctx, led)
+		if err != nil {
+			return err
 		}
 	}
 
@@ -423,6 +409,12 @@ func (ts *TestStep) unresetDUT(ctx xcontext.Context) error {
 // Therefore the PDU have to be turned off, than the VCC state is the indicator for the power state.
 // Afterwards the PDU is turned on again.
 func (ts *TestStep) retrieveVCC(ctx xcontext.Context) (string, error) {
+	if err := ts.postReset(ctx, on); err != nil {
+		return "", err
+	}
+
+	time.Sleep(time.Second)
+
 	if err := ts.pressPDU(ctx, http.MethodDelete); err != nil {
 		return "", err
 	}
