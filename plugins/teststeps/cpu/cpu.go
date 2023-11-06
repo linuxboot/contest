@@ -99,8 +99,8 @@ func (s *Stats) CheckGeneralOption(expect General, outputBuf *strings.Builder) e
 
 	case "PowerLimit1":
 		if err := parseValue(s.Data.Power.PowerLimit1, expect.Value); err != nil {
-			err := fmt.Errorf("error for option '%s': %v\n",
-				expect.Option, err)
+			err := fmt.Errorf("\u2717 %s is not as expected. Have '%dW', want '%sW'\n",
+				expect.Option, s.Data.Power.PowerLimit1, expect.Value)
 			outputBuf.WriteString(err.Error())
 
 			return err
