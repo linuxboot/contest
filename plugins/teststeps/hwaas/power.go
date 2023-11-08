@@ -18,10 +18,13 @@ const (
 	reset          = "reset"
 	led            = "led"
 	vcc            = "vcc"
+	fusb           = "fusb"
 	powerOn        = "3s"
 	powerOff       = "12s"
 	unresetTimeout = 3 * time.Second
 	powerTimeout   = 5 * time.Second
+	trialTimeout   = 200 * time.Millisecond
+	trials         = 5
 )
 
 // powerCmds is a helper function to call into the different power commands
@@ -93,17 +96,21 @@ func (ts *TestStep) powerOn(ctx xcontext.Context, outputBuf *strings.Builder) er
 		return fmt.Errorf("failed to power on DUT: %v", err)
 	}
 
-	if ts.Parameter.NoLED {
-		// Check vcc if the device is on
-		state, err = ts.retrieveVCC(ctx)
+	// Check the led if the device is on
+	if ts.Parameter.ContextID == "db99f1e5-f438-418b-bfa4-30b72957ce33" || ts.Parameter.ContextID == "d6005a94-bfc8-4490-99dd-70a9c3cb5213" || // T14 Gen4 & T16 Gen2
+		ts.Parameter.ContextID == "b6c2023b-1c35-4633-95c1-3eb796d23572" || ts.Parameter.ContextID == "3d2702d5-8c04-4144-8455-44d80a6cbed3" { // P14s Gen4 & X13 Gen4 Yoga
+		state, err = ts.getState(ctx, led)
 		if err != nil {
 			return err
 		}
 	} else {
-		// Check the led if the device is on
-		state, err = ts.getState(ctx, led)
-		if err != nil {
-			return err
+		for i := 0; i < trials; i++ {
+			time.Sleep(trialTimeout)
+
+			state, err = ts.getState(ctx, fusb)
+			if err != nil {
+				return err
+			}
 		}
 	}
 
@@ -127,13 +134,21 @@ func (ts *TestStep) powerOn(ctx xcontext.Context, outputBuf *strings.Builder) er
 		return nil
 	}
 
-	if ts.Parameter.NoLED {
-		return nil
-	} else {
-		// Check the led if the device is on
+	// Check the led if the device is on
+	if ts.Parameter.ContextID == "db99f1e5-f438-418b-bfa4-30b72957ce33" || ts.Parameter.ContextID == "d6005a94-bfc8-4490-99dd-70a9c3cb5213" || // T14 Gen4 & T16 Gen2
+		ts.Parameter.ContextID == "b6c2023b-1c35-4633-95c1-3eb796d23572" || ts.Parameter.ContextID == "3d2702d5-8c04-4144-8455-44d80a6cbed3" { // P14s Gen4 & X13 Gen4 Yoga
 		state, err = ts.getState(ctx, led)
 		if err != nil {
 			return err
+		}
+	} else {
+		for i := 0; i < trials; i++ {
+			time.Sleep(trialTimeout)
+
+			state, err = ts.getState(ctx, fusb)
+			if err != nil {
+				return err
+			}
 		}
 	}
 
@@ -154,17 +169,20 @@ func (ts *TestStep) powerOffSoft(ctx xcontext.Context, outputBuf *strings.Builde
 	)
 
 	// First check if device needs to be powered down
-	if ts.Parameter.NoLED {
-		// Check vcc if the device is on
-		state, err = ts.retrieveVCC(ctx)
+	if ts.Parameter.ContextID == "db99f1e5-f438-418b-bfa4-30b72957ce33" || ts.Parameter.ContextID == "d6005a94-bfc8-4490-99dd-70a9c3cb5213" || // T14 Gen4 & T16 Gen2
+		ts.Parameter.ContextID == "b6c2023b-1c35-4633-95c1-3eb796d23572" || ts.Parameter.ContextID == "3d2702d5-8c04-4144-8455-44d80a6cbed3" { // P14s Gen4 & X13 Gen4 Yoga
+		state, err = ts.getState(ctx, led)
 		if err != nil {
 			return err
 		}
 	} else {
-		// Check the led if the device is on
-		state, err = ts.getState(ctx, led)
-		if err != nil {
-			return err
+		for i := 0; i < trials; i++ {
+			time.Sleep(trialTimeout)
+
+			state, err = ts.getState(ctx, fusb)
+			if err != nil {
+				return err
+			}
 		}
 	}
 
@@ -403,31 +421,4 @@ func (ts *TestStep) unresetDUT(ctx xcontext.Context) error {
 	time.Sleep(unresetTimeout)
 
 	return nil
-}
-
-// retrieveVCC is a workaround to check if a device is powered on, if its LED is not working.
-// Therefore the PDU have to be turned off, than the VCC state is the indicator for the power state.
-// Afterwards the PDU is turned on again.
-func (ts *TestStep) retrieveVCC(ctx xcontext.Context) (string, error) {
-	if err := ts.postReset(ctx, on); err != nil {
-		return "", err
-	}
-
-	time.Sleep(time.Second)
-
-	if err := ts.pressPDU(ctx, http.MethodDelete); err != nil {
-		return "", err
-	}
-
-	// Check the vcc if the device is on
-	state, err := ts.getState(ctx, vcc)
-	if err != nil {
-		return "", err
-	}
-
-	if err := ts.pressPDU(ctx, http.MethodPut); err != nil {
-		return "", err
-	}
-
-	return state, nil
 }

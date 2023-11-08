@@ -36,7 +36,6 @@ type inputStepParams struct {
 		MachineID string   `json:"machine_id,omitempty"`
 		DeviceID  string   `json:"device_id,omitempty"`
 		Image     string   `json:"image,omitempty"`
-		NoLED     bool     `json:"no_led,omitempty"`
 	} `json:"parameter"`
 
 	Options struct {
