@@ -38,7 +38,11 @@ func (ts *TestStep) mountImage(ctx xcontext.Context, outputBuf *strings.Builder)
 		}
 	}
 
-	if err := ts.configureUSB(ctx, fmt.Sprintf("%x", hashSum)); err != nil {
+	if err := ts.createDrive(ctx, fmt.Sprintf("%x", hashSum)); err != nil {
+		return fmt.Errorf("failed to create drive with provided image: %v", err)
+	}
+
+	if err := ts.configureUSB(ctx); err != nil {
 		return fmt.Errorf("failed to configure usb device: %v", err)
 	}
 
@@ -122,6 +126,29 @@ func (ts *TestStep) postMountImage(ctx xcontext.Context) error {
 	return nil
 }
 
+func (ts *TestStep) createDrive(ctx xcontext.Context, hash string) error { //TODO change hash to drive name
+	endpoint := fmt.Sprintf("%s%s/contexts/%s/drives/%s?image_hash=%s",
+		ts.Parameter.Host, ts.Parameter.Version, ts.Parameter.ContextID, filepath.Base(ts.Parameter.Image), hash)
+
+	resp, err := HTTPRequest(ctx, http.MethodPut, endpoint, nil)
+	if err != nil {
+		return fmt.Errorf("failed to do HTTP request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	switch resp.StatusCode {
+	case http.StatusOK:
+		break
+	case http.StatusConflict:
+		fmt.Print("Drive already exists.\n")
+		break
+	default:
+		return fmt.Errorf("drive could not be created. Endpoint: %s, Statuscode: %d", endpoint, resp.StatusCode)
+	}
+
+	return nil
+}
+
 func (ts *TestStep) checkUSBPlug(ctx xcontext.Context) (bool, error) {
 	endpoint := fmt.Sprintf("%s%s/contexts/%s/machines/%s/usb/plug",
 		ts.Parameter.Host, ts.Parameter.Version, ts.Parameter.ContextID, ts.Parameter.MachineID)
@@ -186,26 +213,24 @@ func (ts *TestStep) plugUSB(ctx xcontext.Context, plug bool) error {
 	return nil
 }
 
-type fileHashes []struct {
-	FileHashes []string `json:"fileHashes"`
+type drives struct {
+	Drives []string `json:"drives"`
 }
 
-func (ts *TestStep) configureUSB(ctx xcontext.Context, hash string) error {
+func (ts *TestStep) configureUSB(ctx xcontext.Context) error {
 	endpoint := fmt.Sprintf("%s%s/contexts/%s/machines/%s/usb/functions",
 		ts.Parameter.Host, ts.Parameter.Version, ts.Parameter.ContextID, ts.Parameter.MachineID)
 
-	fileHashes := fileHashes{
-		{
-			FileHashes: []string{hash},
-		},
+	drives := drives{
+		Drives: []string{filepath.Base(ts.Parameter.Image)},
 	}
 
-	imageHashBody, err := json.Marshal(fileHashes)
+	drivesBody, err := json.Marshal(drives)
 	if err != nil {
 		return fmt.Errorf("failed to marshal body: %w", err)
 	}
 
-	resp, err := HTTPRequest(ctx, http.MethodPut, endpoint, bytes.NewBuffer(imageHashBody))
+	resp, err := HTTPRequest(ctx, http.MethodPut, endpoint, bytes.NewBuffer(drivesBody))
 	if err != nil {
 		return fmt.Errorf("failed to do HTTP request: %v", err)
 	}
