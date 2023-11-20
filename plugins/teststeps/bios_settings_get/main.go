@@ -65,6 +65,10 @@ func (ts *TestStep) populateParams(stepParams test.TestStepParameters) error {
 
 	expect := stepParams.Get(out)
 
+	if len(expect) <= 0 {
+		return fmt.Errorf("expect parameter cannot be empty")
+	}
+
 	var (
 		tmp          Expect
 		expectParams []Expect
