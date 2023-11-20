@@ -56,6 +56,10 @@ func (ts *TestStep) flashWrite(ctx xcontext.Context, outputBuf *strings.Builder,
 		return fmt.Errorf("no file was set to flash target.")
 	}
 
+	if ts.Parameter.Image != "" {
+		ts.deleteDrive(ctx)
+	}
+
 	if err := ts.resetDUT(ctx); err != nil {
 		return err
 	}

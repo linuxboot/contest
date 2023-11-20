@@ -126,7 +126,7 @@ func (ts *TestStep) postMountImage(ctx xcontext.Context) error {
 	return nil
 }
 
-func (ts *TestStep) createDrive(ctx xcontext.Context, hash string) error { //TODO change hash to drive name
+func (ts *TestStep) createDrive(ctx xcontext.Context, hash string) error {
 	endpoint := fmt.Sprintf("%s%s/contexts/%s/drives/%s?image_hash=%s",
 		ts.Parameter.Host, ts.Parameter.Version, ts.Parameter.ContextID, filepath.Base(ts.Parameter.Image), hash)
 
@@ -144,6 +144,29 @@ func (ts *TestStep) createDrive(ctx xcontext.Context, hash string) error { //TOD
 		break
 	default:
 		return fmt.Errorf("drive could not be created. Endpoint: %s, Statuscode: %d", endpoint, resp.StatusCode)
+	}
+
+	return nil
+}
+
+func (ts *TestStep) deleteDrive(ctx xcontext.Context) error {
+	endpoint := fmt.Sprintf("%s%s/contexts/%s/drives/%s",
+		ts.Parameter.Host, ts.Parameter.Version, ts.Parameter.ContextID, filepath.Base(ts.Parameter.Image))
+
+	resp, err := HTTPRequest(ctx, http.MethodDelete, endpoint, nil)
+	if err != nil {
+		return fmt.Errorf("failed to do HTTP request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	switch resp.StatusCode {
+	case http.StatusOK:
+		break
+	case http.StatusGone:
+		fmt.Print("drive does not exist anymore.\n")
+		break
+	default:
+		return fmt.Errorf("drive could not be deleted. Endpoint: %s, Statuscode: %d", endpoint, resp.StatusCode)
 	}
 
 	return nil
