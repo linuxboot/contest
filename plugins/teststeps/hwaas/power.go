@@ -87,31 +87,36 @@ func (ts *TestStep) powerCmds(ctx xcontext.Context, outputBuf *strings.Builder) 
 
 // powerOn turns on the device. To power the device on we have to fulfill this requirements -> reset is off -> pdu is on.
 func (ts *TestStep) powerOn(ctx xcontext.Context, outputBuf *strings.Builder) error {
+	if err := ts.unresetDUT(ctx); err != nil {
+		return fmt.Errorf("failed to power on DUT: %v", err)
+	}
+
+	if ts.Parameter.ContextID == "db99f1e5-f438-418b-bfa4-30b72957ce33" || ts.Parameter.ContextID == "d6005a94-bfc8-4490-99dd-70a9c3cb5213" || // T14 Gen4 & T16 Gen2
+		ts.Parameter.ContextID == "b6c2023b-1c35-4633-95c1-3eb796d23572" || ts.Parameter.ContextID == "3d2702d5-8c04-4144-8455-44d80a6cbed3" { // P14s Gen4 & X13 Gen4 Yoga
+		if err := ts.powerOnLED(ctx, outputBuf); err != nil {
+			return err
+		}
+	} else {
+		if err := ts.powerOnFUSB(ctx, outputBuf); err != nil {
+			return err
+		}
+	}
+
+	outputBuf.WriteString("DUT was powered on successfully.\n")
+
+	return nil
+}
+
+func (ts *TestStep) powerOnLED(ctx xcontext.Context, outputBuf *strings.Builder) error {
 	var (
 		state string
 		err   error
 	)
 
-	if err := ts.unresetDUT(ctx); err != nil {
-		return fmt.Errorf("failed to power on DUT: %v", err)
-	}
-
 	// Check the led if the device is on
-	if ts.Parameter.ContextID == "db99f1e5-f438-418b-bfa4-30b72957ce33" || ts.Parameter.ContextID == "d6005a94-bfc8-4490-99dd-70a9c3cb5213" || // T14 Gen4 & T16 Gen2
-		ts.Parameter.ContextID == "b6c2023b-1c35-4633-95c1-3eb796d23572" || ts.Parameter.ContextID == "3d2702d5-8c04-4144-8455-44d80a6cbed3" { // P14s Gen4 & X13 Gen4 Yoga
-		state, err = ts.getState(ctx, led)
-		if err != nil {
-			return err
-		}
-	} else {
-		for i := 0; i < trials; i++ {
-			time.Sleep(trialTimeout)
-
-			state, err = ts.getState(ctx, fusb)
-			if err != nil {
-				return err
-			}
-		}
+	state, err = ts.getState(ctx, led)
+	if err != nil {
+		return err
 	}
 
 	if state == off {
@@ -135,28 +140,67 @@ func (ts *TestStep) powerOn(ctx xcontext.Context, outputBuf *strings.Builder) er
 	}
 
 	// Check the led if the device is on
-	if ts.Parameter.ContextID == "db99f1e5-f438-418b-bfa4-30b72957ce33" || ts.Parameter.ContextID == "d6005a94-bfc8-4490-99dd-70a9c3cb5213" || // T14 Gen4 & T16 Gen2
-		ts.Parameter.ContextID == "b6c2023b-1c35-4633-95c1-3eb796d23572" || ts.Parameter.ContextID == "3d2702d5-8c04-4144-8455-44d80a6cbed3" { // P14s Gen4 & X13 Gen4 Yoga
-		state, err = ts.getState(ctx, led)
-		if err != nil {
-			return err
-		}
-	} else {
-		for i := 0; i < trials; i++ {
-			time.Sleep(trialTimeout)
-
-			state, err = ts.getState(ctx, fusb)
-			if err != nil {
-				return err
-			}
-		}
+	state, err = ts.getState(ctx, led)
+	if err != nil {
+		return err
 	}
 
 	if state != on {
 		return fmt.Errorf("failed to power on DUT: State is '%s'", state)
 	}
 
-	outputBuf.WriteString("DUT was powered on successfully.\n")
+	return nil
+}
+
+func (ts *TestStep) powerOnFUSB(ctx xcontext.Context, outputBuf *strings.Builder) error {
+	var (
+		state string
+		err   error
+	)
+
+	// Check the led if the device is on
+	for i := 0; i < trials; i++ {
+		time.Sleep(trialTimeout)
+
+		state, err = ts.getFusbState(ctx, fusb)
+		if err != nil {
+			return err
+		}
+	}
+
+	if state == off {
+		if ts.Parameter.Image != "" {
+			if err := ts.mountImage(ctx, outputBuf); err != nil {
+				return fmt.Errorf("failed to mount image: %w", err)
+			}
+		}
+
+		time.Sleep(time.Second)
+
+		if err := ts.postFusbPower(ctx, powerOn); err != nil {
+			return fmt.Errorf("failed to power on DUT: %v", err)
+		}
+
+		time.Sleep(powerTimeout)
+	} else if state == on {
+		outputBuf.WriteString("DUT was already powered on.\n")
+
+		return nil
+	}
+
+	// Check the led if the device is on
+	for i := 0; i < trials; i++ {
+		time.Sleep(trialTimeout)
+
+		state, err = ts.getFusbState(ctx, fusb)
+		if err != nil {
+			return err
+		}
+	}
+
+	if state != on {
+		return fmt.Errorf("failed to power on DUT: State is '%s'", state)
+	}
 
 	return nil
 }
@@ -220,6 +264,34 @@ type postPower struct {
 // duration can be set from 0s to 20s.
 func (ts *TestStep) postPower(ctx xcontext.Context, duration string) error {
 	endpoint := fmt.Sprintf("%s%s/contexts/%s/machines/%s/auxiliaries/%s/api/power",
+		ts.Parameter.Host, ts.Parameter.Version, ts.Parameter.ContextID, ts.Parameter.MachineID, ts.Parameter.DeviceID)
+
+	postPower := postPower{
+		Duration: duration,
+	}
+
+	powerBody, err := json.Marshal(postPower)
+	if err != nil {
+		return fmt.Errorf("failed to marshal body: %w", err)
+	}
+
+	resp, err := HTTPRequest(ctx, http.MethodPost, endpoint, bytes.NewBuffer(powerBody))
+	if err != nil {
+		return fmt.Errorf("failed to do HTTP request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("failed to Post to Power. Statuscode: %d, Response Body: %v", resp.StatusCode, resp.Body)
+	}
+
+	return nil
+}
+
+// postFusbPower pushes the power button for the time of 'duration' over the Fusb302b adapter.
+// duration can be set from 0s to 20s.
+func (ts *TestStep) postFusbPower(ctx xcontext.Context, duration string) error {
+	endpoint := fmt.Sprintf("%s%s/contexts/%s/machines/%s/auxiliaries/%s/api/fusb",
 		ts.Parameter.Host, ts.Parameter.Version, ts.Parameter.ContextID, ts.Parameter.MachineID, ts.Parameter.DeviceID)
 
 	postPower := postPower{
@@ -331,6 +403,35 @@ type getState struct {
 // The input parameter command should have one of this values.
 func (ts *TestStep) getState(ctx xcontext.Context, command string) (string, error) {
 	endpoint := fmt.Sprintf("%s%s/contexts/%s/machines/%s/auxiliaries/%s/api/%s",
+		ts.Parameter.Host, ts.Parameter.Version, ts.Parameter.ContextID, ts.Parameter.MachineID, ts.Parameter.DeviceID, command)
+
+	resp, err := HTTPRequest(ctx, http.MethodGet, endpoint, bytes.NewBuffer(nil))
+	if err != nil {
+		return "", fmt.Errorf("failed to do HTTP request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("state could not be retrieved. Statuscode: %d, Response Body: %v", resp.StatusCode, resp.Body)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("could not extract response body: %v", err)
+	}
+
+	data := getState{}
+
+	if err := json.Unmarshal(body, &data); err != nil {
+		return "", fmt.Errorf("could not unmarshal response body: %v", err)
+	}
+
+	return data.State, nil
+}
+
+// getFusbState returns the state of the led read out over the Fusb302b adapter.
+func (ts *TestStep) getFusbState(ctx xcontext.Context, command string) (string, error) {
+	endpoint := fmt.Sprintf("%s%s/contexts/%s/machines/%s/auxiliaries/%s/api/fusb",
 		ts.Parameter.Host, ts.Parameter.Version, ts.Parameter.ContextID, ts.Parameter.MachineID, ts.Parameter.DeviceID, command)
 
 	resp, err := HTTPRequest(ctx, http.MethodGet, endpoint, bytes.NewBuffer(nil))
