@@ -13,18 +13,19 @@ import (
 )
 
 const (
-	on             = "on"
-	off            = "off"
-	reset          = "reset"
-	led            = "led"
-	vcc            = "vcc"
-	fusb           = "fusb"
-	powerOn        = "3s"
-	powerOff       = "12s"
-	unresetTimeout = 3 * time.Second
-	powerTimeout   = 5 * time.Second
-	trialTimeout   = 200 * time.Millisecond
-	trials         = 5
+	on               = "on"
+	off              = "off"
+	reset            = "reset"
+	led              = "led"
+	vcc              = "vcc"
+	fusb             = "fusb"
+	powerOn          = "3s"
+	powerOff         = "12s"
+	unresetTimeout   = 3 * time.Second
+	powerTimeout     = 5 * time.Second
+	fusbPowerTimeout = 20 * time.Second
+	trialTimeout     = 200 * time.Millisecond
+	trials           = 5
 )
 
 // powerCmds is a helper function to call into the different power commands
@@ -97,7 +98,7 @@ func (ts *TestStep) powerOn(ctx xcontext.Context, outputBuf *strings.Builder) er
 			return err
 		}
 	} else {
-		if err := ts.powerOnFUSB(ctx, outputBuf); err != nil {
+		if err := ts.powerFUSB(ctx, outputBuf); err != nil {
 			return err
 		}
 	}
@@ -152,7 +153,7 @@ func (ts *TestStep) powerOnLED(ctx xcontext.Context, outputBuf *strings.Builder)
 	return nil
 }
 
-func (ts *TestStep) powerOnFUSB(ctx xcontext.Context, outputBuf *strings.Builder) error {
+func (ts *TestStep) powerFUSB(ctx xcontext.Context, outputBuf *strings.Builder) error {
 	var (
 		state string
 		err   error
@@ -162,7 +163,7 @@ func (ts *TestStep) powerOnFUSB(ctx xcontext.Context, outputBuf *strings.Builder
 	for i := 0; i < trials; i++ {
 		time.Sleep(trialTimeout)
 
-		state, err = ts.getFusbState(ctx, fusb)
+		state, err = ts.getFusbState(ctx)
 		if err != nil {
 			return err
 		}
@@ -177,11 +178,11 @@ func (ts *TestStep) powerOnFUSB(ctx xcontext.Context, outputBuf *strings.Builder
 
 		time.Sleep(time.Second)
 
-		if err := ts.postFusbPower(ctx, powerOn); err != nil {
+		if err := ts.postFusbPower(ctx); err != nil {
 			return fmt.Errorf("failed to power on DUT: %v", err)
 		}
 
-		time.Sleep(powerTimeout)
+		time.Sleep(fusbPowerTimeout)
 	} else if state == on {
 		outputBuf.WriteString("DUT was already powered on.\n")
 
@@ -192,7 +193,7 @@ func (ts *TestStep) powerOnFUSB(ctx xcontext.Context, outputBuf *strings.Builder
 	for i := 0; i < trials; i++ {
 		time.Sleep(trialTimeout)
 
-		state, err = ts.getFusbState(ctx, fusb)
+		state, err = ts.getFusbState(ctx)
 		if err != nil {
 			return err
 		}
@@ -219,7 +220,40 @@ func (ts *TestStep) powerOffSoft(ctx xcontext.Context, outputBuf *strings.Builde
 		if err != nil {
 			return err
 		}
+
+		if state == on {
+			time.Sleep(time.Second)
+			// If device is on, press power button for 12s
+			if err := ts.postPower(ctx, powerOff); err != nil {
+				return fmt.Errorf("failed to power off DUT: %v", err)
+			}
+
+			time.Sleep(12 * time.Second)
+		}
+
+		state, err = ts.getState(ctx, led)
+		if err != nil {
+			return err
+		}
 	} else {
+		for i := 0; i < trials; i++ {
+			time.Sleep(trialTimeout)
+
+			state, err = ts.getState(ctx, fusb)
+			if err != nil {
+				return err
+			}
+		}
+
+		if state == on {
+			time.Sleep(time.Second)
+			if err := ts.postFusbPower(ctx); err != nil {
+				return fmt.Errorf("failed to power off DUT: %v", err)
+			}
+
+			time.Sleep(fusbPowerTimeout)
+		}
+
 		for i := 0; i < trials; i++ {
 			time.Sleep(trialTimeout)
 
@@ -230,18 +264,11 @@ func (ts *TestStep) powerOffSoft(ctx xcontext.Context, outputBuf *strings.Builde
 		}
 	}
 
-	if state == on {
-		time.Sleep(time.Second)
-		// If device is on, press power button for 12s
-		if err := ts.postPower(ctx, powerOff); err != nil {
-			return fmt.Errorf("failed to power off DUT: %v", err)
-		}
-
-		time.Sleep(12 * time.Second)
+	if state == off {
+		outputBuf.WriteString("DUT was powered off successfully.\n")
+	} else {
+		return fmt.Errorf("failed to power off DUT: %v", err)
 	}
-
-	outputBuf.WriteString("DUT was powered off successfully.\n")
-
 	return nil
 }
 
@@ -288,29 +315,19 @@ func (ts *TestStep) postPower(ctx xcontext.Context, duration string) error {
 	return nil
 }
 
-// postFusbPower pushes the power button for the time of 'duration' over the Fusb302b adapter.
-// duration can be set from 0s to 20s.
-func (ts *TestStep) postFusbPower(ctx xcontext.Context, duration string) error {
+// postFusbPower pushes the power button over the Fusb302b adapter.
+func (ts *TestStep) postFusbPower(ctx xcontext.Context) error {
 	endpoint := fmt.Sprintf("%s%s/contexts/%s/machines/%s/auxiliaries/%s/api/fusb",
 		ts.Parameter.Host, ts.Parameter.Version, ts.Parameter.ContextID, ts.Parameter.MachineID, ts.Parameter.DeviceID)
 
-	postPower := postPower{
-		Duration: duration,
-	}
-
-	powerBody, err := json.Marshal(postPower)
-	if err != nil {
-		return fmt.Errorf("failed to marshal body: %w", err)
-	}
-
-	resp, err := HTTPRequest(ctx, http.MethodPost, endpoint, bytes.NewBuffer(powerBody))
+	resp, err := HTTPRequest(ctx, http.MethodPost, endpoint, nil)
 	if err != nil {
 		return fmt.Errorf("failed to do HTTP request: %v", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("failed to Post to Power. Statuscode: %d, Response Body: %v", resp.StatusCode, resp.Body)
+		return fmt.Errorf("failed to post to Power. Statuscode: %d, Response Body: %v", resp.StatusCode, resp.Body)
 	}
 
 	return nil
@@ -430,9 +447,9 @@ func (ts *TestStep) getState(ctx xcontext.Context, command string) (string, erro
 }
 
 // getFusbState returns the state of the led read out over the Fusb302b adapter.
-func (ts *TestStep) getFusbState(ctx xcontext.Context, command string) (string, error) {
+func (ts *TestStep) getFusbState(ctx xcontext.Context) (string, error) {
 	endpoint := fmt.Sprintf("%s%s/contexts/%s/machines/%s/auxiliaries/%s/api/fusb",
-		ts.Parameter.Host, ts.Parameter.Version, ts.Parameter.ContextID, ts.Parameter.MachineID, ts.Parameter.DeviceID, command)
+		ts.Parameter.Host, ts.Parameter.Version, ts.Parameter.ContextID, ts.Parameter.MachineID, ts.Parameter.DeviceID)
 
 	resp, err := HTTPRequest(ctx, http.MethodGet, endpoint, bytes.NewBuffer(nil))
 	if err != nil {
