@@ -21,7 +21,7 @@ const (
 var Name = "Copy"
 
 const (
-	defaultTimeout = 10 * time.Minute
+	defaultTimeout = time.Minute
 )
 
 type inputStepParams struct {
