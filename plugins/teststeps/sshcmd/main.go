@@ -17,7 +17,7 @@ import (
 var Name = "SSHCmd"
 
 const (
-	defaultTimeout = 10 * time.Minute
+	defaultTimeout = time.Minute
 	in             = "input"
 	out            = "expect"
 )
