@@ -141,7 +141,6 @@ func (ts *TestStep) createDrive(ctx xcontext.Context, hash string) error {
 		break
 	case http.StatusConflict:
 		fmt.Print("Drive already exists.\n")
-		break
 	default:
 		return fmt.Errorf("drive could not be created. Endpoint: %s, Statuscode: %d", endpoint, resp.StatusCode)
 	}
@@ -164,7 +163,6 @@ func (ts *TestStep) deleteDrive(ctx xcontext.Context) error {
 		break
 	case http.StatusGone:
 		fmt.Print("drive does not exist anymore.\n")
-		break
 	default:
 		return fmt.Errorf("drive could not be deleted. Endpoint: %s, Statuscode: %d", endpoint, resp.StatusCode)
 	}

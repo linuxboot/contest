@@ -57,7 +57,9 @@ func (ts *TestStep) flashWrite(ctx xcontext.Context, outputBuf *strings.Builder,
 	}
 
 	if ts.Parameter.Image != "" {
-		ts.deleteDrive(ctx)
+		if err := ts.deleteDrive(ctx); err != nil {
+			return err
+		}
 	}
 
 	if err := ts.resetDUT(ctx); err != nil {
