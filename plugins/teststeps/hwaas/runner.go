@@ -2,6 +2,8 @@ package hwaas
 
 import (
 	"fmt"
+	"io"
+	"net/http"
 	"strings"
 	"time"
 
@@ -23,6 +25,12 @@ func NewTargetRunner(ts *TestStep, ev testevent.Emitter) *TargetRunner {
 		ev: ev,
 	}
 }
+
+const (
+	power    = "power"
+	flash    = "flash"
+	keyboard = "keyboard"
+)
 
 func (r *TargetRunner) Run(ctx xcontext.Context, target *target.Target) error {
 	var outputBuf strings.Builder
@@ -49,26 +57,55 @@ func (r *TargetRunner) Run(ctx xcontext.Context, target *target.Target) error {
 	writeCommand(params.Parameter.Command, params.Parameter.Args, &outputBuf)
 
 	switch params.Parameter.Command {
-	case "power":
+	case power:
 		if err := r.ts.powerCmds(ctx, &outputBuf); err != nil {
 			outputBuf.WriteString(fmt.Sprintf("%v\n", err))
 
 			return emitStderr(ctx, outputBuf.String(), target, r.ev, err)
 		}
 
-	case "flash":
+	case flash:
 		if err := r.ts.flashCmds(ctx, &outputBuf); err != nil {
 			outputBuf.WriteString(fmt.Sprintf("%v\n", err))
 
 			return emitStderr(ctx, outputBuf.String(), target, r.ev, err)
 		}
 
+	case keyboard:
+		if err := r.ts.keyboardCmds(ctx, &outputBuf); err != nil {
+			outputBuf.WriteString(fmt.Sprintf("%v\n", err))
+
+			return emitStderr(ctx, outputBuf.String(), target, r.ev, err)
+		}
+
 	default:
-		err := fmt.Errorf("Command '%s' is not valid. Possible values are 'power' and 'flash'.", params.Parameter.Command)
+		err := fmt.Errorf("Command '%s' is not valid. Possible values are 'power', 'flash' and 'keyboard'.", params.Parameter.Command)
 		outputBuf.WriteString(fmt.Sprintf("%v\n", err))
 
 		return emitStderr(ctx, outputBuf.String(), target, r.ev, err)
 	}
 
 	return emitStdout(ctx, outputBuf.String(), target, r.ev)
+}
+
+// HTTPRequest triggerers a http request and returns the response. The parameter that can be set are:
+// method: can be every http method
+// endpoint: api endpoint that shall be requested
+// body: the body of the request
+func HTTPRequest(ctx xcontext.Context, method string, endpoint string, body io.Reader) (*http.Response, error) {
+	client := &http.Client{}
+
+	req, err := http.NewRequestWithContext(ctx, method, endpoint, body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", "application/json")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	return resp, nil
 }

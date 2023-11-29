@@ -19,8 +19,8 @@ const (
 	led              = "led"
 	vcc              = "vcc"
 	fusb             = "fusb"
-	powerOn          = "3s"
-	powerOff         = "12s"
+	powerOnDuration  = "3s"
+	powerOffDuration = "12s"
 	unresetTimeout   = 3 * time.Second
 	powerTimeout     = 5 * time.Second
 	fusbPowerTimeout = 20 * time.Second
@@ -129,7 +129,7 @@ func (ts *TestStep) powerOnLED(ctx xcontext.Context, outputBuf *strings.Builder)
 
 		time.Sleep(time.Second)
 
-		if err := ts.postPower(ctx, powerOn); err != nil {
+		if err := ts.postPower(ctx, powerOnDuration); err != nil {
 			return fmt.Errorf("failed to power on DUT: %v", err)
 		}
 
@@ -224,7 +224,7 @@ func (ts *TestStep) powerOffSoft(ctx xcontext.Context, outputBuf *strings.Builde
 		if state == on {
 			time.Sleep(time.Second)
 			// If device is on, press power button for 12s
-			if err := ts.postPower(ctx, powerOff); err != nil {
+			if err := ts.postPower(ctx, powerOffDuration); err != nil {
 				return fmt.Errorf("failed to power off DUT: %v", err)
 			}
 
