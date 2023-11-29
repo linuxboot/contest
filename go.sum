@@ -119,16 +119,6 @@ github.com/envoyproxy/go-control-plane v0.9.9-0.20210217033140-668b12f5399d/go.m
 github.com/envoyproxy/protoc-gen-validate v0.1.0/go.mod h1:iSmxcyjqTsJpI2R4NaDN7+kN2VEUnK/pcBlmesArF7c=
 github.com/fatih/structs v1.1.0 h1:Q7juDM0QtcnhCpeyLGQKyg4TOIghuNXrkL32pHAUMxo=
 github.com/fatih/structs v1.1.0/go.mod h1:9NiDSp5zOcgEDl+j00MP/WkGVPOlPRLejGD8Ga6PJ7M=
-github.com/firmwareci/system-suite v0.0.0-20230809065410-69922e74ec6b h1:jktF2G5daB+G2TiVUNWnYxVH6Exs2upRjW0BrjAsQ2M=
-github.com/firmwareci/system-suite v0.0.0-20230809065410-69922e74ec6b/go.mod h1:M34CAGFCpAbF8X9Mh33G3xf/qBCQKN/CCrfPIjQOTbI=
-github.com/firmwareci/system-suite v0.0.0-20230912154548-f7d71e36b49b h1:TATJZFPA883zJ00+sE1YmBNeUfbDI4JekLwOObjZ9Xc=
-github.com/firmwareci/system-suite v0.0.0-20230912154548-f7d71e36b49b/go.mod h1:M34CAGFCpAbF8X9Mh33G3xf/qBCQKN/CCrfPIjQOTbI=
-github.com/firmwareci/system-suite v0.0.0-20230913061551-e6582dbd40ce h1:kR0tt/lqA0Skzn/z3n2PzvybbHY/L+ahbmIY3OxQEis=
-github.com/firmwareci/system-suite v0.0.0-20230913061551-e6582dbd40ce/go.mod h1:M34CAGFCpAbF8X9Mh33G3xf/qBCQKN/CCrfPIjQOTbI=
-github.com/firmwareci/system-suite v0.0.0-20230913062645-f1217d5bc4d6 h1:NiIQ3gpaZoTT8lD/hQewvZH93l8Yizz2OHRu27BjzDQ=
-github.com/firmwareci/system-suite v0.0.0-20230913062645-f1217d5bc4d6/go.mod h1:M34CAGFCpAbF8X9Mh33G3xf/qBCQKN/CCrfPIjQOTbI=
-github.com/firmwareci/system-suite v0.0.0-20230913110323-eb204b21a004 h1:53i/3WoXiAZb5ECkBn5z/BMaWSj73XTAOU78bXTCww0=
-github.com/firmwareci/system-suite v0.0.0-20230913110323-eb204b21a004/go.mod h1:M34CAGFCpAbF8X9Mh33G3xf/qBCQKN/CCrfPIjQOTbI=
 github.com/firmwareci/system-suite v0.0.0-20230913123226-985a92c97c9f h1:X5t8xbkqJ7I4Z148YMp9FBT3zU+4JLrD7buVcWzODgs=
 github.com/firmwareci/system-suite v0.0.0-20230913123226-985a92c97c9f/go.mod h1:M34CAGFCpAbF8X9Mh33G3xf/qBCQKN/CCrfPIjQOTbI=
 github.com/fsnotify/fsnotify v1.4.7/go.mod h1:jwhsz4b93w/PPRr/qN1Yymfu8t87LnFCMoQvtojpjFo=
