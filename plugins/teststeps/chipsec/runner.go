@@ -168,7 +168,7 @@ func (ts *TestStep) runModule(ctx xcontext.Context, outputBuf *strings.Builder, 
 		// between "an error occured while launching" and "this was the outcome of the execution"
 		outcome := proc.Start(ctx)
 		if outcome == nil {
-			proc.Wait(ctx)
+			_ = proc.Wait(ctx)
 		}
 
 		stdout, stderr := getOutputFromReader(stdoutPipe, stderrPipe, outputBuf)
