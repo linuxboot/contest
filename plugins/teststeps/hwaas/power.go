@@ -46,29 +46,31 @@ func (ts *TestStep) powerCmds(ctx xcontext.Context, outputBuf *strings.Builder) 
 			}
 
 			if len(ts.Parameter.Args) >= 2 {
-				if ts.Parameter.Args[1] == "hard" {
-					if err := ts.powerOffHard(ctx, outputBuf); err != nil {
-						return err
-					}
-				} else {
-					return fmt.Errorf("failed to execute the power off command. The last argument is not valid. The only possible value is 'hard'.")
+				if ts.Parameter.Args[1] != "hard" {
+					outputBuf.WriteString(fmt.Sprintf("Failed to execute the reboot command with arguments: %v. The last argument is not valid.\nThe only possible value is 'hard'. Executing a hard reset instead now.", ts.Parameter.Args))
+				}
+				if err := ts.powerOffHard(ctx, outputBuf); err != nil {
+					return err
 				}
 			}
 
 			return nil
 
 		case "reboot":
-			if err := ts.powerOffSoft(ctx, outputBuf); err != nil {
-				return err
-			}
-
 			if len(ts.Parameter.Args) >= 2 {
-				if ts.Parameter.Args[1] == "hard" {
+				if ts.Parameter.Args[1] != "hard" {
+					outputBuf.WriteString(fmt.Sprintf("Failed to execute the reboot command with arguments: %v. The last argument is not valid.\nThe only possible value is 'hard'. Executing a hard reset instead now.", ts.Parameter.Args))
+				}
+
+				if err := ts.powerOffHard(ctx, outputBuf); err != nil {
+					return err
+				}
+			} else {
+				if err := ts.powerOffSoft(ctx, outputBuf); err != nil {
+					outputBuf.WriteString(fmt.Sprintf("Failed to power off the device: %s. Trying to power off the device hard now.\n", err))
 					if err := ts.powerOffHard(ctx, outputBuf); err != nil {
 						return err
 					}
-				} else {
-					return fmt.Errorf("failed to execute the reboot command. The last argument is not valid. The only possible value is 'hard'.")
 				}
 			}
 
@@ -82,7 +84,7 @@ func (ts *TestStep) powerCmds(ctx xcontext.Context, outputBuf *strings.Builder) 
 			return fmt.Errorf("failed to execute the power command. The argument '%s' is not valid. Possible values are 'on', 'off' and 'reboot'.", ts.Parameter.Args)
 		}
 	} else {
-		return fmt.Errorf("failed to execute the power command. Args is empty. Possible values are 'on', 'off' and 'reboot'.")
+		return fmt.Errorf("failed to execute the power command. Arguments are empty. Possible values are 'on', 'off' and 'reboot'.")
 	}
 }
 
@@ -267,7 +269,7 @@ func (ts *TestStep) powerOffSoft(ctx xcontext.Context, outputBuf *strings.Builde
 	if state == off {
 		outputBuf.WriteString("DUT was powered off successfully.\n")
 	} else {
-		return fmt.Errorf("failed to power off DUT: %v", err)
+		return fmt.Errorf("failed to power off DUT: DUT is still on")
 	}
 	return nil
 }
