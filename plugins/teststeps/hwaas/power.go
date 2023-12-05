@@ -21,7 +21,7 @@ const (
 	fusb             = "fusb"
 	powerOnDuration  = "3s"
 	powerOffDuration = "12s"
-	unresetTimeout   = 3 * time.Second
+	unresetTimeout   = 10 * time.Second
 	powerTimeout     = 5 * time.Second
 	fusbPowerTimeout = 20 * time.Second
 	trialTimeout     = 200 * time.Millisecond
