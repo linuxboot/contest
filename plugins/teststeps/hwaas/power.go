@@ -355,6 +355,8 @@ func (ts *TestStep) pressPDU(ctx xcontext.Context, method string) error {
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("PDU could not be set to the correct state. Statuscode: %d, Response Body: %v", resp.StatusCode, resp.Body)
 	} else {
+		time.Sleep(time.Second)
+
 		powerState, err := ts.getPDUState(ctx)
 		if err != nil {
 			return err
