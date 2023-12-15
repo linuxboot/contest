@@ -83,7 +83,18 @@ func (ts *TestStep) flashWrite(ctx xcontext.Context, outputBuf *strings.Builder,
 	}
 
 	if err := ts.waitTarget(ctx, write); err != nil {
-		return err
+		if ts.Parameter.ContextID == "568cd0e3-68e1-4cb0-bde4-cfb01776c721" {
+			outputBuf.WriteString("Retrying to flash DUT again.")
+			if err := ts.flashTarget(ctx); err != nil {
+				return fmt.Errorf("flashing DUT with %s failed: %v\n", sourceFile, err)
+			}
+			if err := ts.waitTarget(ctx, write); err != nil {
+				return fmt.Errorf("dut is not in expected state after flashing %s: %v", sourceFile, err)
+			}
+
+		} else {
+			return fmt.Errorf("dut is not in expected state after flashing %s: %v", sourceFile, err)
+		}
 	}
 
 	if err := ts.unresetDUT(ctx); err != nil {
